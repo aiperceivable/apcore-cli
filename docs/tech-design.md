@@ -169,7 +169,7 @@ This decision preserves and extends ADR-01 from Tech Design v0.4.
 
 **Decision:** The CLI command name is `apcore-cli`, matching the package name.
 
-**Rationale:** Consistent with `apcore-mcp`, `apcore-a2a`, `apexe`. Avoids collision with the 2-letter `ap` name. Users who want a shorter alias can set `alias ap="apcore-cli"`.
+**Rationale:** Consistent with `apcore-mcp` and `apcore-a2a`. Avoids collision with the 2-letter `ap` name. Users who want a shorter alias can set `alias ap="apcore-cli"`.
 
 **Entry point:**
 ```toml
