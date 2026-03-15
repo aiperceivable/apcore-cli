@@ -1,10 +1,15 @@
+<div align="center">
+  <img src="./apcore-cli-logo.svg" alt="apcore-cli logo" width="200"/>
+</div>
+
 # apcore-cli
+
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://github.com/aipartnerup/apcore-cli-python)
 
 **The CLI Adapter for apcore — Expose modules as high-performance, AI-perceivable command-line tools.**
 
 > **Build once, invoke by Code, AI, or Terminal.**
-
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 | | |
 |---|---|
