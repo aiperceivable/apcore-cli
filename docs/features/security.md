@@ -3,7 +3,7 @@
 **Feature ID**: FE-05
 **Status**: Ready for Implementation
 **Priority**: P1 (Auth, Encryption, Audit) / P2 (Sandbox)
-**Parent**: [Tech Design v1.0](../apcore-cli/tech-design.md) Section 8.6
+**Parent**: [Tech Design v1.0](../tech-design.md) Section 8.6
 **SRS Requirements**: FR-SEC-001, FR-SEC-002, FR-SEC-003, FR-SEC-004
 
 ---

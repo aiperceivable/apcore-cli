@@ -296,12 +296,10 @@ apcore-cli/
 ├── ideas/                     Design specifications and research notes
 ├── docs/
 │   ├── project-apcore-cli.md  Project manifest (8 features)
-│   ├── tech-design-apcore-cli.md   Tech Design v0.4 (historical)
-│   ├── apcore-cli/
-│   │   ├── tech-design.md     Tech Design v1.0 (current)
-│   │   └── srs.md             Software Requirements Specification
+│   ├── tech-design.md         Tech Design v1.0 (current)
+│   ├── srs.md                 Software Requirements Specification
 │   └── features/
-│       ├── overview.md        Feature overview & dependency graph
+│       ├── overview.md        Feature index & upstream references
 │       ├── core-dispatcher.md     FE-01 (P0)
 │       ├── schema-parser.md       FE-02 (P0)
 │       ├── config-resolver.md     FE-07 (P0)

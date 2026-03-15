@@ -3,7 +3,7 @@
 **Feature ID**: FE-03
 **Status**: Ready for Implementation
 **Priority**: P1
-**Parent**: [Tech Design v1.0](../apcore-cli/tech-design.md) Section 8.4
+**Parent**: [Tech Design v1.0](../tech-design.md) Section 8.4
 **SRS Requirements**: FR-APPR-001, FR-APPR-002, FR-APPR-003, FR-APPR-004, FR-APPR-005
 
 ---

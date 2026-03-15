@@ -12,7 +12,7 @@
 | **Date** | 2026-03-14 |
 | **Status** | Draft |
 | **Supersedes** | Tech Design v0.4 (`docs/tech-design-apcore-cli.md`) |
-| **Upstream SRS** | `docs/apcore-cli/srs.md` (SRS-APCORE-CLI-001 v0.1) |
+| **Upstream SRS** | `docs/srs.md` (SRS-APCORE-CLI-001 v0.1) |
 
 ---
 

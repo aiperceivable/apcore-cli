@@ -1,0 +1,75 @@
+site_name: apcore-cli
+site_description: Automatic MCP Server & OpenAI Tools Bridge for apcore — zero code changes required.
+site_url: https://aipartnerup.github.io/apcore-cli/
+repo_url: https://github.com/aipartnerup/apcore-cli
+repo_name: aipartnerup/apcore-cli
+theme:
+  name: material
+  logo: assets/apcore-cli-logo.svg
+  favicon: assets/apcore-cli-logo.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+
+plugins:
+  - search
+
+markdown_extensions:
+  - tables
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Specifications:
+      - Project Manifest: project-apcore-cli.md
+      - Software Requirements: srs.md
+      - Technical Design: tech-design.md
+  - Features:
+      - Overview: features/overview.md
+      - Core Dispatcher: features/core-dispatcher.md
+      - Schema Parser: features/schema-parser.md
+      - Approval Gate: features/approval-gate.md
+      - Discovery: features/discovery.md
+      - Config Resolver: features/config-resolver.md
+      - Output Formatter: features/output-formatter.md
+      - Security Manager: features/security.md
+      - Shell Integration: features/shell-integration.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/aipartnerup/apcore-cli

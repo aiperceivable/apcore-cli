@@ -63,7 +63,7 @@ The system shall NOT provide remote execution via apcore-a2a (deferred to Phase 
 
 | Ref ID | Document | Location |
 |--------|----------|----------|
-| REF-01 | Tech Design v1.0: apcore-cli | `docs/apcore-cli/tech-design.md` |
+| REF-01 | Tech Design v1.0: apcore-cli | `docs/tech-design.md` |
 | REF-02 | Feature Spec: Core Dispatcher | `docs/features/core-dispatcher.md` |
 | REF-03 | Feature Spec: Schema Parser | `docs/features/schema-parser.md` |
 | REF-04 | Feature Spec: Approval Gate | `docs/features/approval-gate.md` |
@@ -1545,7 +1545,7 @@ This SRS was developed in **standalone mode** without an upstream Product Requir
 
 | Source | Location | Contribution |
 |--------|----------|-------------|
-| **Tech Design v1.0** | `docs/tech-design-apcore-cli.md` | Architecture decisions (ADR-01 through ADR-03), error taxonomy, environment variable conventions, component design, performance targets. |
+| **Tech Design v1.0** | `docs/tech-design.md` | Architecture decisions (ADR-01 through ADR-03), error taxonomy, environment variable conventions, component design, performance targets. |
 | **Feature Specs** | `docs/features/*.md` | Functional requirements for Core Dispatcher (FE-01), Schema Parser (FE-02), Approval Gate (FE-03), and Discovery (FE-04). Boundary values and verification criteria. |
 | **User Clarification Interview** | N/A (inline) | Security requirements (auth, encryption, audit, sandbox), shell integration (completion, man pages), user characteristics (developer + AI agent), performance constraints. |
 | **ideas/draft.md** | `ideas/draft.md` | Original requirement IDs (FR-001 through FR-004, NFR-001 through NFR-002), problem statement, and validation rationale. |
