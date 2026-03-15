@@ -1,0 +1,184 @@
+# Feature Spec: Approval Gate
+
+**Feature ID**: FE-03
+**Status**: Ready for Implementation
+**Priority**: P1
+**Parent**: [Tech Design v1.0](../apcore-cli/tech-design.md) Section 8.4
+**SRS Requirements**: FR-APPR-001, FR-APPR-002, FR-APPR-003, FR-APPR-004, FR-APPR-005
+
+---
+
+## 1. Description
+
+The Approval Gate is a TTY-aware Human-in-the-Loop (HITL) middleware that intercepts module execution when `annotations.requires_approval` is `true`. It prompts interactive users for confirmation, blocks non-interactive callers without a bypass, supports `--yes` and `APCORE_CLI_AUTO_APPROVE=1` bypass mechanisms, and enforces a 60-second timeout on TTY prompts.
+
+---
+
+## 2. Requirements Traceability
+
+| Req ID | SRS Ref | Description |
+|--------|---------|-------------|
+| FR-03-01 | FR-APPR-001 | Check `annotations.requires_approval` field. |
+| FR-03-02 | FR-APPR-002 | TTY interactive prompt with `[y/N]` default deny. |
+| FR-03-03 | FR-APPR-003 | Non-TTY rejection with exit 46 and help message. |
+| FR-03-04 | FR-APPR-004 | `--yes` flag and `APCORE_CLI_AUTO_APPROVE=1` bypass. |
+| FR-03-05 | FR-APPR-005 | 60-second timeout on TTY prompts. |
+
+---
+
+## 3. Module Path
+
+`apcore_cli/approval.py`
+
+---
+
+## 4. Implementation Details
+
+### 4.1 Function: `check_approval`
+
+**Signature**: `check_approval(module_def: ModuleDefinition, auto_approve: bool, ctx: click.Context) -> None`
+
+**Returns**: `None` if approved (or approval not required). Raises `SystemExit` if denied/timed out/pending.
+
+Logic steps:
+1. Read `annotations = getattr(module_def, "annotations", None)`.
+2. If `annotations is None` or not a `dict`: return (no approval needed).
+3. Read `requires = annotations.get("requires_approval", False)`.
+4. If `requires` is not exactly `True` (boolean): return (skip). This handles `"true"` string, `1` int, `None`, etc.
+5. Check bypass mechanisms in priority order:
+   a. If `auto_approve is True` (from `--yes` flag):
+      - Log INFO: "Approval bypassed via --yes flag for module '{module_id}'."
+      - Return.
+   b. Read `env_val = os.environ.get("APCORE_CLI_AUTO_APPROVE", "")`.
+      - If `env_val == "1"`:
+        - Log INFO: "Approval bypassed via APCORE_CLI_AUTO_APPROVE for module '{module_id}'."
+        - Return.
+      - If `env_val != ""` and `env_val != "1"`:
+        - Log WARNING: "APCORE_CLI_AUTO_APPROVE is set to '{env_val}', expected '1'. Ignoring."
+6. Check TTY status: `is_tty = sys.stdin.isatty()`.
+7. If `not is_tty`:
+   - Write to stderr: "Error: Module '{module_id}' requires approval but no interactive terminal is available. Use --yes or set APCORE_CLI_AUTO_APPROVE=1 to bypass."
+   - Log ERROR: "Non-interactive environment, no bypass provided for module '{module_id}'."
+   - Exit code 46.
+8. If `is_tty`:
+   - Call `_prompt_with_timeout(module_def)`.
+
+### 4.2 Function: `_prompt_with_timeout`
+
+**Signature**: `_prompt_with_timeout(module_def: ModuleDefinition, timeout: int = 60) -> None`
+
+Logic steps:
+1. Extract `message = module_def.annotations.get("approval_message", None)`.
+2. If `message is None`: set `message = f"Module '{module_def.canonical_id}' requires approval to execute."`.
+3. Display `message` to terminal via `click.echo(message, err=True)`.
+4. Set up timeout:
+   - **Unix (POSIX)**: Use `signal.alarm(timeout)` with `signal.signal(signal.SIGALRM, _timeout_handler)`.
+   - **Windows**: Use `threading.Timer(timeout, _timeout_interrupt)`.
+5. Try:
+   a. Call `approved = click.confirm("Proceed?", default=False)`.
+   b. Cancel the alarm/timer.
+   c. If `approved`:
+      - Log INFO: "User approved execution of module '{module_id}'."
+      - Return.
+   d. If not `approved`:
+      - Log WARN: "Approval rejected by user for module '{module_id}'."
+      - Write to stderr: "Error: Approval denied."
+      - Exit code 46.
+6. On timeout (SIGALRM or timer fires):
+   - Log WARN: "Approval timed out after {timeout}s for module '{module_id}'."
+   - Write to stderr: "Error: Approval prompt timed out after {timeout} seconds."
+   - Exit code 46.
+
+### 4.3 Timeout Handler
+
+**Unix:**
+```python
+def _timeout_handler(signum, frame):
+    raise ApprovalTimeoutError()
+```
+
+**Windows:**
+```python
+def _timeout_interrupt():
+    import ctypes
+    ctypes.pythonapi.PyThreadState_SetAsyncExc(
+        ctypes.c_ulong(main_thread_id),
+        ctypes.py_object(ApprovalTimeoutError)
+    )
+```
+
+### 4.4 Custom Exception
+
+```python
+class ApprovalTimeoutError(Exception):
+    """Raised when the approval prompt times out."""
+    pass
+```
+
+---
+
+## 5. Parameter Validation
+
+| Parameter | Type | Valid Values | Invalid Handling |
+|-----------|------|-------------|------------------|
+| `module_def.annotations` | `dict \| None` | Dict with `requires_approval` key, or `None`. | If `None`: skip approval. If not dict: skip approval. |
+| `annotations.requires_approval` | `bool` | `True` or `False` | Any non-boolean (string `"true"`, int `1`, `None`): treat as `False`, skip. |
+| `auto_approve` | `bool` | `True` or `False` | Always boolean from Click. |
+| `APCORE_CLI_AUTO_APPROVE` | `str` (env var) | `"1"` to activate bypass. | `"true"`, `"yes"`, `"0"`, empty string: not bypass. Log WARNING for non-empty non-"1" values. |
+| `timeout` | `int` | `1..3600` | Default: 60. Out of range: clamp to bounds. |
+
+---
+
+## 6. Flow Diagram
+
+```
+check_approval(module_def, auto_approve, ctx)
+  |
+  +-- annotations.requires_approval != true? --> RETURN (proceed)
+  |
+  +-- --yes flag? --> Log bypass --> RETURN (proceed)
+  |
+  +-- APCORE_CLI_AUTO_APPROVE == "1"? --> Log bypass --> RETURN (proceed)
+  |
+  +-- APCORE_CLI_AUTO_APPROVE set but != "1"? --> Log WARNING (continue to TTY check)
+  |
+  +-- Non-TTY? --> stderr: "requires approval but no interactive terminal" --> EXIT 46
+  |
+  +-- TTY? --> Display message + "Proceed? [y/N]:"
+       |
+       +-- User types "y" within 60s --> Log approved --> RETURN (proceed)
+       |
+       +-- User types "n" or Enter within 60s --> Log denied --> EXIT 46
+       |
+       +-- 60s timeout --> Log timeout --> EXIT 46
+```
+
+---
+
+## 7. Error Handling
+
+| Condition | Exit Code | Error Message | SRS Reference |
+|-----------|-----------|---------------|---------------|
+| Approval denied (user typed n/N/Enter) | 46 | "Error: Approval denied." | FR-APPR-002 AF-1 |
+| Approval timeout (60s) | 46 | "Error: Approval prompt timed out after 60 seconds." | FR-APPR-005 AF-1 |
+| Non-TTY, no bypass | 46 | "Error: Module '{id}' requires approval but no interactive terminal is available. Use --yes or set APCORE_CLI_AUTO_APPROVE=1 to bypass." | FR-APPR-003 |
+
+---
+
+## 8. Verification
+
+| Test ID | Description | Expected Result |
+|---------|-------------|-----------------|
+| T-APPR-01 | Module with `requires_approval: true` in TTY, user types `y` | Execution proceeds. Log contains "approved". |
+| T-APPR-02 | Module with `requires_approval: true` in TTY, user types `n` | Exit 46. stderr: "Approval denied." |
+| T-APPR-03 | Module with `requires_approval: true` in TTY, user presses Enter | Exit 46. Default is deny (N). |
+| T-APPR-04 | Module with `requires_approval: true` in non-TTY, no bypass | Exit 46. stderr: "no interactive terminal". |
+| T-APPR-05 | Module with `requires_approval: true`, `--yes` flag | Execution proceeds. Log: "bypassed via --yes flag". |
+| T-APPR-06 | Module with `requires_approval: true`, `APCORE_CLI_AUTO_APPROVE=1` | Execution proceeds. Log: "bypassed via APCORE_CLI_AUTO_APPROVE". |
+| T-APPR-07 | `APCORE_CLI_AUTO_APPROVE=true` (not "1") | WARNING logged. Bypass NOT active. Falls through to TTY/non-TTY check. |
+| T-APPR-08 | Module with `requires_approval: false` | No prompt. Execution proceeds immediately. |
+| T-APPR-09 | Module with no `annotations` field | No prompt. Execution proceeds immediately. |
+| T-APPR-10 | TTY prompt, 60s timeout | Exit 46. stderr: "timed out after 60 seconds". |
+| T-APPR-11 | Both `--yes` and `APCORE_CLI_AUTO_APPROVE=1` set | `--yes` takes priority. Log: "bypassed via --yes flag". |
+| T-APPR-12 | Module with custom `approval_message` | Custom message displayed before prompt. |
+| T-APPR-13 | Module with no `approval_message` | Default message: "Module '{id}' requires approval to execute." |

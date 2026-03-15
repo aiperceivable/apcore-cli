@@ -1,0 +1,85 @@
+# Project Manifest: apcore-cli
+
+**Project Name**: apcore-cli
+**Strategy**: Multi-Split
+**Status**: Scoping
+**Date**: 2026-03-14
+
+---
+
+## FEATURE_MANIFEST
+
+| ID | Feature Name | Description | Priority | Specification |
+|:---|:---|:---|:---|:---|
+| **FE-01** | **Core Dispatcher** | CLI entry point, Registry loading, STDIN piping, module execution via Executor. | P0 | [core-dispatcher.md](features/core-dispatcher.md) |
+| **FE-02** | **Schema Parser** | Automatic generation of flags/options from JSON Schema `input_schema`, including `$ref` resolution. | P0 | [schema-parser.md](features/schema-parser.md) |
+| **FE-03** | **Approval Gate** | TTY-aware HITL logic for modules requiring approval, with bypass and timeout. | P1 | [approval-gate.md](features/approval-gate.md) |
+| **FE-04** | **Discovery** | Terminal-optimized `list` and `describe` commands with tag filtering and format selection. | P1 | [discovery.md](features/discovery.md) |
+| **FE-05** | **Security Manager** | API key auth, encrypted config (keyring + AES-256-GCM), audit logging, subprocess sandboxing. | P1/P2 | [security.md](features/security.md) |
+| **FE-06** | **Shell Integration** | Shell completion scripts (bash/zsh/fish) and man page generation. | P2 | [shell-integration.md](features/shell-integration.md) |
+| **FE-07** | **Config Resolver** | 4-tier configuration precedence (CLI > Env > File > Default). | P0 | [config-resolver.md](features/config-resolver.md) |
+| **FE-08** | **Output Formatter** | TTY-adaptive output formatting (JSON for pipes, tables for terminals). | P1 | [output-formatter.md](features/output-formatter.md) |
+
+---
+
+## Requirement Traceability
+
+Maps high-level requirements (from [ideas/draft.md](../ideas/draft.md)) to feature-level requirements.
+
+| Idea Req | Description | Feature Specs |
+|----------|-------------|---------------|
+| FR-001 | Mapping of Canonical ID to subcommands | FR-01-01, FR-01-02 |
+| FR-002 | Auto-generation of `--key value` flags from JSON Schema | FR-02-01 through FR-02-06 |
+| FR-003 | Support for `stdin` piping (`-`) | FR-01-05 |
+| FR-004 | TTY-aware approval for sensitive operations | FR-03-01 through FR-03-05 |
+| NFR-001 | Execution overhead < 100ms | FR-01-03 (boundary: <100ms startup) |
+| NFR-002 | Zero-config: point to apcore Registry | FR-01-03 (default: `./extensions`) |
+| — | Discovery (`apcore-cli list`, `apcore-cli describe`) | FR-04-01 through FR-04-05 (maps to SPEC §3.2) |
+| — | 4-tier configuration precedence | FR-07-01 through FR-07-03 |
+| — | TTY-adaptive output formatting | FR-08-01 through FR-08-04 |
+| — | Security (auth, encryption, audit, sandbox) | FR-05-01 through FR-05-04 |
+| — | Shell completions and man pages | FR-06-01, FR-06-02 |
+
+---
+
+## Project Dependencies
+- `apcore >= 0.13.0` (Core protocol, Registry, Executor, error hierarchy)
+- `click >= 8.1` (CLI framework — confirmed in [Tech Design v1.0](apcore-cli/tech-design.md), ADR-01)
+- `jsonschema >= 4.20` (JSON Schema validation and parsing)
+- `rich >= 13.0` (Terminal output formatting — tables, syntax highlighting)
+- `pyyaml >= 6.0` (Configuration file parsing)
+- `keyring >= 24.0` (OS keyring for encrypted config storage)
+- `cryptography >= 41.0` (AES-256-GCM encryption)
+
+---
+
+## Implementation Order
+
+1. **Config Resolver** (FE-07): Foundation for all configurable values.
+2. **Core Dispatcher** (FE-01): Establishes the `apcore-cli` command structure and registry loading.
+3. **Schema Parser** (FE-02): Connects module metadata to the command-line arguments.
+4. **Output Formatter** (FE-08): TTY-adaptive rendering used by Discovery and exec.
+5. **Discovery** (FE-04): Provides tools for browsing available modules.
+6. **Approval Gate** (FE-03): Adds governance and safety for sensitive module execution.
+7. **Security Manager** (FE-05): Authentication, encryption, auditing, sandboxing.
+8. **Shell Integration** (FE-06): Completion scripts and man pages.
+
+---
+
+## Dependency Graph
+
+```
+FE-07 Config Resolver (foundation)
+  └── FE-01 Core Dispatcher (depends on FE-07)
+        ├── FE-02 Schema Parser (depends on FE-01)
+        │     └── FE-03 Approval Gate (depends on FE-02)
+        ├── FE-08 Output Formatter (used by FE-01, FE-04)
+        │     └── FE-04 Discovery (depends on FE-01, FE-08)
+        ├── FE-05 Security Manager (depends on FE-07)
+        └── FE-06 Shell Integration (depends on FE-01, FE-02)
+```
+
+---
+
+## MVP Definition
+A functional `apcore-cli` command that can load a local `apcore` extensions directory, parse arguments for a simple module, and execute it while handling basic STDIN piping.

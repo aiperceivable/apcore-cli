@@ -1,0 +1,328 @@
+# apcore-cli
+
+**The CLI Adapter for apcore — Expose modules as high-performance, AI-perceivable command-line tools.**
+
+> **Build once, invoke by Code, AI, or Terminal.**
+
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
+| | |
+|---|---|
+| **Spec repo** | [github.com/aipartnerup/apcore-cli](https://github.com/aipartnerup/apcore-cli) |
+| **Python SDK** | [github.com/aipartnerup/apcore-cli-python](https://github.com/aipartnerup/apcore-cli-python) |
+| **apcore core** | [github.com/aipartnerup/apcore](https://github.com/aipartnerup/apcore) |
+
+---
+
+## What is this?
+
+`apcore-cli` is the "inside-out" adapter for the apcore ecosystem. While `apexe` scans existing tools to bring them *into* apcore, `apcore-cli` takes your **apcore modules** and automatically exposes them as **CLI subcommands** — with zero code changes.
+
+It serves as the terminal-native counterpart to `apcore-mcp` (Model Context Protocol) and `apcore-a2a` (Agent-to-Agent).
+
+```
+    apcore Module Registry            apcore-cli Adapter
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━        ━━━━━━━━━━━━━━━━━━━━━━
+  math.add(a, b)             ──┐
+  system.health.summary()    ──┤──→  apcore-cli math.add --a 1 --b 2
+  git.commit(msg)            ──┤──→  apcore-cli list --tag math
+  db.query(sql)              ──┘──→  apcore-cli describe math.add
+```
+
+---
+
+## Getting Started (Beginner Guide)
+
+### Prerequisites
+
+- Python 3.11+
+- An existing [apcore](https://github.com/aipartnerup/apcore) project with an extensions directory, **OR** the example modules included in the Python SDK
+
+### Step 1: Install
+
+```bash
+pip install apcore-cli
+```
+
+### Step 2: Try it with example modules
+
+```bash
+# Clone the Python SDK (includes 8 example modules)
+git clone https://github.com/aipartnerup/apcore-cli-python.git
+cd apcore-cli-python
+pip install -e ".[dev]"
+
+# Point to the example extensions
+export APCORE_EXTENSIONS_ROOT=examples/extensions
+
+# Run your first module
+apcore-cli math.add --a 5 --b 10
+# {"sum": 15}
+```
+
+### Step 3: Explore available modules
+
+```bash
+# List all discovered modules
+apcore-cli list
+
+# Filter by tag
+apcore-cli list --tag math
+
+# See full details for a module
+apcore-cli describe math.add
+```
+
+### Step 4: Try STDIN piping
+
+```bash
+# Pipe JSON input
+echo '{"a": 100, "b": 200}' | apcore-cli math.add --input -
+# {"sum": 300}
+
+# CLI flags override STDIN values
+echo '{"a": 1, "b": 2}' | apcore-cli math.add --input - --a 999
+# {"sum": 1001}
+
+# Chain with other tools
+apcore-cli sysutil.info | jq '.os, .hostname'
+```
+
+### Step 5: Use with your own project
+
+If you already have an apcore project with an extensions directory:
+
+```bash
+# One-time setup
+export APCORE_EXTENSIONS_ROOT=./extensions
+
+# Or pass it directly
+apcore-cli --extensions-dir ./extensions math.add --a 42 --b 58
+```
+
+That's it. No code changes, no configuration files, no new dependencies in your project.
+
+### Step 6: Write your first module
+
+Create a Python file in your extensions directory:
+
+```python
+# extensions/greet/hello.py
+from pydantic import BaseModel
+
+class Input(BaseModel):
+    name: str
+    greeting: str = "Hello"
+
+class Output(BaseModel):
+    message: str
+
+class GreetHello:
+    input_schema = Input
+    output_schema = Output
+    description = "Greet someone by name"
+
+    def execute(self, inputs, context=None):
+        return {"message": f"{inputs['greeting']}, {inputs['name']}!"}
+```
+
+Run it:
+
+```bash
+apcore-cli greet.hello --name World
+# {"message": "Hello, World!"}
+```
+
+---
+
+## Key Features
+
+- **Zero-Config Routing** -- Automatically maps module IDs (e.g., `math.add`) to CLI commands
+- **Schema-Driven Args** -- Uses `input_schema` to generate CLI arguments, types, and validation
+- **Boolean Flag Pairs** -- `--verbose` / `--no-verbose` from `"type": "boolean"` schema properties
+- **Enum Choices** -- `"enum": ["json", "csv"]` becomes `--format json` with Click validation
+- **STDIN Piping** -- `--input -` reads JSON from STDIN, CLI flags override for duplicate keys
+- **TTY-Adaptive Output** -- Rich tables for terminals, JSON for pipes (configurable via `--format`)
+- **Approval Gate** -- TTY-aware HITL prompts for modules with `requires_approval: true`, with `--yes` bypass and 60s timeout
+- **Schema Validation** -- Inputs validated against JSON Schema before execution, with `$ref`/`allOf`/`anyOf`/`oneOf` resolution
+- **Security** -- API key auth (keyring + AES-256-GCM), append-only audit logging, subprocess sandboxing
+- **Shell Completions** -- `apcore-cli completion bash|zsh|fish` generates completion scripts with dynamic module ID completion
+- **Man Pages** -- `apcore-cli man <command>` generates roff-formatted man pages
+- **Audit Logging** -- All executions logged to `~/.apcore-cli/audit.jsonl` with SHA-256 input hashing
+
+---
+
+## CLI Reference
+
+```
+apcore-cli [OPTIONS] COMMAND [ARGS]
+```
+
+### Global Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--extensions-dir` | `./extensions` | Path to apcore extensions directory |
+| `--log-level` | `INFO` | Logging: `DEBUG`, `INFO`, `WARN`, `ERROR` |
+| `--version` | | Show version and exit |
+| `--help` | | Show help and exit |
+
+### Built-in Commands
+
+| Command | Description |
+|---------|-------------|
+| `list` | List available modules with optional tag filtering |
+| `describe <module_id>` | Show full module metadata and schemas |
+| `completion <shell>` | Generate shell completion script (bash/zsh/fish) |
+| `man <command>` | Generate man page in roff format |
+
+### Module Execution Options
+
+When executing a module (e.g. `apcore-cli math.add`), these built-in options are always available:
+
+| Option | Description |
+|--------|-------------|
+| `--input -` | Read JSON input from STDIN |
+| `--yes` / `-y` | Bypass approval prompts |
+| `--large-input` | Allow STDIN input larger than 10MB |
+| `--format` | Output format: `json` or `table` |
+| `--sandbox` | Run module in subprocess sandbox |
+
+Schema-generated flags (e.g. `--a`, `--b`) are added automatically from the module's `input_schema`.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Module execution error |
+| `2` | Invalid CLI input |
+| `44` | Module not found / disabled / load error |
+| `45` | Schema validation error |
+| `46` | Approval denied or timed out |
+| `47` | Configuration error |
+| `48` | Schema circular reference |
+| `77` | ACL denied |
+| `130` | Execution cancelled (Ctrl+C) |
+
+---
+
+## Configuration
+
+apcore-cli uses a 4-tier configuration precedence:
+
+1. **CLI flag** (highest): `--extensions-dir ./custom`
+2. **Environment variable**: `APCORE_EXTENSIONS_ROOT=./custom`
+3. **Config file**: `apcore.yaml`
+4. **Default** (lowest): `./extensions`
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `APCORE_EXTENSIONS_ROOT` | Path to extensions directory | `./extensions` |
+| `APCORE_CLI_AUTO_APPROVE` | Set to `1` to bypass all approval prompts | *(unset)* |
+| `APCORE_LOGGING_LEVEL` | Log level | `INFO` |
+| `APCORE_AUTH_API_KEY` | API key for remote registry authentication | *(unset)* |
+| `APCORE_CLI_SANDBOX` | Set to `1` to enable subprocess sandboxing | *(unset)* |
+
+### Config File (`apcore.yaml`)
+
+```yaml
+extensions:
+  root: ./extensions
+logging:
+  level: DEBUG
+sandbox:
+  enabled: false
+```
+
+---
+
+## How It Works
+
+### Mapping: apcore to CLI
+
+| apcore | CLI |
+|--------|-----|
+| `module_id` (`math.add`) | Command name (`apcore-cli math.add`) |
+| `description` | `--help` text |
+| `input_schema.properties` | CLI flags (`--a`, `--b`) |
+| `input_schema.required` | Required flag enforcement |
+| `annotations.requires_approval` | HITL approval prompt |
+
+### Architecture
+
+```
+User / AI Agent (terminal)
+    |
+    v
+apcore-cli (the adapter)
+    |
+    +-- ConfigResolver       4-tier config precedence
+    +-- LazyModuleGroup      Dynamic Click command generation
+    +-- SchemaParser         JSON Schema -> Click options
+    +-- RefResolver          $ref / allOf / anyOf / oneOf
+    +-- ApprovalGate         TTY-aware HITL approval
+    +-- OutputFormatter      TTY-adaptive JSON/table output
+    +-- AuditLogger          JSON Lines execution logging
+    +-- Sandbox              Subprocess isolation
+    |
+    v
+apcore Registry + Executor (your modules, unchanged)
+```
+
+---
+
+## SDKs
+
+| Language | Repository | Status |
+|----------|-----------|--------|
+| **Python** | [apcore-cli-python](https://github.com/aipartnerup/apcore-cli-python) | v0.1.0 -- 8 features, 244 tests |
+
+---
+
+## Project Structure
+
+This repository contains the **specification and design documents**:
+
+```
+apcore-cli/
+├── ideas/                     Design specifications and research notes
+├── docs/
+│   ├── project-apcore-cli.md  Project manifest (8 features)
+│   ├── tech-design-apcore-cli.md   Tech Design v0.4 (historical)
+│   ├── apcore-cli/
+│   │   ├── tech-design.md     Tech Design v1.0 (current)
+│   │   └── srs.md             Software Requirements Specification
+│   └── features/
+│       ├── overview.md        Feature overview & dependency graph
+│       ├── core-dispatcher.md     FE-01 (P0)
+│       ├── schema-parser.md       FE-02 (P0)
+│       ├── config-resolver.md     FE-07 (P0)
+│       ├── approval-gate.md       FE-03 (P1)
+│       ├── discovery.md           FE-04 (P1)
+│       ├── output-formatter.md    FE-08 (P1)
+│       ├── security.md            FE-05 (P1/P2)
+│       └── shell-integration.md   FE-06 (P2)
+├── CHANGELOG.md
+└── README.md
+```
+
+For the **implementation**, see the [Python SDK](https://github.com/aipartnerup/apcore-cli-python).
+
+---
+
+## Related Projects
+
+| Project | Description |
+|---------|-------------|
+| [apcore](https://github.com/aipartnerup/apcore) | Core protocol and framework for AI-Perceivable modules |
+| [apcore-mcp](https://github.com/aipartnerup/apcore-mcp) | Model Context Protocol adapter |
+| [apcore-a2a](https://github.com/aipartnerup/apcore-a2a) | Agent-to-Agent adapter |
+| [django-apcore](https://github.com/aipartnerup/django-apcore) | Django integration |
+| [flask-apcore](https://github.com/aipartnerup/flask-apcore) | Flask integration |
+
+## License
+
+Apache-2.0
