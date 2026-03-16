@@ -21,7 +21,7 @@
 
 ## What is this?
 
-`apcore-cli` is the "inside-out" adapter for the apcore ecosystem. While `apexe` scans existing tools to bring them *into* apcore, `apcore-cli` takes your **apcore modules** and automatically exposes them as **CLI subcommands** — with zero code changes.
+`apcore-cli` is the "inside-out" adapter for the apcore ecosystem. It takes your **apcore modules** and automatically exposes them as **CLI subcommands** — with zero code changes.
 
 It serves as the terminal-native counterpart to `apcore-mcp` (Model Context Protocol) and `apcore-a2a` (Agent-to-Agent).
 
