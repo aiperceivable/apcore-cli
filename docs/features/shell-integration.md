@@ -43,24 +43,29 @@ Shell Integration provides two subcommands: `apcore-cli completion <shell>` for 
 ```
 
 Logic steps:
-1. If `shell == "bash"`: call `_generate_bash_completion()` and `click.echo()` the result.
-2. If `shell == "zsh"`: call `_generate_zsh_completion()` and `click.echo()` the result.
-3. If `shell == "fish"`: call `_generate_fish_completion()` and `click.echo()` the result.
-4. Exit code 0.
+1. Resolve `resolved = ctx.find_root().info_name or prog_name`.
+2. If `shell == "bash"`: call `_generate_bash_completion(resolved)` and `click.echo()` the result.
+3. If `shell == "zsh"`: call `_generate_zsh_completion(resolved)` and `click.echo()` the result.
+4. If `shell == "fish"`: call `_generate_fish_completion(resolved)` and `click.echo()` the result.
+5. Exit code 0.
 
-### 4.2 Function: `_generate_bash_completion`
 
-**Signature**: `_generate_bash_completion() -> str`
+### 4.2 Helper: `_make_function_name`
+
+**Signature**: `_make_function_name(prog_name: str) -> str`
+
+Converts `prog_name` to a valid POSIX shell identifier by replacing any character that is not `[a-zA-Z0-9]` with `_` and prepending `_`. Example: `"my-tool"` → `"_my_tool"`.
+
+### 4.3 Function: `_generate_bash_completion`
+
+**Signature**: `_generate_bash_completion(prog_name: str) -> str`
 
 Logic steps:
-1. Use Click's `_bashcomplete` module as the base template.
-2. Override the completion function to include:
-   a. Static subcommands: `exec`, `list`, `describe`, `completion`, `man`.
-   b. Dynamic module IDs: invoke `apcore-cli list --format json` internally, extract `id` fields.
-   c. Dynamic module flags: for `exec <module_id>`, invoke `apcore-cli exec <module_id> --help` internally, parse flag names.
-3. Generate the Bash completion script body:
+1. Compute shell function name via `_make_function_name(prog_name)`.
+2. Build the inline module-list shell command as `"<prog_name>" list --format json 2>/dev/null | python3 -c "..."`. `prog_name` is double-quoted in the embedded command to handle names that contain spaces.
+3. Generate the Bash completion script body (example for `prog_name="apcore-cli"`):
    ```bash
-   _apcore_cli_completion() {
+   _apcore_cli() {
        local cur prev opts
        COMPREPLY=()
        cur="${COMP_WORDS[COMP_CWORD]}"
@@ -73,34 +78,41 @@ Logic steps:
        fi
 
        if [[ "${COMP_WORDS[1]}" == "exec" && ${COMP_CWORD} -eq 2 ]]; then
-           local modules=$(apcore-cli list --format json 2>/dev/null | python3 -c "import sys,json;[print(m['id']) for m in json.load(sys.stdin)]" 2>/dev/null)
+           local modules=$("apcore-cli" list --format json 2>/dev/null | python3 -c "import sys,json;[print(m['id']) for m in json.load(sys.stdin)]" 2>/dev/null)
            COMPREPLY=( $(compgen -W "${modules}" -- ${cur}) )
            return 0
        fi
    }
-   complete -F _apcore_cli_completion apcore-cli
+   complete -F _apcore_cli apcore-cli
    ```
 4. Return the script as a string.
 
-### 4.3 Function: `_generate_zsh_completion`
+### 4.4 Function: `_generate_zsh_completion`
 
-**Signature**: `_generate_zsh_completion() -> str`
-
-Logic steps:
-1. Generate Zsh completion function using `compdef` and `compadd`.
-2. Include subcommand completion and dynamic module ID completion.
-3. Return the script as a string.
-
-### 4.4 Function: `_generate_fish_completion`
-
-**Signature**: `_generate_fish_completion() -> str`
+**Signature**: `_generate_zsh_completion(prog_name: str) -> str`
 
 Logic steps:
-1. Generate Fish completions using `complete -c apcore-cli` commands.
-2. Include subcommand and dynamic module ID completion.
+1. Compute shell function name via `_make_function_name(prog_name)`.
+2. Generate Zsh completion function using `compdef` and `compadd`. First-level completions: `exec`, `list`, `describe`, `completion`, `man`. Second-level (after `exec`): dynamic module IDs via inline command with `prog_name` double-quoted.
+3. Emit `compdef {fn} {prog_name}` to register the function.
+4. Return the script as a string.
+
+### 4.5 Function: `_generate_fish_completion`
+
+**Signature**: `_generate_fish_completion(prog_name: str) -> str`
+
+Logic steps:
+1. Generate Fish completions using `complete -c {prog_name}` commands. Subcommands: `exec`, `list`, `describe`, `completion`, `man`.
+2. For `exec` second-level completion: inline command with `prog_name` double-quoted.
 3. Return the script as a string.
 
-### 4.5 Command: `man`
+### 4.6 Function: `register_shell_commands`
+
+**Signature**: `register_shell_commands(cli: click.Group, prog_name: str = "apcore-cli") -> None`
+
+Registers the `completion` and `man` commands on `cli`. The `prog_name` parameter is captured in closures so the completion generators and man page use the correct program name at runtime (resolved from `ctx.find_root().info_name` when available, otherwise from the `prog_name` argument).
+
+### 4.7 Command: `man`
 
 **Registration**: `@cli.command("man")`
 
@@ -115,15 +127,32 @@ Logic steps:
 1. Look up `command` in the CLI command registry (built-in subcommands and module IDs).
 2. If not found: write to stderr "Error: Unknown command '{command}'." Exit 2.
 3. Build roff document:
-   a. `.TH "APCORE-CLI-{COMMAND}" "1" "{date}" "apcore-cli {version}" "apcore-cli Manual"`.
-   b. `.SH NAME` section: `apcore-cli-{command} \\- {brief_description}`.
-   c. `.SH SYNOPSIS` section: `\\fBapcore-cli {command}\\fR [OPTIONS] [ARGUMENTS]`.
-   d. `.SH DESCRIPTION` section: full command description from Click help.
+   a. `.TH "{PROG}-{COMMAND}" "1" "{date}" "{prog} {version}" "{prog} Manual"` — all names are dynamic from `prog_name`.
+   b. `.SH NAME` section: `{prog}-{command} \\- {brief_description}` (first line of command help, trailing period stripped).
+   c. `.SH SYNOPSIS` section: dynamically built from the command's actual Click parameters. For each `click.Option`: `[--flag \\fITYPE\\fR]` (required options omit brackets); for each `click.Argument`: `\\fIMETA\\fR` (optional arguments get brackets). Not a static `[OPTIONS] [ARGUMENTS]` placeholder.
+   d. `.SH DESCRIPTION` section: full command description from Click help (if present).
    e. `.SH OPTIONS` section: for each Click option:
-      - `.TP` with `\\fB{flag_name}\\fR \\fI{type}\\fR`.
-      - Help text on next line.
-   f. `.SH EXIT CODES` section: table of all exit codes from error taxonomy.
-   g. `.SH SEE ALSO` section: `\\fBapcore-cli\\fR(1), \\fBapcore-cli-list\\fR(1), \\fBapcore-cli-describe\\fR(1)`.
+      - `.TP` with `\\fB{flag_name}\\fR \\fI{type}\\fR` (flags use `\\fB{flag_name}\\fR` only).
+      - Help text on next line, followed by `Default: {value}.` if a non-flag default exists.
+   f. `.SH ENVIRONMENT` section: four standard env vars:
+      - `APCORE_EXTENSIONS_ROOT` — path to extensions directory, overrides default `./extensions`.
+      - `APCORE_CLI_AUTO_APPROVE` — set to `1` to bypass approval prompts.
+      - `APCORE_CLI_LOGGING_LEVEL` — CLI-specific log verbosity; takes priority over `APCORE_LOGGING_LEVEL`. One of: `DEBUG`, `INFO`, `WARNING`, `ERROR`. Default: `WARNING`.
+      - `APCORE_LOGGING_LEVEL` — global apcore log verbosity; used as fallback when `APCORE_CLI_LOGGING_LEVEL` is not set.
+   g. `.SH EXIT CODES` section: table of all exit codes:
+      | Code | Meaning |
+      |------|---------|
+      | 0 | Success. |
+      | 1 | Module execution error. |
+      | 2 | Invalid CLI input or missing argument. |
+      | 44 | Module not found, disabled, or failed to load. |
+      | 45 | Input failed JSON Schema validation. |
+      | 46 | Approval denied, timed out, or no interactive terminal available. |
+      | 47 | Configuration error (extensions directory not found or unreadable). |
+      | 48 | Schema contains a circular `$ref`. |
+      | 77 | ACL denied — insufficient permissions for this module. |
+      | 130 | Execution cancelled by user (SIGINT / Ctrl-C). |
+   h. `.SH SEE ALSO` section: links to sibling man pages using `prog_name`.
 4. Print the roff document to stdout.
 5. Exit code 0.
 

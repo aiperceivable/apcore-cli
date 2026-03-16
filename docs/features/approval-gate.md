@@ -36,14 +36,14 @@ The Approval Gate is a TTY-aware Human-in-the-Loop (HITL) middleware that interc
 
 ### 4.1 Function: `check_approval`
 
-**Signature**: `check_approval(module_def: ModuleDefinition, auto_approve: bool, ctx: click.Context) -> None`
+**Signature**: `check_approval(module_def: Any, auto_approve: bool) -> None`
 
 **Returns**: `None` if approved (or approval not required). Raises `SystemExit` if denied/timed out/pending.
 
 Logic steps:
 1. Read `annotations = getattr(module_def, "annotations", None)`.
-2. If `annotations is None` or not a `dict`: return (no approval needed).
-3. Read `requires = annotations.get("requires_approval", False)`.
+2. If `annotations is None`, or is neither a `dict` nor an object with a `requires_approval` attribute: return (no approval needed).
+3. Read `requires`: if `annotations` is a `dict`, use `annotations.get("requires_approval", False)`; otherwise use `getattr(annotations, "requires_approval", False)`.
 4. If `requires` is not exactly `True` (boolean): return (skip). This handles `"true"` string, `1` int, `None`, etc.
 5. Check bypass mechanisms in priority order:
    a. If `auto_approve is True` (from `--yes` flag):
@@ -132,7 +132,7 @@ class ApprovalTimeoutError(Exception):
 ## 6. Flow Diagram
 
 ```
-check_approval(module_def, auto_approve, ctx)
+check_approval(module_def, auto_approve)
   |
   +-- annotations.requires_approval != true? --> RETURN (proceed)
   |

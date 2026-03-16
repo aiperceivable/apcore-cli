@@ -18,11 +18,12 @@ The Core Dispatcher is the primary entry point for `apcore-cli`. It provides the
 
 | Req ID | SRS Ref | Description |
 |--------|---------|-------------|
-| FR-01-01 | FR-DISP-001 | Base command `apcore-cli` entry point with `--help` and `--version`. |
+| FR-01-01 | FR-DISP-001 | Base command entry point with `--help` and `--version`. Program name is resolved dynamically (see FR-01-06). |
 | FR-01-02 | FR-DISP-002 | `exec <module_id>` subcommand routing and execution via Executor. |
 | FR-01-03 | FR-DISP-003 | Extensions directory loading from configurable path. |
-| FR-01-04 | FR-DISP-001 AF-3 | Version flag: `apcore-cli --version` prints `apcore-cli, version X.Y.Z`. |
+| FR-01-04 | FR-DISP-001 AF-3 | Version flag: `{prog_name} --version` prints `{prog_name}, version X.Y.Z`. |
 | FR-01-05 | FR-DISP-004 | STDIN JSON input when `--input -` is specified. |
+| FR-01-06 | FR-DISP-006 | CLI program name resolved from `argv[0]` basename; explicit `prog_name` parameter overrides. |
 
 ---
 
@@ -124,26 +125,68 @@ Logic steps:
 1. Check `len(module_id) > 128`: exit code 2, message "Invalid module ID format: '{module_id}'. Maximum length is 128 characters."
 2. Check `re.fullmatch(r'^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$', module_id)`: if None, exit code 2, message "Invalid module ID format: '{module_id}'."
 
-### 4.5 Function: `main`
+### 4.5 Function: `create_cli`
 
-**Signature**: `main() -> None`
+**Signature**: `create_cli(extensions_dir: str | None = None, prog_name: str | None = None) -> click.Group`
 
 **File**: `apcore_cli/__main__.py`
 
+**Purpose**: Factory function that assembles and returns the fully configured Click group. Separating construction from invocation enables library users to embed the CLI in a larger application and override settings (including the program name) without touching entry-point code.
+
 Logic steps:
-1. Instantiate `ConfigResolver()`.
-2. Resolve `extensions_root` via `config.resolve("extensions.root", cli_flag="--extensions-dir", env_var="APCORE_EXTENSIONS_ROOT")`.
-3. Verify `extensions_root` path exists and is a directory:
+1. Resolve `prog_name` (FR-DISP-006):
+   a. If `prog_name` is not `None`, use it (Tier 1 — explicit parameter).
+   b. Otherwise, compute `os.path.basename(sys.argv[0])`.
+   c. If the result is empty, fall back to `"apcore-cli"`.
+2. Resolve and apply initial log level (before Click runs). Three-tier precedence:
+   - Tier 1 (highest): `--log-level` CLI flag — applied at runtime in the group callback.
+   - Tier 2: `APCORE_CLI_LOGGING_LEVEL` env var — CLI-specific; takes priority over the global var.
+   - Tier 3: `APCORE_LOGGING_LEVEL` env var — global apcore setting; used as fallback when the CLI-specific var is absent.
+   - Default: `logging.WARNING`.
+
+   Steps:
+   a. Read `APCORE_CLI_LOGGING_LEVEL`; if empty, read `APCORE_LOGGING_LEVEL`. Map to a `logging` constant; default to `logging.WARNING` if absent or unrecognised.
+   b. Call `logging.basicConfig(level=..., format="%(levelname)s: %(message)s")` once (no-op on subsequent calls).
+   c. Set `logging.getLogger("apcore").setLevel(ERROR)` when the resolved level is above INFO; set to the resolved level when INFO or lower. This suppresses noisy upstream apcore output unless the user explicitly requests verbose output.
+   d. At runtime the `--log-level` flag overrides: call `logging.getLogger().setLevel(level)` (not `basicConfig`) and apply the same `apcore` level logic. Accepted choices: `DEBUG`, `INFO`, `WARNING`, `ERROR` (case-insensitive).
+3. Resolve `extensions_dir`:
+   a. If `extensions_dir` is not `None`, use it.
+   b. Otherwise, instantiate `ConfigResolver()` and call `config.resolve("extensions.root", cli_flag="--extensions-dir", env_var="APCORE_EXTENSIONS_ROOT")`.
+4. Verify `extensions_dir` path exists and is a readable directory:
    - Not exists: exit 47, message "Extensions directory not found: '{path}'. Set APCORE_EXTENSIONS_ROOT or verify the path."
    - Not readable: exit 47, message "Cannot read extensions directory: '{path}'. Check file permissions."
-4. Instantiate `Registry(extensions_root)`.
-5. Call `registry.discover()`. Log DEBUG: "Loading extensions from {path}".
-6. Log INFO: "Initialized apcore-cli with {N} modules."
-7. If zero modules and corrupt modules were skipped: continue (no error).
+5. Instantiate `Registry(extensions_dir)`.
+6. Call `registry.discover()`. Log DEBUG: `"Loading extensions from {extensions_dir}"`.
+7. Log INFO: `"Initialized {prog_name} with {N} modules."`.
 8. Instantiate `Executor(registry)`.
-9. Instantiate `LazyModuleGroup(registry, executor, name="apcore-cli", help="CLI adapter for the apcore module ecosystem.")`.
-10. Register built-in commands: `list`, `describe`, `completion`, `man`.
-11. Invoke `cli(standalone_mode=True)`.
+9. Initialize `AuditLogger()`. Set as module-level global via `set_audit_logger()`.
+10. Build `click.Group` using `cls=LazyModuleGroup`, `name=prog_name`, `registry=registry`, `executor=executor`.
+11. Add `click.version_option(version=__version__, prog_name=prog_name)`.
+12. Add `--extensions-dir` and `--log-level` options to the root group.
+13. Register built-in commands via `register_discovery_commands()` and `register_shell_commands(cli, prog_name=prog_name)`.
+14. Return the assembled `click.Group`.
+
+### 4.6 Function: `main`
+
+**Signature**: `main(prog_name: str | None = None) -> None`
+
+**File**: `apcore_cli/__main__.py`
+
+**Purpose**: Standard entry-point shim. Pre-extracts `--extensions-dir` from `argv` before Click parses (required because the registry must be instantiated before Click runs), then delegates to `create_cli()`.
+
+Logic steps:
+1. Call `_extract_extensions_dir(sys.argv[1:])` to extract `--extensions-dir` value from raw `argv` before Click processes it.
+2. Call `create_cli(extensions_dir=ext_dir, prog_name=prog_name)` to obtain the configured CLI group.
+3. Invoke `cli(standalone_mode=True)`.
+
+**Library integration patterns (cross-language normative reference):**
+
+| Integration Pattern | How to specify program name |
+|--------------------|-----------------------------|
+| Default entry point | No action needed. `argv[0]` basename is used automatically. |
+| Custom entry point in `pyproject.toml` | Add `myproject = "apcore_cli.__main__:main"` under `[project.scripts]`. The name `myproject` is used automatically. |
+| Programmatic override | Call `main(prog_name="myproject")` or `create_cli(prog_name="myproject")`. |
+| Other languages (Go, TypeScript, Rust) | Pass the desired name to the equivalent `createCLI(progName: string)` factory; fall back to `os.Args[0]` basename when not provided. |
 
 ---
 
@@ -196,3 +239,7 @@ Logic steps:
 | T-DISP-11 | Extensions dir does not exist | stderr: "not found". Exit 47. |
 | T-DISP-12 | Extensions dir with one corrupt module | Corrupt module skipped with WARNING. Valid modules available. |
 | T-DISP-13 | `--extensions-dir` overrides `APCORE_EXTENSIONS_ROOT` | CLI flag path is used. |
+| T-DISP-14 | Default entry point `apcore-cli --version` | Output: `apcore-cli, version X.Y.Z`. Exit 0. |
+| T-DISP-15 | Downstream entry point `myproject --version` (installed as `myproject = "apcore_cli.__main__:main"`) | Output: `myproject, version X.Y.Z`. Exit 0. |
+| T-DISP-16 | `create_cli(prog_name="custom-name")` invoked with `--help` | Help output contains `custom-name`. Does not contain `apcore-cli`. |
+| T-DISP-17 | `create_cli(prog_name=None)` invoked when `argv[0]` is `pytest` | Help output contains `pytest` (argv[0] basename). Falls back gracefully. |

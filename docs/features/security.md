@@ -181,7 +181,7 @@ Logic steps:
    - `"timestamp"`: `datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")`.
    - `"user"`: call `self._get_user()`.
    - `"module_id"`: `module_id`.
-   - `"input_hash"`: `hashlib.sha256(json.dumps(input_data, sort_keys=True).encode()).hexdigest()`.
+   - `"input_hash"`: `hashlib.sha256(salt + json.dumps(input_data, sort_keys=True).encode()).hexdigest()` where `salt = secrets.token_bytes(16)`. A fresh 16-byte random salt is generated per invocation to prevent cross-invocation input correlation.
    - `"status"`: `status`.
    - `"exit_code"`: `exit_code`.
    - `"duration_ms"`: `duration_ms`.
@@ -192,7 +192,8 @@ Logic steps:
 
 Logic steps:
 1. Try: return `os.getlogin()`.
-2. On `OSError`: return `os.getenv("USER", os.getenv("USERNAME", "unknown"))`.
+2. On `OSError`: try `pwd.getpwuid(os.getuid()).pw_name` (Unix only).
+3. On `ImportError` / `KeyError` / `AttributeError`: return `os.getenv("USER", os.getenv("USERNAME", "unknown"))`.
 
 **Audit entry example:**
 ```json

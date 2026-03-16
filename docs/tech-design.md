@@ -163,19 +163,39 @@ This decision preserves and extends ADR-01 from Tech Design v0.4.
 
 **Alternatives rejected:** `argparse` (too much custom code), `typer` (adds Pydantic dependency, less control over dynamic command generation).
 
-### ADR-02: CLI Command Name — `apcore-cli`
+### ADR-02: CLI Program Name — Default to Entry-Point, Not Hardcoded
 
-**Context:** The CLI command name must be consistent with the apcore ecosystem naming pattern.
+**Context:** `apcore-cli` is both a standalone CLI tool and a reusable library. When downstream projects (e.g., `myproject`) add it as a dependency and publish their own entry-point script, help output and version output should display their project name, not the internal `apcore-cli` string.
 
-**Decision:** The CLI command name is `apcore-cli`, matching the package name.
+**Decision:** The program name used in `--help` and `--version` output shall be resolved dynamically from `os.path.basename(sys.argv[0])` at startup rather than being hardcoded. An explicit `prog_name` parameter on `create_cli()` and `main()` provides override capability. The fallback when `argv[0]` is unavailable or empty is `apcore-cli`.
 
-**Rationale:** Consistent with `apcore-mcp` and `apcore-a2a`. Avoids collision with the 2-letter `ap` name. Users who want a shorter alias can set `alias ap="apcore-cli"`.
+**Precedence (highest to lowest):**
+1. Explicit `prog_name` parameter passed to `create_cli()` or `main()`.
+2. `os.path.basename(sys.argv[0])` — the invoking entry-point script name.
 
-**Entry point:**
+**Rationale:** Downstream projects should be able to redistribute their CLI under a branded name with zero code changes. A project that installs its own entry-point `[project.scripts] myproject = "apcore_cli.__main__:main"` will automatically get `myproject --help` and `myproject, version X.Y.Z` without forking the source.
+
+**Entry point (default, this package):**
 ```toml
 [project.scripts]
 apcore-cli = "apcore_cli.__main__:main"
 ```
+
+**Downstream project entry point:**
+```toml
+# downstream_project/pyproject.toml
+[project.scripts]
+myproject = "apcore_cli.__main__:main"
+# Result: `myproject --help` and `myproject, version X.Y.Z`
+```
+
+**Explicit override (programmatic):**
+```python
+from apcore_cli.__main__ import main
+main(prog_name="myproject")
+```
+
+**Alternative rejected:** Hardcoding `"apcore-cli"` everywhere. This was the initial approach and was rejected because it breaks the library-use contract — downstream project users would see `apcore-cli` in their tool's help output even when the command they typed was `myproject`.
 
 ### ADR-03: Executor Integration — Direct Delegation
 

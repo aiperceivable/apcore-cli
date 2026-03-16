@@ -133,7 +133,7 @@ The system provides eight feature groups:
 
 1. **Language Constraint**: The system shall be implemented in Python >= 3.11, aligned with apcore >= 0.13.0 requirements.
 2. **Framework Constraint**: The system shall use the `click` library for CLI command construction (Tech Design ADR-01).
-3. **Naming Constraint**: The CLI command name shall be `apcore-cli`, matching the package name (Tech Design ADR-02).
+3. **Naming Constraint**: The default CLI program name (as shown in `--help` and `--version` output) shall be derived from the invoking entry-point script name (`argv[0]` basename). It shall NOT be hardcoded to `apcore-cli`. Downstream projects that install their own entry-point script shall receive their project name in all output automatically. An explicit `prog_name` parameter shall override this. Fallback when `argv[0]` is unavailable: `apcore-cli`. See FR-DISP-006 and Tech Design ADR-02.
 4. **Execution Constraint**: The system shall use apcore's `Executor` for module invocation, preserving the full middleware chain (Tech Design ADR-03).
 5. **Error Code Constraint**: All exit codes shall align with PROTOCOL_SPEC section 8.
 6. **Environment Variable Constraint**: All environment variables shall follow the `APCORE_{SECTION}_{KEY}` naming convention (PROTOCOL_SPEC section 9.2).
@@ -390,6 +390,50 @@ The system provides eight feature groups:
 - **AC-2:** Given no CLI flag, `APCORE_EXTENSIONS_ROOT=/env-path` is set, and `apcore.yaml` contains `extensions.root: /config-path`, when the system resolves the extensions directory, then it shall use `/env-path`.
 - **AC-3:** Given no CLI flag, no env var, and `apcore.yaml` contains `extensions.root: /config-path`, when the system resolves the extensions directory, then it shall use `/config-path`.
 - **AC-4:** Given no CLI flag, no env var, and no config file, when the system resolves the extensions directory, then it shall use `./extensions`.
+
+---
+
+#### FR-DISP-006: CLI Program Name Customization
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-DISP-006 |
+| **Title** | CLI Program Name Customization |
+| **Priority** | P1 |
+| **Priority Rationale** | Required for library-mode deployments. Downstream projects that redistribute `apcore-cli` under their own brand receive a broken user experience if the program name is hardcoded. |
+| **Source** | Tech Design ADR-02 (revised); Feature Spec FE-01 FR-01-06 |
+
+**Description:** The system shall resolve the CLI program name (used in `--help` output, `--version` output, and error messages) dynamically rather than using a hardcoded value. The resolution shall follow a 2-tier precedence: an explicit parameter overrides automatic detection; otherwise the basename of `argv[0]` is used. This enables downstream projects to publish the CLI under their own project name with zero source-code changes.
+
+**Actors:** Developer, AI Agent, Downstream Library User
+
+**Preconditions:**
+- The CLI adapter is installed either as a standalone package or as a dependency of a downstream project.
+
+**Main Flow:**
+1. At startup, the system shall resolve `prog_name` using the following precedence (highest to lowest):
+   - **Tier 1 — Explicit parameter.** If `prog_name` is passed as an argument to `create_cli(prog_name=...)` or `main(prog_name=...)`, use it verbatim.
+   - **Tier 2 — `argv[0]` basename.** Compute `os.path.basename(sys.argv[0])` and use it as `prog_name`.
+2. The resolved `prog_name` shall be used as:
+   - The Click group `name` parameter (controls the command name in `--help` output).
+   - The `prog_name` parameter of `click.version_option()` (controls the version string prefix).
+3. The version string format shall be: `{prog_name}, version {X.Y.Z}`.
+
+**Alternative Flows:**
+
+- **AF-1: `argv[0]` empty or unavailable.** If `os.path.basename(sys.argv[0])` returns an empty string or raises an exception, the system shall fall back to the string `apcore-cli`.
+- **AF-2: Explicit parameter is `None`.** If `prog_name=None` is passed explicitly, the system shall treat it as "not provided" and proceed to Tier 2 (`argv[0]` basename).
+
+**Postconditions:**
+- All user-visible output (help, version, error messages referencing the command name) uses the resolved `prog_name`.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given a downstream project installs entry-point `myproject = "apcore_cli.__main__:main"`, when the user runs `myproject --help`, then the output shall contain `myproject` as the command name, not `apcore-cli`.
+- **AC-2:** Given a downstream project installs entry-point `myproject = "apcore_cli.__main__:main"`, when the user runs `myproject --version`, then the output shall be `myproject, version X.Y.Z`.
+- **AC-3:** Given `create_cli(prog_name="custom-name")` is called programmatically, when `--help` is invoked, then the output shall contain `custom-name` regardless of `argv[0]`.
+- **AC-4:** Given the default `apcore-cli` entry point is used, when `apcore-cli --version` is run, then the output shall be `apcore-cli, version X.Y.Z`.
+- **AC-5:** Given `prog_name=None` is passed to `create_cli()`, when `--help` is invoked, then the output shall contain the `argv[0]` basename (Tier 2 resolution applies).
 
 ---
 

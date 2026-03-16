@@ -168,7 +168,7 @@ apcore-cli [OPTIONS] COMMAND [ARGS]
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--extensions-dir` | `./extensions` | Path to apcore extensions directory |
-| `--log-level` | `INFO` | Logging: `DEBUG`, `INFO`, `WARN`, `ERROR` |
+| `--log-level` | `WARNING` | Logging: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `--version` | | Show version and exit |
 | `--help` | | Show help and exit |
 
@@ -227,7 +227,8 @@ apcore-cli uses a 4-tier configuration precedence:
 |----------|-------------|---------|
 | `APCORE_EXTENSIONS_ROOT` | Path to extensions directory | `./extensions` |
 | `APCORE_CLI_AUTO_APPROVE` | Set to `1` to bypass all approval prompts | *(unset)* |
-| `APCORE_LOGGING_LEVEL` | Log level | `INFO` |
+| `APCORE_CLI_LOGGING_LEVEL` | CLI-specific log level (takes priority over `APCORE_LOGGING_LEVEL`) | `WARNING` |
+| `APCORE_LOGGING_LEVEL` | Global apcore log level (fallback when `APCORE_CLI_LOGGING_LEVEL` is unset) | `WARNING` |
 | `APCORE_AUTH_API_KEY` | API key for remote registry authentication | *(unset)* |
 | `APCORE_CLI_SANDBOX` | Set to `1` to enable subprocess sandboxing | *(unset)* |
 
@@ -283,7 +284,7 @@ apcore Registry + Executor (your modules, unchanged)
 
 | Language | Repository | Status |
 |----------|-----------|--------|
-| **Python** | [apcore-cli-python](https://github.com/aipartnerup/apcore-cli-python) | v0.1.0 -- 8 features, 244 tests |
+| **Python** | [apcore-cli-python](https://github.com/aipartnerup/apcore-cli-python) | v0.2.0 -- 8 features, 261 tests |
 
 ---
 
