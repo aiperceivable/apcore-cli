@@ -120,7 +120,7 @@ Flattened to:
 |-----|----------|---------------------|---------|------|---------------|
 | `extensions.root` | `--extensions-dir` | `APCORE_EXTENSIONS_ROOT` | `./extensions` | `str` (path) | FR-DISP-003, FR-DISP-005 |
 | `auth.api_key` | `--api-key` | `APCORE_AUTH_API_KEY` | `None` | `str` (secret) | FR-SEC-001 |
-| `logging.level` | `--log-level` | `APCORE_LOGGING_LEVEL` | `WARNING` | `str` (enum) | NFR-MNT-002 |
+| `logging.level` | `--log-level` | `APCORE_LOGGING_LEVEL` (note: `APCORE_CLI_LOGGING_LEVEL` takes priority if both are set) | `WARNING` | `str` (enum) | NFR-MNT-002 |
 | `sandbox.enabled` | `--sandbox` | `APCORE_CLI_SANDBOX` | `False` | `bool` | FR-SEC-004 |
 | `cli.auto_approve` | `--yes` | `APCORE_CLI_AUTO_APPROVE` | `False` | `bool` | FR-APPR-004 |
 

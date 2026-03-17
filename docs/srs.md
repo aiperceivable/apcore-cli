@@ -1565,8 +1565,8 @@ Not applicable. The system runs as a software process and does not interface dir
 | Interface | Version | Protocol | Direction | Description |
 |-----------|---------|----------|-----------|-------------|
 | `apcore` | >= 0.13.0 | Python API | Outbound | Registry discovery, module metadata retrieval, Executor invocation. The system imports `apcore.Registry`, `apcore.Executor`, and the error hierarchy. |
-| `click` | >= 8.0 | Python API | Internal | CLI command tree construction, argument parsing, help generation, interactive prompts. |
-| `jsonschema` | >= 4.0 | Python API | Internal | Input validation against module JSON Schema definitions. |
+| `click` | >= 8.1 | Python API | Internal | CLI command tree construction, argument parsing, help generation, interactive prompts. |
+| `jsonschema` | >= 4.20 | Python API | Internal | Input validation against module JSON Schema definitions. |
 | `rich` | >= 13.0 | Python API | Internal | Terminal output formatting including tables, syntax highlighting, and styled text. |
 | `keyring` | >= 24.0 | Python API | Outbound | OS-native credential storage for encrypted configuration (FR-SEC-002). |
 

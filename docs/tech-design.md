@@ -358,7 +358,7 @@ sequenceDiagram
     CLI->>CLI: Collect input (CLI flags + STDIN merge)
     CLI->>CLI: jsonschema.validate(input, input_schema)
 
-    CLI->>AG: check_approval(module_def, is_tty)
+    CLI->>AG: check_approval(module_def, auto_approve)
     alt requires_approval AND TTY
         AG->>User: "This will delete data. Proceed? [y/N]:"
         User-->>AG: "y"
@@ -408,7 +408,7 @@ sequenceDiagram
 
 | Component | Module Path | SRS Requirements | Priority | Feature Spec |
 |-----------|-------------|------------------|----------|--------------|
-| **Core Dispatcher** | `apcore_cli/cli.py` | FR-DISP-001 through FR-DISP-005 | P0 | `docs/features/core-dispatcher.md` |
+| **Core Dispatcher** | `apcore_cli/cli.py` | FR-DISP-001 through FR-DISP-006 | P0 | `docs/features/core-dispatcher.md` |
 | **Schema Parser** | `apcore_cli/schema_parser.py` | FR-SCHEMA-001 through FR-SCHEMA-006 | P0 | `docs/features/schema-parser.md` |
 | **Approval Gate** | `apcore_cli/approval.py` | FR-APPR-001 through FR-APPR-005 | P1 | `docs/features/approval-gate.md` |
 | **Discovery** | `apcore_cli/discovery.py` | FR-DISC-001 through FR-DISC-004 | P1 | `docs/features/discovery.md` |
@@ -1317,8 +1317,8 @@ name = "apcore-cli"
 requires-python = ">=3.11"
 dependencies = [
     "apcore>=0.13.0",
-    "click>=8.0",
-    "jsonschema>=4.0",
+    "click>=8.1",
+    "jsonschema>=4.20",
     "rich>=13.0",
     "keyring>=24.0",
     "cryptography>=41.0",

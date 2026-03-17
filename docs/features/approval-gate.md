@@ -81,11 +81,11 @@ Logic steps:
       - Log INFO: "User approved execution of module '{module_id}'."
       - Return.
    d. If not `approved`:
-      - Log WARN: "Approval rejected by user for module '{module_id}'."
+      - Log WARNING: "Approval rejected by user for module '{module_id}'."
       - Write to stderr: "Error: Approval denied."
       - Exit code 46.
 6. On timeout (SIGALRM or timer fires):
-   - Log WARN: "Approval timed out after {timeout}s for module '{module_id}'."
+   - Log WARNING: "Approval timed out after {timeout}s for module '{module_id}'."
    - Write to stderr: "Error: Approval prompt timed out after {timeout} seconds."
    - Exit code 46.
 
