@@ -178,6 +178,7 @@ apcore-cli [OPTIONS] COMMAND [ARGS]
 |---------|-------------|
 | `list` | List available modules with optional tag filtering |
 | `describe <module_id>` | Show full module metadata and schemas |
+| `exec <module_id>` | Internal routing alias for module execution (modules are also available as direct top-level subcommands) |
 | `completion <shell>` | Generate shell completion script (bash/zsh/fish) |
 | `man <command>` | Generate man page in roff format |
 

@@ -4,7 +4,7 @@
 **Status**: Ready for Implementation
 **Priority**: P0
 **Parent**: [Tech Design v1.0](../tech-design.md) Section 8.2
-**SRS Requirements**: FR-DISP-001, FR-DISP-002, FR-DISP-003, FR-DISP-004
+**SRS Requirements**: FR-DISP-001, FR-DISP-002, FR-DISP-003, FR-DISP-004, FR-DISP-006
 
 ---
 
@@ -88,7 +88,7 @@ Logic steps:
 5. The command callback:
    a. Call `collect_input(stdin_input, kwargs, large_input)` to merge STDIN + CLI flags.
    b. Call `jsonschema.validate(merged, resolved_schema)`. On failure: exit 45 with validation error detail.
-   c. Call `check_approval(module_def, auto_approve, ctx)`. On denial/timeout: exit 46.
+   c. Call `check_approval(module_def, auto_approve)`. On denial/timeout: exit 46.
    d. Record `audit_start = time.monotonic()`.
    e. Call `executor.call(module_def.canonical_id, merged)`.
    f. Compute `duration_ms = int((time.monotonic() - audit_start) * 1000)`.

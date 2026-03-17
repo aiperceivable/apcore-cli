@@ -152,8 +152,8 @@ The system provides eight feature groups:
 | Dependency | Version | Purpose |
 |-----------|---------|---------|
 | `apcore` | >= 0.13.0 | Core protocol, Registry, Executor, error hierarchy |
-| `click` | >= 8.0 | CLI framework for command construction |
-| `jsonschema` | >= 4.0 | JSON Schema validation and parsing |
+| `click` | >= 8.1 | CLI framework for command construction |
+| `jsonschema` | >= 4.20 | JSON Schema validation and parsing |
 | `rich` | >= 13.0 | Terminal output formatting (tables, syntax highlighting) |
 
 ---
@@ -255,10 +255,10 @@ The system provides eight feature groups:
 
 **Acceptance Criteria:**
 
-- **AC-1:** Given a registered module `math.add` with `input_schema` requiring `a` (integer) and `b` (integer), when the user runs `apcore-cli exec math.add --a 5 --b 10`, then stdout shall contain the module result and the process shall exit with code 0.
-- **AC-2:** Given no module `non.existent` in the Registry, when the user runs `apcore-cli exec non.existent`, then stderr shall contain "not found" and the process shall exit with code 44.
-- **AC-3:** Given module `math.add` requires integer `a`, when the user runs `apcore-cli exec math.add --a "hello"`, then stderr shall contain a schema validation error and the process shall exit with code 45.
-- **AC-4:** Given a module ID `INVALID!ID`, when the user runs `apcore-cli exec "INVALID!ID"`, then stderr shall contain "Invalid module ID format" and the process shall exit with code 2.
+- **AC-1:** Given a registered module `math.add` with `input_schema` requiring `a` (integer) and `b` (integer), when the user runs `apcore-cli math.add --a 5 --b 10`, then stdout shall contain the module result and the process shall exit with code 0.
+- **AC-2:** Given no module `non.existent` in the Registry, when the user runs `apcore-cli non.existent`, then stderr shall contain "not found" and the process shall exit with code 44.
+- **AC-3:** Given module `math.add` requires integer `a`, when the user runs `apcore-cli math.add --a "hello"`, then stderr shall contain a schema validation error and the process shall exit with code 45.
+- **AC-4:** Given a module ID `INVALID!ID`, when the user runs `apcore-cli "INVALID!ID"`, then stderr shall contain "Invalid module ID format" and the process shall exit with code 2.
 
 ---
 
@@ -346,9 +346,9 @@ The system provides eight feature groups:
 
 **Acceptance Criteria:**
 
-- **AC-1:** Given module `math.add` expects `a` and `b`, when the user runs `echo '{"a":5,"b":10}' | apcore-cli exec math.add --input -`, then the module shall receive `{a:5, b:10}` and execute successfully.
-- **AC-2:** Given `echo '{"a":5}' | apcore-cli exec math.add --input - --b 20`, when executed, then the module shall receive `{a:5, b:20}` (CLI flag `--b` overrides nothing; STDIN provides `a`).
-- **AC-3:** Given `echo '{"a":5,"b":10}' | apcore-cli exec math.add --input - --a 99`, when executed, then the module shall receive `{a:99, b:10}` (CLI flag `--a 99` takes precedence over STDIN `a:5`).
+- **AC-1:** Given module `math.add` expects `a` and `b`, when the user runs `echo '{"a":5,"b":10}' | apcore-cli math.add --input -`, then the module shall receive `{a:5, b:10}` and execute successfully.
+- **AC-2:** Given `echo '{"a":5}' | apcore-cli math.add --input - --b 20`, when executed, then the module shall receive `{a:5, b:20}` (CLI flag `--b` overrides nothing; STDIN provides `a`).
+- **AC-3:** Given `echo '{"a":5,"b":10}' | apcore-cli math.add --input - --a 99`, when executed, then the module shall receive `{a:99, b:10}` (CLI flag `--a 99` takes precedence over STDIN `a:5`).
 - **AC-4:** Given STDIN contains 15 MB of JSON and `--large-input` is not specified, when executed, then stderr shall contain "exceeds 10MB limit" and the process shall exit with code 2.
 
 ---
@@ -372,7 +372,7 @@ The system provides eight feature groups:
 
 **Main Flow:**
 1. The system shall check for a CLI flag value (e.g., `--extensions-dir`, `--yes`, `--log-level`). If present, use it.
-2. If no CLI flag, the system shall check for an environment variable (e.g., `APCORE_EXTENSIONS_ROOT`, `APCORE_CLI_AUTO_APPROVE`, `APCORE_LOGGING_LEVEL`). If set and non-empty, use it.
+2. If no CLI flag, the system shall check for an environment variable (e.g., `APCORE_EXTENSIONS_ROOT`, `APCORE_CLI_AUTO_APPROVE`, `APCORE_CLI_LOGGING_LEVEL`, `APCORE_LOGGING_LEVEL`). If set and non-empty, use it. For logging level, `APCORE_CLI_LOGGING_LEVEL` takes priority over `APCORE_LOGGING_LEVEL`.
 3. If no environment variable, the system shall check for a value in the configuration file `apcore.yaml`. If the file exists, is valid YAML, and contains the relevant key, use it.
 4. If no configuration file value, the system shall use the built-in default value.
 
@@ -755,7 +755,7 @@ The system provides eight feature groups:
 
 **Alternative Flows:**
 
-- **AF-1: User Denies.** If the user types `n`, `N`, or presses Enter without input (default N), the system shall log at WARN level: `"Approval rejected by user for module '{module_id}'."`, write to stderr: `Error: Approval denied.`, and exit with code 46 (`APPROVAL_DENIED`).
+- **AF-1: User Denies.** If the user types `n`, `N`, or presses Enter without input (default N), the system shall log at WARNING level: `"Approval rejected by user for module '{module_id}'."`, write to stderr: `Error: Approval denied.`, and exit with code 46 (`APPROVAL_DENIED`).
 - **AF-2: Invalid Input.** If the user types any value other than `y`, `Y`, `n`, `N`, or empty, `click.confirm()` shall re-prompt. This is handled by Click's built-in behavior.
 - **AF-3: Approval Message Missing.** If the module does not provide an `ApprovalRequest.message`, the system shall display a default message: `"Module '{module_id}' requires approval to execute."`.
 
@@ -872,7 +872,7 @@ The system provides eight feature groups:
 
 **Alternative Flows:**
 
-- **AF-1: Timeout Reached.** The system shall log at WARN level: `"Approval timed out after 60s for module '{module_id}'."`. The system shall write to stderr: `Error: Approval prompt timed out after 60 seconds.` and exit with code 46 (`APPROVAL_TIMEOUT`).
+- **AF-1: Timeout Reached.** The system shall log at WARNING level: `"Approval timed out after 60s for module '{module_id}'."`. The system shall write to stderr: `Error: Approval prompt timed out after 60 seconds.` and exit with code 46 (`APPROVAL_TIMEOUT`).
 
 **Postconditions:**
 - User responded within timeout (proceed per FR-APPR-002) or timeout triggered (exit with code 46).
@@ -1429,7 +1429,7 @@ The system provides eight feature groups:
 | **Title** | Structured Logging |
 | **Metric** | Percentage of components with dedicated logger namespace and configurable verbosity |
 | **Target** | 100% of components (dispatcher, schema, approval, discovery) |
-| **Measurement Method** | Code review verifying each component uses `logging.getLogger("apcore_cli.{component}")` and respects `APCORE_LOGGING_LEVEL` / `--log-level`. |
+| **Measurement Method** | Code review verifying each component uses `logging.getLogger("apcore_cli.{component}")` and respects `APCORE_CLI_LOGGING_LEVEL` (CLI-specific, highest priority) / `APCORE_LOGGING_LEVEL` (global fallback) / `--log-level`. |
 | **Threshold Rationale** | Tech Design v1.0 section 8.4 specifies structured logging with namespace `apcore_cli`. Consistent logging enables debugging in production and integration with centralized log aggregation. |
 
 ---
@@ -1534,7 +1534,7 @@ The system provides eight feature groups:
 | `idempotent` | Boolean | Default: `false`. | Whether repeated execution produces the same result. |
 | `extensions_root` | String (path) | Valid filesystem path. Max 4,096 characters. | Path to the apcore extensions directory. |
 | `auth.api_key` | String (secret) | Stored encrypted (see FR-SEC-002). Max 512 characters. | API key for remote registry authentication. |
-| `logging_level` | Enum | `DEBUG`, `INFO`, `WARN`, `ERROR`. Default: `INFO`. | Verbosity level for structured logging. |
+| `logging_level` | Enum | `DEBUG`, `INFO`, `WARNING`, `ERROR`. Default: `WARNING`. | Verbosity level for structured logging. |
 | `timestamp` | String (ISO 8601) | Format: `YYYY-MM-DDTHH:MM:SS.fffZ`. | When the audit event occurred. |
 | `input_hash` | String (hex) | 64 characters (SHA-256). | Hash of the serialized input for auditability without storing raw input. |
 | `status` | Enum | `success`, `error`. | Outcome of the module execution. |

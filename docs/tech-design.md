@@ -103,8 +103,8 @@ C4Context
 - First invocation of a module has marginally higher latency due to schema parsing (mitigated by caching).
 
 **Technology choices:**
-- `click >= 8.0` for CLI framework.
-- `jsonschema >= 4.0` for schema validation.
+- `click >= 8.1` for CLI framework.
+- `jsonschema >= 4.20` for schema validation.
 - `rich >= 13.0` for terminal output.
 - `keyring >= 24.0` for encrypted credential storage.
 
@@ -157,7 +157,7 @@ This decision preserves and extends ADR-01 from Tech Design v0.4.
 
 **Context:** The CLI adapter needs a framework that supports dynamic command generation, interactive prompts, boolean flag pairs, and shell completion.
 
-**Decision:** Use `click >= 8.0` as the CLI framework.
+**Decision:** Use `click >= 8.1` as the CLI framework.
 
 **Rationale:** See §5.3 comparison matrix. Click's `click.Group` subclassing, `click.confirm()`, and `--flag/--no-flag` support directly satisfy SRS requirements FR-SCHEMA-002, FR-APPR-002, and FR-SHELL-001.
 
@@ -479,7 +479,7 @@ def build_module_command(module_def: ModuleDefinition, executor: Executor) -> cl
         # 2. Validate against schema
         validate_input(merged, resolved_schema)
         # 3. Check approval
-        check_approval(module_def, auto_approve, ctx)
+        check_approval(module_def, auto_approve)
         # 4. Execute
         audit_start = time.monotonic()
         result = executor.call(module_def.canonical_id, merged)
@@ -633,7 +633,7 @@ When a property has an `enum` field:
 
 #### 8.4.1 Function: `check_approval`
 
-**Signature:** `check_approval(module_def: ModuleDefinition, auto_approve: bool, ctx: click.Context) -> None`
+**Signature:** `check_approval(module_def: ModuleDefinition, auto_approve: bool) -> None`
 
 **Flow:**
 
@@ -887,9 +887,7 @@ class AuditLogger:
             "timestamp": datetime.utcnow().isoformat(timespec="milliseconds") + "Z",
             "user": self._get_user(),
             "module_id": module_id,
-            "input_hash": hashlib.sha256(
-                json.dumps(input_data, sort_keys=True).encode()
-            ).hexdigest(),
+            "input_hash": self._hash_input(input_data),
             "status": status,
             "exit_code": exit_code,
             "duration_ms": duration_ms,
@@ -904,7 +902,20 @@ class AuditLogger:
         try:
             return os.getlogin()
         except OSError:
-            return os.getenv("USER", os.getenv("USERNAME", "unknown"))
+            pass
+        # Unix fallback: pwd module
+        try:
+            import pwd
+            return pwd.getpwuid(os.getuid()).pw_name
+        except Exception:
+            pass
+        return os.getenv("USER", os.getenv("USERNAME", "unknown"))
+
+    def _hash_input(self, input_data: dict) -> str:
+        salt = secrets.token_bytes(16)
+        return hashlib.sha256(
+            salt + json.dumps(input_data, sort_keys=True).encode()
+        ).hexdigest()
 
     def _ensure_directory(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -1060,7 +1071,7 @@ class ConfigResolver:
 
     DEFAULTS = {
         "extensions.root": "./extensions",
-        "logging.level": "INFO",
+        "logging.level": "WARNING",
         "sandbox.enabled": False,
     }
 
@@ -1146,7 +1157,8 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 |----------|-------------|---------|------------|---------------|
 | `APCORE_EXTENSIONS_ROOT` | Path to extensions directory | `./extensions` | Valid filesystem path. Must exist and be readable. | FR-DISP-003, FR-DISP-005 |
 | `APCORE_CLI_AUTO_APPROVE` | Bypass approval prompts | _(unset)_ | Must be exactly `"1"` to activate. Other values: WARNING logged, ignored. | FR-APPR-004 |
-| `APCORE_LOGGING_LEVEL` | Log verbosity | `INFO` | Must be one of `DEBUG`, `INFO`, `WARN`, `ERROR`. Case-insensitive. Invalid: WARNING, use default. | NFR-MNT-002 |
+| `APCORE_CLI_LOGGING_LEVEL` | CLI-specific log verbosity (takes priority over `APCORE_LOGGING_LEVEL`) | _(unset)_ | Must be one of `DEBUG`, `INFO`, `WARNING`, `ERROR`. Case-insensitive. Invalid: WARNING logged, use default. | NFR-MNT-002 |
+| `APCORE_LOGGING_LEVEL` | Log verbosity (global apcore setting; fallback when `APCORE_CLI_LOGGING_LEVEL` is unset) | `WARNING` | Must be one of `DEBUG`, `INFO`, `WARNING`, `ERROR`. Case-insensitive. Invalid: WARNING logged, use default. | NFR-MNT-002 |
 | `APCORE_AUTH_API_KEY` | API key for remote registry | _(unset)_ | Non-empty string. Max 512 chars. | FR-SEC-001 |
 | `APCORE_CLI_SANDBOX` | Enable execution sandboxing | _(unset)_ | Must be exactly `"1"` to activate. | FR-SEC-004 |
 
@@ -1169,7 +1181,7 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 |-------|---------------|
 | `DEBUG` | Full schema parsing traces, raw JSON payloads, config resolution steps, ref resolution path |
 | `INFO` | Module count on startup, execution status/timing, approval bypass events |
-| `WARN` | Corrupt modules skipped, invalid env var values, keyring unavailable, audit log write failure |
+| `WARNING` | Corrupt modules skipped, invalid env var values, keyring unavailable, audit log write failure |
 | `ERROR` | Module execution failures (sanitized — no stack traces to terminal), authentication failures |
 
 ---
@@ -1179,8 +1191,8 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 | Layer | Technology | Version | Rationale | SRS Reference |
 |-------|-----------|---------|-----------|---------------|
 | Language | Python | >= 3.11 | Aligned with apcore >= 0.13.0 | SRS §4.4 |
-| CLI Framework | `click` | >= 8.0 | ADR-01. Dynamic command generation, prompts, completion. | FR-DISP-001, FR-SCHEMA-002, FR-APPR-002 |
-| Validation | `jsonschema` | >= 4.0 | JSON Schema validation and `$ref` resolution. | FR-SCHEMA-006, NFR-SEC-002 |
+| CLI Framework | `click` | >= 8.1 | ADR-01. Dynamic command generation, prompts, completion. | FR-DISP-001, FR-SCHEMA-002, FR-APPR-002 |
+| Validation | `jsonschema` | >= 4.20 | JSON Schema validation and `$ref` resolution. | FR-SCHEMA-006, NFR-SEC-002 |
 | Terminal Output | `rich` | >= 13.0 | Tables, syntax highlighting, styled text. | FR-DISC-001, FR-DISC-003 |
 | Credential Storage | `keyring` | >= 24.0 | OS-native keyring (macOS Keychain, GNOME, Windows). | FR-SEC-002 |
 | Encryption Fallback | `cryptography` | >= 41.0 | AES-256-GCM for headless environments. | FR-SEC-002 ADR-04 |
@@ -1230,7 +1242,7 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 
 | NFR | Target | Implementation Strategy |
 |-----|--------|------------------------|
-| NFR-PRT-001: Linux/macOS/Windows | 3 OS, Python 3.10-3.12 | CI matrix. Platform-specific code isolated to `security/sandbox.py` and `security/config_encryptor.py`. |
+| NFR-PRT-001: Linux/macOS/Windows | 3 OS, Python 3.11-3.12 | CI matrix. Platform-specific code isolated to `security/sandbox.py` and `security/config_encryptor.py`. |
 | NFR-PRT-002: Terminal compatibility | 5 terminal emulators | `rich` handles terminal capability detection. Force plain text via `TERM=dumb` or `NO_COLOR=1`. |
 
 ---

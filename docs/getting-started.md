@@ -193,7 +193,7 @@ sandbox:
 |----------|-------------|---------|
 | `APCORE_EXTENSIONS_ROOT` | Path to extensions directory | `./extensions` |
 | `APCORE_CLI_AUTO_APPROVE` | Set `1` to bypass approval prompts | *(unset)* |
-| `APCORE_LOGGING_LEVEL` | Log level (`DEBUG`, `INFO`, `WARN`, `ERROR`) | `INFO` |
+| `APCORE_LOGGING_LEVEL` | Log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) | `WARNING` |
 
 For the full configuration reference, see the [Config Resolver spec](features/config-resolver.md).
 
