@@ -628,7 +628,7 @@ The system provides eight feature groups:
 
 **Alternative Flows:**
 
-- **AF-1: Description Exceeds Terminal Width.** If the description exceeds 200 characters, the system shall truncate it to 197 characters followed by `...` for the CLI help display. The full description shall remain available in `describe` output.
+- **AF-1: Description Exceeds Configured Limit.** If the description exceeds the configured `cli.help_text_max_length` (default: 1000 characters), the system shall truncate it to `(limit - 3)` characters followed by `...` for the CLI help display. The limit is configurable via config file, environment variable (`APCORE_CLI_HELP_TEXT_MAX_LENGTH`), or built-in default. The full description shall remain available in `describe` output.
 
 **Postconditions:**
 - Each CLI flag has descriptive help text derived from the schema.
@@ -1534,7 +1534,7 @@ The system provides eight feature groups:
 | `idempotent` | Boolean | Default: `false`. | Whether repeated execution produces the same result. |
 | `extensions_root` | String (path) | Valid filesystem path. Max 4,096 characters. | Path to the apcore extensions directory. |
 | `auth.api_key` | String (secret) | Stored encrypted (see FR-SEC-002). Max 512 characters. | API key for remote registry authentication. |
-| `logging_level` | Enum | `DEBUG`, `INFO`, `WARN`, `ERROR`. Default: `INFO`. | Verbosity level for structured logging. |
+| `logging_level` | Enum | `DEBUG`, `INFO`, `WARN`, `ERROR`. Default: `WARNING`. | Verbosity level for structured logging. |
 | `timestamp` | String (ISO 8601) | Format: `YYYY-MM-DDTHH:MM:SS.fffZ`. | When the audit event occurred. |
 | `input_hash` | String (hex) | 64 characters (SHA-256). | Hash of the serialized input for auditability without storing raw input. |
 | `status` | Enum | `success`, `error`. | Outcome of the module execution. |

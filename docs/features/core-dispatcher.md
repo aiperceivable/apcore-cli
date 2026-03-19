@@ -4,7 +4,7 @@
 **Status**: Ready for Implementation
 **Priority**: P0
 **Parent**: [Tech Design v1.0](../tech-design.md) Section 8.2
-**SRS Requirements**: FR-DISP-001, FR-DISP-002, FR-DISP-003, FR-DISP-004
+**SRS Requirements**: FR-DISP-001, FR-DISP-002, FR-DISP-003, FR-DISP-004, FR-DISP-005, FR-DISP-006
 
 ---
 
@@ -75,7 +75,7 @@ Logic steps:
 
 ### 4.2 Function: `build_module_command`
 
-**Signature**: `build_module_command(module_def: ModuleDefinition, executor: Executor) -> click.Command`
+**Signature**: `build_module_command(module_def: ModuleDefinition, executor: Executor, help_text_max_length: int = 1000) -> click.Command`
 
 Logic steps:
 1. Get `input_schema` from `module_def.input_schema`.

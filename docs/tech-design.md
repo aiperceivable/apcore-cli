@@ -459,7 +459,7 @@ class LazyModuleGroup(click.Group):
 #### 8.2.2 Function: `build_module_command`
 
 ```python
-def build_module_command(module_def: ModuleDefinition, executor: Executor) -> click.Command:
+def build_module_command(module_def: ModuleDefinition, executor: Executor, help_text_max_length: int = 1000) -> click.Command:
     """Build a Click Command from a module definition."""
     input_schema = module_def.input_schema
     resolved_schema = resolve_refs(input_schema, max_depth=32)
@@ -479,7 +479,7 @@ def build_module_command(module_def: ModuleDefinition, executor: Executor) -> cl
         # 2. Validate against schema
         validate_input(merged, resolved_schema)
         # 3. Check approval
-        check_approval(module_def, auto_approve, ctx)
+        check_approval(module_def, auto_approve)
         # 4. Execute
         audit_start = time.monotonic()
         result = executor.call(module_def.canonical_id, merged)
@@ -598,7 +598,7 @@ When a property has an `enum` field:
 | 2 | `description` | Use if `x-llm-description` is absent/empty. | FR-SCHEMA-005 |
 | 3 (default) | None | `help=None` (Click shows no help text). | FR-SCHEMA-005 |
 
-**Truncation:** If help text exceeds 200 characters, truncate to 197 characters + `"..."`. Full description available via `apcore-cli describe <module_id>`.
+**Truncation:** Help text is passed to the CLI framework as-is for natural line wrapping. A configurable safety ceiling applies (default: 1000 characters via `cli.help_text_max_length`): text beyond this limit is truncated to `(limit - 3)` characters + `"..."`. Full description available via `apcore-cli describe <module_id>`.
 
 **Traces to:** FR-SCHEMA-005.
 
@@ -633,7 +633,7 @@ When a property has an `enum` field:
 
 #### 8.4.1 Function: `check_approval`
 
-**Signature:** `check_approval(module_def: ModuleDefinition, auto_approve: bool, ctx: click.Context) -> None`
+**Signature:** `check_approval(module_def: ModuleDefinition, auto_approve: bool) -> None`
 
 **Flow:**
 
@@ -1060,8 +1060,11 @@ class ConfigResolver:
 
     DEFAULTS = {
         "extensions.root": "./extensions",
-        "logging.level": "INFO",
+        "logging.level": "WARNING",
         "sandbox.enabled": False,
+        "cli.stdin_buffer_limit": 10_485_760,  # 10 MB
+        "cli.auto_approve": False,
+        "cli.help_text_max_length": 1000,
     }
 
     def __init__(self, cli_flags: dict[str, Any] = None, config_path: str = "apcore.yaml"):
@@ -1146,7 +1149,8 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 |----------|-------------|---------|------------|---------------|
 | `APCORE_EXTENSIONS_ROOT` | Path to extensions directory | `./extensions` | Valid filesystem path. Must exist and be readable. | FR-DISP-003, FR-DISP-005 |
 | `APCORE_CLI_AUTO_APPROVE` | Bypass approval prompts | _(unset)_ | Must be exactly `"1"` to activate. Other values: WARNING logged, ignored. | FR-APPR-004 |
-| `APCORE_LOGGING_LEVEL` | Log verbosity | `INFO` | Must be one of `DEBUG`, `INFO`, `WARN`, `ERROR`. Case-insensitive. Invalid: WARNING, use default. | NFR-MNT-002 |
+| `APCORE_LOGGING_LEVEL` | Log verbosity | `WARNING` | Must be one of `DEBUG`, `INFO`, `WARNING`, `ERROR`. Case-insensitive. Invalid: log WARNING, use default. | NFR-MNT-002 |
+| `APCORE_CLI_LOGGING_LEVEL` | CLI-specific log verbosity (takes priority over `APCORE_LOGGING_LEVEL`) | _(unset)_ | Same as `APCORE_LOGGING_LEVEL`. | NFR-MNT-002 |
 | `APCORE_AUTH_API_KEY` | API key for remote registry | _(unset)_ | Non-empty string. Max 512 chars. | FR-SEC-001 |
 | `APCORE_CLI_SANDBOX` | Enable execution sandboxing | _(unset)_ | Must be exactly `"1"` to activate. | FR-SEC-004 |
 
