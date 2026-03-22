@@ -1,8 +1,8 @@
 site_name: apcore-cli
 site_description: Automatic MCP Server & OpenAI Tools Bridge for apcore — zero code changes required.
-site_url: https://aipartnerup.github.io/apcore-cli/
-repo_url: https://github.com/aipartnerup/apcore-cli
-repo_name: aipartnerup/apcore-cli
+site_url: https://aiperceivable.github.io/apcore-cli/
+repo_url: https://github.com/aiperceivable/apcore-cli
+repo_name: aiperceivable/apcore-cli
 theme:
   name: material
   logo: assets/apcore-cli-logo.svg
@@ -72,4 +72,4 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/aipartnerup/apcore-cli
+      link: https://github.com/aiperceivable/apcore-cli

@@ -7,7 +7,7 @@ This guide walks you through installing `apcore-cli`, running your first module,
 ## Prerequisites
 
 - **Python 3.11+**
-- An [apcore](https://github.com/aipartnerup/apcore) project with an extensions directory, or the example modules from the Python SDK
+- An [apcore](https://github.com/aiperceivable/apcore) project with an extensions directory, or the example modules from the Python SDK
 
 ---
 
@@ -30,7 +30,7 @@ apcore-cli --version
 The Python SDK ships with 8 example modules you can use immediately:
 
 ```bash
-git clone https://github.com/aipartnerup/apcore-cli-python.git
+git clone https://github.com/aiperceivable/apcore-cli-python.git
 cd apcore-cli-python
 pip install -e ".[dev]"
 
