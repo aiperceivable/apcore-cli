@@ -40,7 +40,7 @@ The Schema Parser converts a module's JSON Schema `input_schema` into Click CLI 
 
 **File**: `apcore_cli/schema_parser.py`
 
-**Signature**: `schema_to_click_options(schema: dict) -> list[click.Option]`
+**Signature**: `schema_to_click_options(schema: dict, max_help_length: int = 1000) -> list[click.Option]`
 
 Logic steps:
 1. Extract `properties = schema.get("properties", {})`.
@@ -139,13 +139,15 @@ Logic steps:
 
 ### 4.6 Help Text Extraction
 
-**Function**: `_extract_help(prop_schema: dict) -> str | None`
+**Function**: `_extract_help(prop_schema: dict, max_length: int = 1000) -> str | None`
 
 Logic steps:
 1. Check `prop_schema.get("x-llm-description")`. If non-empty string, use it.
 2. Else check `prop_schema.get("description")`. If non-empty string, use it.
-3. If selected text length > 200 chars: truncate to 197 chars + `"..."`.
+3. If `max_length > 0` and selected text length > `max_length` chars: truncate to `(max_length - 3)` chars + `"..."`.
 4. If neither field present: return `None`.
+
+The `max_length` parameter defaults to 1000 and is configurable via `cli.help_text_max_length`.
 
 ### 4.7 Reference Resolution
 
@@ -201,7 +203,7 @@ Logic steps:
 | Schema composition nesting | 0 | 3 levels | — | FR-SCHEMA-006 |
 | Property name length | 1 char | No limit (ID is limited) | — | FR-SCHEMA-001 |
 | Enum array size | 0 (empty) | No limit | — | FR-SCHEMA-003 |
-| Help text truncation | — | 200 chars | — | FR-SCHEMA-005 AF-1 |
+| Help text truncation | — | Configurable (`cli.help_text_max_length`) | 1000 chars | FR-SCHEMA-005 AF-1 |
 
 ---
 
@@ -237,7 +239,7 @@ Logic steps:
 | T-SCHEMA-13 | `$ref` depth > 32 | Exit 48, "depth exceeded". |
 | T-SCHEMA-14 | `allOf` with two sub-schemas | Merged properties from both sub-schemas. |
 | T-SCHEMA-15 | Help from `x-llm-description` | Help text uses `x-llm-description`, not `description`. |
-| T-SCHEMA-16 | Help text > 200 chars | Truncated to 197 + "...". |
+| T-SCHEMA-16 | Help text > 1000 chars (default limit) | Truncated to 997 + "...". |
 | T-SCHEMA-17 | Boolean default `true` | Default is `True` without explicit flag. |
 | T-SCHEMA-18 | Enum with integer values `[1,2,3]` | Choice accepts "1", reconverts to int `1`. |
 | T-SCHEMA-19 | Two properties collide after hyphen conversion | Exit 48, "Flag name collision". |

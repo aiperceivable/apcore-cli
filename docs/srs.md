@@ -628,7 +628,7 @@ The system provides eight feature groups:
 
 **Alternative Flows:**
 
-- **AF-1: Description Exceeds Terminal Width.** If the description exceeds 200 characters, the system shall truncate it to 197 characters followed by `...` for the CLI help display. The full description shall remain available in `describe` output.
+- **AF-1: Description Exceeds Configured Limit.** If the description exceeds the configured `cli.help_text_max_length` (default: 1000 characters), the system shall truncate it to `(limit - 3)` characters followed by `...` for the CLI help display. The limit is configurable via config file, environment variable (`APCORE_CLI_HELP_TEXT_MAX_LENGTH`), or built-in default. The full description shall remain available in `describe` output.
 
 **Postconditions:**
 - Each CLI flag has descriptive help text derived from the schema.

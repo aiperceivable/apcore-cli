@@ -64,6 +64,8 @@ DEFAULTS = {
     "logging.level": "WARNING",
     "sandbox.enabled": False,
     "cli.stdin_buffer_limit": 10_485_760,  # 10 MB
+    "cli.auto_approve": False,
+    "cli.help_text_max_length": 1000,
 }
 ```
 
@@ -123,6 +125,7 @@ Flattened to:
 | `logging.level` | `--log-level` | `APCORE_LOGGING_LEVEL` (note: `APCORE_CLI_LOGGING_LEVEL` takes priority if both are set) | `WARNING` | `str` (enum) | NFR-MNT-002 |
 | `sandbox.enabled` | `--sandbox` | `APCORE_CLI_SANDBOX` | `False` | `bool` | FR-SEC-004 |
 | `cli.auto_approve` | `--yes` | `APCORE_CLI_AUTO_APPROVE` | `False` | `bool` | FR-APPR-004 |
+| `cli.help_text_max_length` | — | `APCORE_CLI_HELP_TEXT_MAX_LENGTH` | `1000` | `int` | FR-SCHEMA-005 |
 
 ---
 

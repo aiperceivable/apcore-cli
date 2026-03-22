@@ -75,7 +75,7 @@ Logic steps:
 
 ### 4.2 Function: `build_module_command`
 
-**Signature**: `build_module_command(module_def: ModuleDefinition, executor: Executor) -> click.Command`
+**Signature**: `build_module_command(module_def: ModuleDefinition, executor: Executor, help_text_max_length: int = 1000) -> click.Command`
 
 Logic steps:
 1. Get `input_schema` from `module_def.input_schema`.

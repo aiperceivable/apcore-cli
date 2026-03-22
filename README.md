@@ -5,7 +5,9 @@
 # apcore-cli
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://github.com/aipartnerup/apcore-cli-python)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://github.com/aipartnerup/apcore-cli-python)
+[![TypeScript](https://img.shields.io/badge/typescript-node%2018%2B-blue)](https://github.com/aipartnerup/apcore-cli-typescript)
+[![Rust](https://img.shields.io/badge/rust-2021%20edition-orange)](https://github.com/aipartnerup/apcore-cli-rust)
 
 **The CLI Adapter for apcore — Expose modules as high-performance, AI-perceivable command-line tools.**
 
@@ -15,6 +17,8 @@
 |---|---|
 | **Spec repo** | [github.com/aipartnerup/apcore-cli](https://github.com/aipartnerup/apcore-cli) |
 | **Python SDK** | [github.com/aipartnerup/apcore-cli-python](https://github.com/aipartnerup/apcore-cli-python) |
+| **TypeScript SDK** | [github.com/aipartnerup/apcore-cli-typescript](https://github.com/aipartnerup/apcore-cli-typescript) |
+| **Rust SDK** | [github.com/aipartnerup/apcore-cli-rust](https://github.com/aipartnerup/apcore-cli-rust) |
 | **apcore core** | [github.com/aipartnerup/apcore](https://github.com/aipartnerup/apcore) |
 
 ---
@@ -232,6 +236,7 @@ apcore-cli uses a 4-tier configuration precedence:
 | `APCORE_LOGGING_LEVEL` | Global apcore log level (fallback when `APCORE_CLI_LOGGING_LEVEL` is unset) | `WARNING` |
 | `APCORE_AUTH_API_KEY` | API key for remote registry authentication | *(unset)* |
 | `APCORE_CLI_SANDBOX` | Set to `1` to enable subprocess sandboxing | *(unset)* |
+| `APCORE_CLI_HELP_TEXT_MAX_LENGTH` | Maximum characters for CLI option help text before truncation | `1000` |
 
 ### Config File (`apcore.yaml`)
 
@@ -242,6 +247,8 @@ logging:
   level: DEBUG
 sandbox:
   enabled: false
+cli:
+  help_text_max_length: 1000
 ```
 
 ---
@@ -285,7 +292,9 @@ apcore Registry + Executor (your modules, unchanged)
 
 | Language | Repository | Status |
 |----------|-----------|--------|
-| **Python** | [apcore-cli-python](https://github.com/aipartnerup/apcore-cli-python) | v0.2.0 -- 8 features, 261 tests |
+| **Python** | [apcore-cli-python](https://github.com/aipartnerup/apcore-cli-python) | v0.2.1 -- 8 features, 263 tests |
+| **TypeScript** | [apcore-cli-typescript](https://github.com/aipartnerup/apcore-cli-typescript) | v0.2.1 -- 8 features, 183 tests |
+| **Rust** | [apcore-cli-rust](https://github.com/aipartnerup/apcore-cli-rust) | v0.2.1 -- 8 features, 459 tests |
 
 ---
 

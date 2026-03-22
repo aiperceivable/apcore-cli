@@ -459,7 +459,7 @@ class LazyModuleGroup(click.Group):
 #### 8.2.2 Function: `build_module_command`
 
 ```python
-def build_module_command(module_def: ModuleDefinition, executor: Executor) -> click.Command:
+def build_module_command(module_def: ModuleDefinition, executor: Executor, help_text_max_length: int = 1000) -> click.Command:
     """Build a Click Command from a module definition."""
     input_schema = module_def.input_schema
     resolved_schema = resolve_refs(input_schema, max_depth=32)
@@ -598,7 +598,7 @@ When a property has an `enum` field:
 | 2 | `description` | Use if `x-llm-description` is absent/empty. | FR-SCHEMA-005 |
 | 3 (default) | None | `help=None` (Click shows no help text). | FR-SCHEMA-005 |
 
-**Truncation:** If help text exceeds 200 characters, truncate to 197 characters + `"..."`. Full description available via `apcore-cli describe <module_id>`.
+**Truncation:** Help text is passed to the CLI framework as-is for natural line wrapping. A configurable safety ceiling applies (default: 1000 characters via `cli.help_text_max_length`): text beyond this limit is truncated to `(limit - 3)` characters + `"..."`. Full description available via `apcore-cli describe <module_id>`.
 
 **Traces to:** FR-SCHEMA-005.
 
@@ -1073,6 +1073,9 @@ class ConfigResolver:
         "extensions.root": "./extensions",
         "logging.level": "WARNING",
         "sandbox.enabled": False,
+        "cli.stdin_buffer_limit": 10_485_760,  # 10 MB
+        "cli.auto_approve": False,
+        "cli.help_text_max_length": 1000,
     }
 
     def __init__(self, cli_flags: dict[str, Any] = None, config_path: str = "apcore.yaml"):
