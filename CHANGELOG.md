@@ -4,6 +4,30 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] - 2026-03-23
+
+### Added
+
+- **Display overlay routing (§5.13)** — `LazyModuleGroup` now reads `metadata["display"]["cli"]` for alias and description when building the command list and routing `get_command()`.
+  - `_alias_map`: built from `metadata["display"]["cli"]["alias"]` (with module_id fallback), enabling invocation by alias.
+  - `_descriptor_cache`: populated during alias map build to avoid double `registry.get_definition()` calls.
+  - `_alias_map_built` flag only set on successful build, allowing retry after transient registry errors.
+- **Display overlay in JSON output** — `format_module_list(..., "json")` reads `metadata["display"]["cli"]` for `id`, `description`, and `metadata["display"]["tags"]`.
+
+### Changed
+
+- `_ERROR_CODE_MAP.get(error_code, 1)`: guarded with `isinstance(error_code, str)` to prevent `None`-key lookup.
+- Dependency bump: requires `apcore-toolkit >= 0.4.0` for `DisplayResolver`.
+- Updated feature specs: `core-dispatcher.md` (alias map, descriptor cache), `output-formatter.md` (JSON branch display overlay).
+
+### Tests
+
+- `TestDisplayOverlayAliasRouting` (6 tests): `list_commands` uses CLI alias, `get_command` by alias, cache hit path, module_id fallback, `build_module_command` alias and description.
+- `test_format_list_json_uses_display_overlay`: JSON output uses display overlay alias/description/tags.
+- `test_format_list_json_falls_back_to_scanner_when_no_overlay`: JSON output falls back to scanner values.
+
+---
+
 ## [0.2.2] - 2026-03-22
 
 ### Changed

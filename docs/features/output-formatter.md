@@ -58,9 +58,16 @@ Logic steps:
    e. Elif no modules:
       - Print `"No modules found."`.
    f. Print table via `Console().print(table)`.
-2. If `format == "json"`:
-   a. Build `result = [{"id": m.canonical_id, "description": m.description, "tags": m.tags} for m in modules]`.
-   b. Print `json.dumps(result, indent=2)`.
+2. Elif `format == "json"`:
+   a. For each module:
+      - `_meta = module.metadata or {}`
+      - `_disp = _meta.get("display") or {}`
+      - `_cli = _disp.get("cli") or {}`
+      - `mid = _cli.get("alias") or _disp.get("alias") or module.canonical_id`
+      - `desc = _cli.get("description") or module.description`
+      - `tags = _disp.get("tags") or module.tags`
+      - Append `{"id": mid, "description": desc, "tags": tags}` to result list.
+   b. Print `json.dumps(result, indent=2)` via `click.echo`.
 
 ### 4.3 Function: `format_module_detail`
 

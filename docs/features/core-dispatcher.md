@@ -48,30 +48,43 @@ class LazyModuleGroup(click.Group):
         self._registry = registry
         self._executor = executor
         self._module_cache: dict[str, click.Command] = {}
+        self._alias_map: dict[str, str] = {}           # CLI alias → module_id
+        self._alias_map_built: bool = False
+        self._descriptor_cache: dict[str, Any] = {}    # module_id → descriptor
 ```
 
 **Method: `list_commands(ctx) -> list[str]`**
 
 Logic steps:
 1. Define built-in commands list: `["exec", "list", "describe", "completion", "man"]`.
-2. Call `self._registry.list()` to get all module definitions.
-3. Extract `canonical_id` from each module definition.
-4. Return `sorted(set(builtin + module_ids))`.
+2. If `_alias_map_built` is False: call `_build_alias_map()`.
+3. Return `sorted(set(builtin + list(self._alias_map.keys())))`.
 
 Edge cases:
 - Registry returns empty list: return only built-in commands.
 - Registry raises exception during `list()`: catch, log WARNING, return only built-in commands.
 
+**Method: `_build_alias_map()`**
+
+Logic steps:
+- Iterates `self._registry.list()` to get all module definitions.
+- For each module definition: reads `mod.metadata["display"]["cli"]["alias"]` if present, else uses `mod.canonical_id` (or `mod.module_id`).
+- Stores alias → module_id in `self._alias_map`.
+- Stores module_id → module_def in `self._descriptor_cache`.
+- Sets `self._alias_map_built = True` only on success (inside try block).
+- On failure: logs WARNING, does not set the flag (allows retry on transient registry errors).
+
 **Method: `get_command(ctx, cmd_name) -> click.Command | None`**
 
 Logic steps:
 1. Check `self.commands` dict for built-in commands. If found, return it.
-2. Check `self._module_cache` for previously resolved modules. If found, return it.
-3. Call `self._registry.get_definition(cmd_name)`.
-4. If `None`, return `None` (Click will show "command not found").
-5. Call `build_module_command(module_def, self._executor)`.
-6. Store result in `self._module_cache[cmd_name]`.
-7. Return the command.
+2. Ensure alias map is built (call `_build_alias_map()` if not).
+3. Look up `module_id = self._alias_map.get(cmd_name)`. If not found, return `None`.
+4. Check `self._descriptor_cache.get(module_id)` — if found, use cached descriptor.
+5. Else call `self._registry.get_definition(module_id)`.
+6. Call `build_module_command(module_def, self._executor)`.
+7. Store result in `self._module_cache[cmd_name]`.
+8. Return the command.
 
 ### 4.2 Function: `build_module_command`
 
@@ -82,8 +95,8 @@ Logic steps:
 2. Call `resolve_refs(input_schema, max_depth=32)` to inline all `$ref` references.
 3. Call `schema_to_click_options(resolved_schema)` to generate Click options.
 4. Create a Click command with:
-   - `name`: `module_def.canonical_id`
-   - `help`: `module_def.description`
+   - `name`: `metadata["display"]["cli"]["alias"]` if present, else `module_def.canonical_id`
+   - `help`: `metadata["display"]["cli"]["description"]` if present, else `module_def.description`
    - Built-in options: `--input`, `--yes`, `--large-input`, `--format`, `--sandbox`
 5. The command callback:
    a. Call `collect_input(stdin_input, kwargs, large_input)` to merge STDIN + CLI flags.
