@@ -7,11 +7,11 @@
 | Field | Value |
 |-------|-------|
 | **Document Title** | Technical Design: apcore-cli |
-| **Version** | 1.0 |
+| **Version** | 2.0 |
 | **Author** | Spec Forge |
-| **Date** | 2026-03-14 |
+| **Date** | 2026-03-23 |
 | **Status** | Draft |
-| **Supersedes** | Tech Design v0.4 (`docs/tech-design-apcore-cli.md`) |
+| **Supersedes** | Tech Design v1.0 (`docs/tech-design.md`) |
 | **Upstream SRS** | `docs/srs.md` (SRS-APCORE-CLI-001 v0.1) |
 
 ---
@@ -21,6 +21,7 @@
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
 | 1.0 | 2026-03-14 | Spec Forge | Full rewrite from SRS. Supersedes v0.4. Adds security stack, shell integration, C4 diagrams, traceability matrix. |
+| 2.0 | 2026-03-23 | Spec Forge | Adds Display Overlay integration (ADR-07), Grouped CLI Commands (ADR-08). New `GroupedModuleGroup` class, group resolution algorithm, updated discovery/shell/output components. |
 
 ---
 
@@ -30,6 +31,8 @@
 
 The `apcore` ecosystem provides a protocol for building AI-Perceivable modules with a 3-layer metadata model (Discovery, Capabilities, Execution). Currently, developers and AI agents lack a standard, low-overhead terminal interface for invoking these modules. `apcore-cli` is a CLI adapter that bridges this gap, translating terminal commands into apcore module invocations.
 
+**New in v2.0:** Web projects using `fastapi-apcore` or similar scanners often generate 50+ module IDs with dot-separated namespaces (e.g., `product.list`, `product.get`, `user.create`, `user.update`). The flat command list produced by v1.0 becomes unusable at this scale. This version introduces **grouped CLI commands** — nested `click.Group` subcommands organized by namespace prefix — along with **display overlay integration** for user-facing command naming.
+
 ### 3.2 Goals
 
 1. **Auto-Mapping**: Zero-config generation of CLI commands from `apcore` Module JSON Schema definitions (SRS FR-SCHEMA-001 through FR-SCHEMA-006).
@@ -37,12 +40,15 @@ The `apcore` ecosystem provides a protocol for building AI-Perceivable modules w
 3. **Safety**: TTY-aware Human-in-the-Loop approval gates for destructive or sensitive operations (SRS FR-APPR-001 through FR-APPR-005).
 4. **Composability**: Unix pipe integration via STDIN JSON input and TTY-adaptive output formatting (SRS FR-DISP-004, FR-DISC-004).
 5. **Security**: Full authentication, encrypted config, audit logging, and sandboxed execution stack (SRS FR-SEC-001 through FR-SEC-004).
+6. **Scalable Navigation**: Grouped command hierarchy for projects with 50+ modules, with readable root help and intuitive `apcore-cli <group> <command>` invocation. *(New in v2.0)*
+7. **Display Overlay**: Surface-specific command naming and descriptions via `binding.yaml` display metadata, replacing direct module_id exposure. *(New in v2.0)*
 
 ### 3.3 Non-Goals
 
 - Remote execution via `apcore-a2a` (deferred to Phase 4).
 - Replacement for `apcore-mcp` (they are complementary adapters).
 - GUI or TUI dashboard for module management.
+- Cross-surface group configuration (grouping is CLI-only; MCP/A2A have their own presentation needs).
 
 ---
 
@@ -55,12 +61,12 @@ C4Context
     Person(dev, "Developer", "Interactive terminal user. Types commands, reads formatted output.")
     Person(agent, "AI Agent", "Programmatic caller via shell exec. Parses stdout, interprets exit codes.")
 
-    System(cli, "apcore-cli", "CLI adapter. Maps terminal commands to apcore module invocations.")
+    System(cli, "apcore-cli", "CLI adapter. Maps terminal commands to apcore module invocations. Groups commands by namespace.")
 
     System_Ext(registry, "apcore Registry", "Discovers and indexes module definitions from extensions directory.")
     System_Ext(executor, "apcore Executor", "Runs modules through middleware chain (ACL, observability, approval).")
     System_Ext(keyring, "OS Keyring", "Native credential storage (macOS Keychain, GNOME Keyring, Windows Credential Locker).")
-    System_Ext(fs, "Filesystem", "Extensions directory, config files, audit log.")
+    System_Ext(fs, "Filesystem", "Extensions directory, config files, audit log, binding.yaml.")
 
     Rel(dev, cli, "Invokes commands", "Terminal / TTY")
     Rel(agent, cli, "Invokes commands", "Shell exec / non-TTY")
@@ -74,80 +80,104 @@ C4Context
 
 | Actor | Type | Interaction Mode | Key Needs | SRS Reference |
 |-------|------|------------------|-----------|---------------|
-| Developer | Human | Interactive TTY | Descriptive help, readable errors, tab completion, approval prompts | SRS §4.3 |
-| AI Agent | Programmatic | Non-TTY shell exec | Deterministic exit codes, structured JSON output, no interactive prompts | SRS §4.3 |
+| Developer | Human | Interactive TTY | Descriptive help, readable errors, tab completion, approval prompts, grouped command navigation | SRS §4.3 |
+| AI Agent | Programmatic | Non-TTY shell exec | Deterministic exit codes, structured JSON output, no interactive prompts, predictable group.command addressing | SRS §4.3 |
 | CI/CD System | Automated | Non-TTY | Approval bypass via `--yes` or env var, deterministic behavior | SRS FR-APPR-004 |
 
 ---
 
 ## 5. Solution Design
 
-### 5.1 Solution A: Dynamic Click Group with Lazy Loading (Recommended)
+### 5.1 Solution A: Auto-Group with Display Override (Recommended)
 
-**Description:** Use a custom `click.Group` subclass that overrides `get_command()` and `list_commands()` to lazily load apcore modules from the Registry. Each module's `input_schema` is parsed at invocation time (not at startup) to generate Click options dynamically. The Executor is used for all module invocations.
+**Description:** Extend `LazyModuleGroup` with a `GroupedModuleGroup` subclass that automatically groups modules by the first `.` segment of their CLI alias (or module_id), creating nested `click.Group` instances for each namespace prefix. The `display.cli.group` field in `binding.yaml` overrides the auto-detected group. Modules without a `.` in their resolved name remain top-level commands.
 
 **Architecture:**
-- A `LazyModuleGroup` subclass of `click.Group` is the root command.
-- On `list_commands()`, it returns the union of built-in subcommands (`exec`, `list`, `describe`, `completion`, `man`) and dynamically discovered module IDs.
-- On `get_command(name)`, it resolves the module from the Registry, parses its `input_schema` via the Schema Parser, and returns a dynamically constructed `click.Command`.
-- Module execution is delegated to `Executor.call(module_id, validated_input)`.
+- `GroupedModuleGroup` inherits from `LazyModuleGroup` and overrides `list_commands()` and `get_command()`.
+- On `list_commands()`, it returns built-in commands plus group names (not individual module commands).
+- On `get_command(group_name)`, it returns a dynamically created `click.Group` containing all commands in that group.
+- Group resolution follows a 3-tier priority: `display.cli.group` (explicit) > first `.` segment of CLI alias > top-level (no group).
+- Root `--help` shows group names with description and command count, keeping output readable at 50+ modules.
+- Grouping is always-on with no toggle flag.
+- Single-command groups remain as groups (e.g., `health.check` becomes group `health`, command `check`).
 
 **Pros:**
-- Highly extensible and idiomatic for Python CLI tooling.
-- Minimal boilerplate; new modules appear automatically.
-- Excellent help text, nested subcommand support, and interactive prompts via Click.
-- Lazy loading ensures startup time is not proportional to module count.
+- Zero-configuration: groups emerge naturally from existing dot-separated names.
+- Scales to 100+ modules while keeping root help readable.
+- `display.cli.group` override enables flexible reorganization without renaming modules.
+- Forward-compatible: adding commands to a group later does not break existing invocations.
+- Preserves all v1.0 module execution behavior (only the routing layer changes).
 
 **Cons:**
-- External dependency on `click` (not stdlib).
-- First invocation of a module has marginally higher latency due to schema parsing (mitigated by caching).
+- Adds one level of Click nesting, increasing `get_command()` call depth by 1.
+- Modules previously invoked as `apcore-cli user.list` must now be invoked as `apcore-cli user list` (breaking change, acceptable at v0.3.0).
+- Shell completion scripts need updating to handle nested groups.
 
 **Technology choices:**
-- `click >= 8.1` for CLI framework.
-- `jsonschema >= 4.20` for schema validation.
-- `rich >= 13.0` for terminal output.
-- `keyring >= 24.0` for encrypted credential storage.
+- `click >= 8.1` for CLI framework (existing).
+- No new dependencies.
 
-### 5.2 Solution B: Static Argparse with Pre-compiled Command Registry
+### 5.2 Solution B: Flat Aliases with Category Tags
 
-**Description:** Pre-process the extensions directory at install time or first run to generate a static subcommand manifest. Use Python's built-in `argparse` to construct a fixed command tree from the manifest. Re-scan on explicit `apcore-cli refresh` invocation.
+**Description:** Keep all commands at the top level but add category tags to `--help` output. Use display overlay to assign short aliases (e.g., `user-list` instead of `user.list`). Help output groups commands by tag using Rich formatting.
 
 **Architecture:**
-- A `setup.py` or post-install hook scans the extensions directory and generates a `commands.json` manifest.
-- At startup, `argparse` reads the manifest and constructs subparsers for each module.
-- Schema changes require re-running `apcore-cli refresh` to regenerate the manifest.
+- `LazyModuleGroup` remains the root group (no subclassing).
+- `list_commands()` returns all module aliases as flat top-level commands.
+- `format_help()` is overridden to group commands by a `display.cli.category` tag in `--help` output.
+- Invocation: `apcore-cli user-list` (flat, hyphenated).
 
 **Pros:**
-- Zero external dependencies for the parser (uses stdlib `argparse`).
-- Potentially faster startup (< 50ms) due to pre-compiled manifest.
-- Deterministic command set (no runtime surprises).
+- No nested Click groups; simpler Click command tree.
+- No breaking change to invocation syntax (commands stay top-level).
+- Easier shell completion (single level).
 
 **Cons:**
-- Manual refresh step breaks the zero-config promise (SRS §3.2: "zero manual configuration").
-- Poor support for interactive prompts (no built-in `confirm()` equivalent; would require custom implementation for approval gate).
-- Complex help formatting requires significant custom code.
-- Boolean flag pairs (`--flag/--no-flag`) require manual implementation.
-- Dynamic completion for module-specific flags is significantly harder.
+- Root `--help` still lists every command — at 50+ modules, this produces 3+ screens of output even with visual grouping.
+- Flat namespace collisions more likely (e.g., `user-list` vs `user_list`).
+- Does not match developer mental model: web developers expect `apcore-cli user list` (noun-verb), not `apcore-cli user-list`.
+- No natural way to scope flags or help to a group (cannot do `apcore-cli user --help`).
+- Tab completion for `apcore-cli <TAB>` dumps all 50+ commands at once.
 
-### 5.3 Comparison Matrix
+### 5.3 Solution C: Manual Group Registration
 
-| Criteria | Weight | Solution A (Click) | Solution B (Argparse) |
-|----------|--------|-------------------|-----------------------|
-| **Zero-config compliance** (SRS §3.2) | 25% | Fully automatic. Modules appear on discovery. Score: 10 | Requires `refresh` step. Score: 4 |
-| **Startup performance** (NFR-PERF-001: < 100ms) | 20% | < 100ms with lazy loading. Score: 8 | < 50ms with pre-compiled manifest. Score: 10 |
-| **Approval gate support** (FR-APPR-002) | 15% | `click.confirm()` built-in. Score: 10 | Custom implementation required. Score: 5 |
-| **Boolean flag pairs** (FR-SCHEMA-002) | 10% | Native `--flag/--no-flag` support. Score: 10 | Manual subparser configuration. Score: 4 |
-| **Shell completion** (FR-SHELL-001) | 10% | Built-in completion framework. Score: 9 | Requires custom completion script. Score: 3 |
-| **Help text quality** (NFR-USB-001) | 10% | Excellent formatting with groups, epilog. Score: 9 | Basic formatting only. Score: 5 |
-| **Dependency count** | 5% | 1 external dep (click). Score: 7 | 0 external deps. Score: 10 |
-| **Maintainability** | 5% | Well-documented, large community. Score: 9 | More custom code to maintain. Score: 5 |
-| **Weighted Total** | 100% | **9.1** | **5.2** |
+**Description:** Require binding.yaml to explicitly declare groups and their members. No auto-detection. Each group is a manually configured `click.Group` with explicit command membership.
 
-### 5.4 Decision
+**Architecture:**
+- binding.yaml includes a `groups` section mapping group names to lists of module_ids.
+- `create_cli()` reads groups config and creates explicit `click.Group` instances.
+- Modules not listed in any group remain top-level.
 
-**Solution A (Dynamic Click Group with Lazy Loading)** is selected. The zero-config requirement (SRS §3.2), built-in approval prompts (FR-APPR-002), and boolean flag pair support (FR-SCHEMA-002) are strong differentiators that outweigh Solution B's marginal startup performance advantage.
+**Pros:**
+- Full control over grouping structure.
+- No implicit behavior to debug.
+- Groups can have custom help text and descriptions.
 
-This decision preserves and extends ADR-01 from Tech Design v0.4.
+**Cons:**
+- Violates the zero-config promise (SRS §3.2): every new module requires a binding.yaml update.
+- Maintenance burden scales linearly with module count — 50 modules means 50 group assignments.
+- Forgetting to add a module to a group makes it invisible.
+- Breaks the "modules appear automatically" guarantee of `LazyModuleGroup`.
+- Poor developer experience for rapid prototyping (add a FastAPI route, must also update binding.yaml).
+
+### 5.4 Comparison Matrix
+
+| Criteria | Weight | Solution A (Auto-Group) | Solution B (Flat + Tags) | Solution C (Manual Groups) |
+|----------|--------|------------------------|-------------------------|---------------------------|
+| **Scalable help** (50+ modules readable) | 25% | Root shows groups with counts. Score: 10 | Still lists all commands. Score: 4 | Groups shown at root. Score: 9 |
+| **Zero-config** (SRS §3.2) | 20% | Fully automatic from `.` delimiter. Score: 10 | Automatic naming. Score: 8 | Requires explicit group config. Score: 2 |
+| **Developer mental model** (noun-verb) | 15% | `apcore-cli user list` matches REST conventions. Score: 10 | `apcore-cli user-list` is flat. Score: 5 | `apcore-cli user list` matches. Score: 10 |
+| **Shell completion UX** | 15% | Progressive: group then command. Score: 9 | 50+ completions at once. Score: 3 | Progressive: group then command. Score: 9 |
+| **Override flexibility** | 10% | `display.cli.group` override. Score: 9 | Category tags. Score: 7 | Full control. Score: 10 |
+| **Migration cost** (v0.3.0) | 10% | Syntax change, acceptable at 0.3.0. Score: 8 | No change. Score: 10 | Config file required. Score: 4 |
+| **Implementation complexity** | 5% | One new class, method overrides. Score: 7 | Format override only. Score: 9 | Config parser + group builder. Score: 5 |
+| **Weighted Total** | 100% | **9.3** | **5.3** | **6.5** |
+
+### 5.5 Decision
+
+**Solution A (Auto-Group with Display Override)** is selected. The scalable help display, zero-config grouping, and alignment with the noun-verb REST convention that web developers expect are decisive advantages. The breaking change to invocation syntax is acceptable at v0.3.0 with a tiny user base. The `display.cli.group` override provides an escape hatch for non-standard grouping needs.
+
+This decision is recorded as ADR-08.
 
 ---
 
@@ -159,7 +189,7 @@ This decision preserves and extends ADR-01 from Tech Design v0.4.
 
 **Decision:** Use `click >= 8.1` as the CLI framework.
 
-**Rationale:** See §5.3 comparison matrix. Click's `click.Group` subclassing, `click.confirm()`, and `--flag/--no-flag` support directly satisfy SRS requirements FR-SCHEMA-002, FR-APPR-002, and FR-SHELL-001.
+**Rationale:** See §5.3 (v1.0) comparison matrix. Click's `click.Group` subclassing, `click.confirm()`, and `--flag/--no-flag` support directly satisfy SRS requirements FR-SCHEMA-002, FR-APPR-002, and FR-SHELL-001.
 
 **Alternatives rejected:** `argparse` (too much custom code), `typer` (adds Pydantic dependency, less control over dynamic command generation).
 
@@ -251,6 +281,35 @@ def create_cli(executor: Executor) -> click.Group:
 
 **Limitations:** This is not a security boundary against a determined adversary. The subprocess can still make network calls. Full containerization (Docker, Bubblewrap) is deferred to Phase 2.
 
+### ADR-07: Display Overlay — Surface-Specific Naming via binding.yaml
+
+**Context:** Scanner-generated module_ids (e.g., `product.get_product_product__product_id_.get`) are verbose and framework-specific. Different CLI/MCP/A2A surfaces need different presentation formats. The previous `simplify_ids` approach modified module_ids directly, violating layer boundaries.
+
+**Decision:** Use the PROTOCOL_SPEC §5.13 Display Overlay system. `binding.yaml` contains a sparse `display` section where each binding can override surface-facing names and descriptions. The resolve chain is: `display.cli.alias` > `display.default.alias` > `suggested_alias` > `module_id`. `LazyModuleGroup` reads the overlay at alias-map build time and uses it for command naming, descriptions, and help text.
+
+**Implementation in v1.1 (current):**
+- `_build_alias_map()` reads `metadata["display"]["cli"]["alias"]` for each module.
+- `_alias_map` stores `cli_alias -> module_id` for reverse lookup.
+- `_descriptor_cache` stores `module_id -> descriptor` to avoid re-fetching.
+- `build_module_command()` uses `display.cli.alias` for command name and `display.cli.description` for help text.
+
+**Rationale:** Separates concerns — scanners produce canonical IDs, surfaces consume overlay-resolved names. One binding.yaml serves all surfaces. `simplify_ids` is deprecated.
+
+### ADR-08: Grouped CLI Commands — Auto-Group by Dot Delimiter
+
+**Context:** Web projects using `fastapi-apcore` generate 50+ modules with dot-separated namespaces (e.g., `product.list`, `product.get`, `user.create`). The flat command list produced by `LazyModuleGroup` is unusable at this scale — root `--help` produces multiple screens of output, and tab completion dumps all commands at once.
+
+**Decision:** Introduce `GroupedModuleGroup(LazyModuleGroup)` that creates nested `click.Group` instances for each namespace prefix. Group resolution follows: `display.cli.group` (explicit) > first `.` segment of CLI alias > top-level. Grouping is always-on. Single-command groups stay as groups. Root help shows collapsed group display with command counts.
+
+**Rationale:** See §5.4 comparison matrix. Auto-grouping by `.` delimiter matches the existing module_id namespace convention, requires zero configuration, and produces the `noun verb` pattern that web developers expect (`apcore-cli user list`). The `display.cli.group` override enables non-standard grouping without renaming modules.
+
+**Breaking change:** Modules previously invoked as `apcore-cli user.list` must now be invoked as `apcore-cli user list` (space instead of dot). This is acceptable at v0.3.0 with a tiny user base and no backward compatibility commitment.
+
+**Key design decisions:**
+1. **Grouping always on** — no `group_commands=True` toggle. If flat mode is needed per-module, `display.cli.group: ""` opts out.
+2. **Single-command groups stay as groups** — `health.check` becomes `health check`, not promoted to top-level `health-check`. This is consistent (has `.` = has group) and forward-compatible (adding `health status` later does not break existing commands).
+3. **`display.cli.group` is CLI-only** — not added to PROTOCOL_SPEC §5.13. It is a CLI surface convention documented in this tech design and the feature spec only.
+
 ---
 
 ## 7. Architecture Design
@@ -259,24 +318,25 @@ def create_cli(executor: Executor) -> click.Group:
 
 ```mermaid
 C4Container
-    title Container Diagram — apcore-cli
+    title Container Diagram — apcore-cli v2.0
 
     Person(user, "User", "Developer or AI Agent")
 
     Container_Boundary(cli, "apcore-cli") {
-        Component(entry, "CLI Entry Point", "Python/Click", "LazyModuleGroup subclass. Routes commands, manages lifecycle.")
+        Component(entry, "CLI Entry Point", "Python/Click", "GroupedModuleGroup subclass. Routes commands through nested groups.")
         Component(schema, "Schema Parser", "Python/jsonschema", "Maps JSON Schema input_schema to Click options. Resolves $ref, handles types.")
         Component(approval, "Approval Gate", "Python/Click", "TTY-aware HITL middleware. Prompts, bypasses, timeouts.")
-        Component(discovery, "Discovery", "Python/Rich", "list and describe commands. Tag filtering, format selection.")
+        Component(discovery, "Discovery", "Python/Rich", "list and describe commands. Group-aware display, tag filtering, format selection.")
         Component(security, "Security Manager", "Python/keyring", "Auth, encrypted config, audit logging, sandbox.")
-        Component(output, "Output Formatter", "Python/Rich", "TTY-adaptive output. JSON for pipes, tables for terminals.")
+        Component(output, "Output Formatter", "Python/Rich", "TTY-adaptive output. JSON for pipes, tables for terminals. Group-aware list formatting.")
         Component(config, "Config Resolver", "Python/YAML", "4-tier precedence: CLI > Env > File > Default.")
+        Component(shell, "Shell Integration", "Python", "Group-aware completion scripts (bash/zsh/fish) and man page generation.")
     }
 
     System_Ext(registry, "apcore Registry", "Module metadata store")
     System_Ext(executor, "apcore Executor", "Module execution engine")
     System_Ext(keyring_ext, "OS Keyring", "Credential storage")
-    System_Ext(fs, "Filesystem", "Config, audit log, extensions")
+    System_Ext(fs, "Filesystem", "Config, audit log, extensions, binding.yaml")
 
     Rel(user, entry, "Invokes", "Terminal")
     Rel(entry, schema, "Parses schema")
@@ -298,7 +358,8 @@ C4Container
 ```mermaid
 flowchart TB
     subgraph "apcore-cli Components"
-        Entry["CLI Entry Point<br/><i>LazyModuleGroup</i><br/>cli.py"]
+        Entry["CLI Entry Point<br/><i>GroupedModuleGroup</i><br/>cli.py"]
+        LazyBase["LazyModuleGroup<br/><i>(base class)</i><br/>cli.py"]
         SchemaParser["Schema Parser<br/><i>schema_to_click()</i><br/>schema_parser.py"]
         RefResolver["Ref Resolver<br/><i>resolve_refs()</i><br/>ref_resolver.py"]
         ApprovalGate["Approval Gate<br/><i>check_approval()</i><br/>approval.py"]
@@ -309,6 +370,7 @@ flowchart TB
         ShellInteg["Shell Integration<br/><i>completion_cmd, man_cmd</i><br/>shell.py"]
     end
 
+    Entry -->|"extends"| LazyBase
     Entry --> ConfigResolver
     Entry --> SchemaParser
     SchemaParser --> RefResolver
@@ -325,7 +387,110 @@ flowchart TB
     Entry -.->|"Executor.call()"| Executor
 ```
 
-### 7.3 Sequence Diagram: `apcore-cli exec` Full Lifecycle
+### 7.3 Class Hierarchy Diagram
+
+```mermaid
+classDiagram
+    class click_Group {
+        +list_commands(ctx) list~str~
+        +get_command(ctx, cmd_name) Command
+        +format_help(ctx, formatter)
+    }
+
+    class LazyModuleGroup {
+        -_registry: Registry
+        -_executor: Executor
+        -_module_cache: dict
+        -_alias_map: dict
+        -_descriptor_cache: dict
+        -_alias_map_built: bool
+        +list_commands(ctx) list~str~
+        +get_command(ctx, cmd_name) Command
+        -_build_alias_map()
+    }
+
+    class GroupedModuleGroup {
+        -_group_map: dict~str, dict~
+        -_group_cache: dict~str, click_Group~
+        -_group_map_built: bool
+        +list_commands(ctx) list~str~
+        +get_command(ctx, cmd_name) Command
+        +format_help(ctx, formatter)
+        -_build_group_map()
+        -_resolve_group(module_id, descriptor) tuple
+        -_create_group_command(group_name) click_Group
+    }
+
+    click_Group <|-- LazyModuleGroup
+    LazyModuleGroup <|-- GroupedModuleGroup
+```
+
+### 7.4 Sequence Diagram: Grouped Command Invocation
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Root as GroupedModuleGroup
+    participant GrpCmd as Group click.Group ("product")
+    participant Reg as Registry
+    participant SP as Schema Parser
+    participant AG as Approval Gate
+    participant Exec as Executor
+    participant OF as Output Formatter
+
+    User->>Root: apcore-cli product list --category electronics
+    Root->>Root: get_command(ctx, "product")
+    Root->>Root: _build_group_map() if not built
+    Root->>Root: _create_group_command("product")
+    Root-->>User: Returns nested click.Group
+
+    Note over Root,GrpCmd: Click dispatches to nested group
+
+    GrpCmd->>GrpCmd: get_command(ctx, "list")
+    GrpCmd->>Reg: get_definition("product.list")
+    Reg-->>GrpCmd: ModuleDescriptor
+    GrpCmd->>SP: schema_to_click_options(input_schema)
+    SP-->>GrpCmd: List[click.Option]
+
+    Note over GrpCmd: build_module_command() returns click.Command
+
+    GrpCmd->>GrpCmd: collect_input(kwargs)
+    GrpCmd->>GrpCmd: jsonschema.validate(input, schema)
+    GrpCmd->>AG: check_approval(module_def, auto_approve)
+    AG-->>GrpCmd: Approved
+
+    GrpCmd->>Exec: Executor.call("product.list", {category: "electronics"})
+    Exec-->>GrpCmd: Result [{name: "Laptop", ...}]
+
+    GrpCmd->>OF: format_output(result, format)
+    OF-->>User: Formatted output to stdout
+    GrpCmd-->>User: Exit code 0
+```
+
+### 7.5 Sequence Diagram: Root Help with Groups
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Root as GroupedModuleGroup
+    participant Reg as Registry
+
+    User->>Root: apcore-cli --help
+    Root->>Root: list_commands(ctx)
+    Root->>Root: _build_group_map()
+    Root->>Reg: Registry.list() + get_definition() for each
+    Reg-->>Root: Module descriptors with display metadata
+
+    Note over Root: Group resolution for each module:
+    Note over Root: display.cli.group > first "." segment > top-level
+
+    Root->>Root: format_help(ctx, formatter)
+
+    Root-->>User: Help output:
+    Note right of User: Commands:<br/>  exec       Execute a module by ID<br/>  list       List available modules<br/>  describe   Show module metadata<br/><br/>Groups:<br/>  product    Product management (4 commands)<br/>  user       User operations (3 commands)<br/>  health     Health checks (1 command)
+```
+
+### 7.6 Sequence Diagram: `apcore-cli exec` Full Lifecycle
 
 ```mermaid
 sequenceDiagram
@@ -380,7 +545,7 @@ sequenceDiagram
     CLI-->>User: Exit code 0
 ```
 
-### 7.4 Sequence Diagram: Discovery — `apcore-cli list`
+### 7.7 Sequence Diagram: Discovery — `apcore-cli list`
 
 ```mermaid
 sequenceDiagram
@@ -395,9 +560,27 @@ sequenceDiagram
     Reg-->>CLI: List[ModuleDefinition]
     CLI->>Disc: list_modules(modules, tags=["math"], format="table")
     Disc->>Disc: Filter by tags (AND logic)
-    Disc->>OF: format_table(filtered_modules)
-    OF-->>User: Rich table to stdout
+    Disc->>Disc: Build group map for grouped display
+    Disc->>OF: format_grouped_module_list(filtered_modules)
+    OF-->>User: Rich table grouped by namespace to stdout
     CLI-->>User: Exit code 0
+```
+
+### 7.8 Group Resolution Algorithm
+
+```mermaid
+flowchart TD
+    Start["resolve_group(module_id, descriptor)"] --> ReadOverlay["Read display.cli.group<br/>from descriptor metadata"]
+    ReadOverlay --> HasExplicit{"display.cli.group<br/>is non-None string?"}
+    HasExplicit -->|Yes, non-empty| UseExplicit["group = display.cli.group<br/>command = display.cli.alias or remainder"]
+    HasExplicit -->|Yes, empty string| TopLevel["group = None (top-level)<br/>command = display.cli.alias or module_id"]
+    HasExplicit -->|No/absent| ReadAlias["Read CLI alias:<br/>display.cli.alias or module_id"]
+    ReadAlias --> HasDot{"alias contains '.'?"}
+    HasDot -->|Yes| SplitDot["Split on first '.'<br/>group = prefix<br/>command = suffix"]
+    HasDot -->|No| TopLevel
+    UseExplicit --> Done["Return (group, command_name, module_id)"]
+    SplitDot --> Done
+    TopLevel --> Done
 ```
 
 ---
@@ -409,6 +592,7 @@ sequenceDiagram
 | Component | Module Path | SRS Requirements | Priority | Feature Spec |
 |-----------|-------------|------------------|----------|--------------|
 | **Core Dispatcher** | `apcore_cli/cli.py` | FR-DISP-001 through FR-DISP-006 | P0 | `docs/features/core-dispatcher.md` |
+| **Grouped Commands** | `apcore_cli/cli.py` | FR-DISP-001, FR-DISP-002 | P0 | `docs/features/grouped-commands.md` |
 | **Schema Parser** | `apcore_cli/schema_parser.py` | FR-SCHEMA-001 through FR-SCHEMA-006 | P0 | `docs/features/schema-parser.md` |
 | **Approval Gate** | `apcore_cli/approval.py` | FR-APPR-001 through FR-APPR-005 | P1 | `docs/features/approval-gate.md` |
 | **Discovery** | `apcore_cli/discovery.py` | FR-DISC-001 through FR-DISC-004 | P1 | `docs/features/discovery.md` |
@@ -421,82 +605,312 @@ sequenceDiagram
 
 #### 8.2.1 Class: `LazyModuleGroup`
 
-**Purpose:** Custom `click.Group` subclass that lazily discovers and loads modules from the apcore Registry.
+**Purpose:** Custom `click.Group` subclass that lazily discovers and loads modules from the apcore Registry. Serves as the base class for `GroupedModuleGroup`.
 
 ```python
 class LazyModuleGroup(click.Group):
     """Custom Click Group that lazily loads apcore modules as subcommands."""
 
-    def __init__(self, registry: Registry, executor: Executor, **kwargs):
+    def __init__(
+        self,
+        registry: Registry,
+        executor: Executor,
+        help_text_max_length: int = 1000,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self._registry = registry
         self._executor = executor
+        self._help_text_max_length = help_text_max_length
         self._module_cache: dict[str, click.Command] = {}
+        self._alias_map: dict[str, str] = {}           # CLI alias -> module_id
+        self._descriptor_cache: dict[str, Any] = {}     # module_id -> descriptor
+        self._alias_map_built: bool = False
+```
+
+**Method: `_build_alias_map()`**
+
+Logic steps:
+- If `_alias_map_built` is True, return immediately (idempotent).
+- Iterates `self._registry.list()` to get all module IDs.
+- For each module ID: calls `self._registry.get_definition(module_id)` to get the descriptor.
+- Reads `descriptor.metadata["display"]["cli"]["alias"]` if present; else uses `module_id`.
+- Stores `alias -> module_id` in `self._alias_map` (only if alias differs from module_id).
+- Stores `module_id -> descriptor` in `self._descriptor_cache`.
+- Sets `self._alias_map_built = True` only inside the try block (on success).
+- On failure: logs WARNING "Failed to build alias map from registry", does not set the flag (allows retry).
+
+**Method: `list_commands(ctx) -> list[str]`**
+
+Logic steps:
+1. Define built-in commands: `["exec", "list", "describe", "completion", "man"]`.
+2. Call `_build_alias_map()`.
+3. Build reverse map: `module_id -> alias` from `_alias_map`.
+4. Get all module IDs from `registry.list()`.
+5. For each module_id: use the alias if one exists, else use the module_id.
+6. Return `sorted(set(builtin + names))`.
+
+Edge cases:
+- Registry returns empty list: return only built-in commands.
+- Registry raises exception: catch, log WARNING, return only built-in commands.
+
+**Method: `get_command(ctx, cmd_name) -> click.Command | None`**
+
+Logic steps:
+1. Check `self.commands` dict for built-in commands. If found, return it.
+2. Check `self._module_cache` for cached command. If found, return it.
+3. Call `_build_alias_map()` if not built.
+4. Resolve `module_id = self._alias_map.get(cmd_name, cmd_name)`.
+5. Check `self._descriptor_cache.get(module_id)`. If found, use cached descriptor.
+6. Else call `self._registry.get_definition(module_id)`.
+7. If descriptor is None, return None.
+8. Call `build_module_command(module_def, self._executor, cmd_name=cmd_name)`.
+9. Store in `self._module_cache[cmd_name]`.
+10. Return the command.
+
+**Traces to:** FR-DISP-001, FR-DISP-002.
+
+#### 8.2.2 Class: `GroupedModuleGroup`
+
+**Purpose:** Extends `LazyModuleGroup` to create nested `click.Group` instances for each namespace prefix, producing a two-level command hierarchy.
+
+```python
+class GroupedModuleGroup(LazyModuleGroup):
+    """Click Group that organizes modules into nested subcommand groups.
+
+    Group resolution priority:
+    1. display.cli.group (explicit override from binding.yaml)
+    2. First '.' segment of CLI alias (auto-detected)
+    3. Top-level (no group — module has no '.' in name)
+
+    Single-command groups remain as groups (not promoted to top-level).
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        # group_name -> {cmd_name: (module_id, descriptor)}
+        self._group_map: dict[str, dict[str, tuple[str, Any]]] = {}
+        # Top-level modules (no group)
+        self._top_level_modules: dict[str, tuple[str, Any]] = {}
+        # Cached click.Group instances for each group
+        self._group_cache: dict[str, click.Group] = {}
+        self._group_map_built: bool = False
+```
+
+**Method: `_resolve_group(module_id: str, descriptor: Any) -> tuple[str | None, str]`**
+
+Returns `(group_name_or_None, command_name)`.
+
+Logic steps:
+1. Read `display = _get_display(descriptor)`.
+2. Read `cli_display = display.get("cli") or {}`.
+3. Check `explicit_group = cli_display.get("group")`:
+   a. If `explicit_group` is a string and non-empty: return `(explicit_group, cli_display.get("alias") or module_id)`.
+   b. If `explicit_group` is an empty string `""`: return `(None, cli_display.get("alias") or module_id)` — explicitly opted out of grouping.
+4. Determine CLI name: `cli_name = cli_display.get("alias") or module_id`.
+5. If `"."` in `cli_name`:
+   a. `parts = cli_name.split(".", 1)`.
+   b. Return `(parts[0], parts[1])`.
+6. Else: return `(None, cli_name)`.
+
+Parameter validation:
+- `module_id`: must be non-empty string. If empty, log WARNING and return `(None, module_id)`.
+- `descriptor`: must be non-None. Caller ensures this.
+- `explicit_group`: accepts `str | None`. Only non-empty strings trigger explicit group. Empty string means opt-out.
+
+**Method: `_build_group_map()`**
+
+Logic steps:
+1. If `_group_map_built` is True, return immediately.
+2. Call `self._build_alias_map()` (ensures alias map and descriptor cache are populated).
+3. Clear `_group_map` and `_top_level_modules`.
+4. For each `module_id` in `self._registry.list()`:
+   a. Get `descriptor = self._descriptor_cache.get(module_id)`. Skip if None.
+   b. Call `(group_name, cmd_name) = self._resolve_group(module_id, descriptor)`.
+   c. If `group_name is None`: store in `self._top_level_modules[cmd_name] = (module_id, descriptor)`.
+   d. Else: store in `self._group_map[group_name][cmd_name] = (module_id, descriptor)`.
+5. Set `self._group_map_built = True`.
+6. On exception: log WARNING "Failed to build group map", do not set flag.
+
+**Method: `list_commands(ctx) -> list[str]`**
+
+Logic steps:
+1. Define built-in commands: `["exec", "list", "describe", "completion", "man"]`.
+2. Call `_build_group_map()`.
+3. Collect group names from `self._group_map.keys()`.
+4. Collect top-level module names from `self._top_level_modules.keys()`.
+5. Return `sorted(set(builtin + list(group_names) + list(top_level_names)))`.
+
+Edge cases:
+- A group name collides with a built-in command name (e.g., module `list.something`): the built-in command takes priority. Log WARNING: `"Group name 'list' conflicts with built-in command. Modules in this group will be inaccessible via grouped commands. Use 'exec' to invoke them."`.
+- A top-level module name collides with a group name: the group takes priority. The module is accessible via `exec <module_id>`.
+
+**Method: `get_command(ctx, cmd_name) -> click.Command | None`**
+
+Logic steps:
+1. Check `self.commands` dict for built-in commands. If found, return it.
+2. Call `_build_group_map()`.
+3. Check `self._group_cache.get(cmd_name)`. If found, return cached group.
+4. If `cmd_name in self._group_map`: call `_create_group_command(cmd_name)`, cache it, return it.
+5. If `cmd_name in self._top_level_modules`:
+   a. Check `self._module_cache.get(cmd_name)`. If found, return it.
+   b. Get `(module_id, descriptor) = self._top_level_modules[cmd_name]`.
+   c. Call `build_module_command(descriptor, self._executor, cmd_name=cmd_name)`.
+   d. Cache in `self._module_cache[cmd_name]`. Return it.
+6. Return None.
+
+**Method: `_create_group_command(group_name: str) -> click.Group`**
+
+Logic steps:
+1. Get `members = self._group_map[group_name]` (dict of `cmd_name -> (module_id, descriptor)`).
+2. Compute `group_help = f"{group_name.capitalize()} commands ({len(members)} command{'s' if len(members) != 1 else ''})"`.
+3. Override `group_help` if any member has `display.cli.group_description` (use first non-None value found).
+4. Create a new `click.Group`:
+
+```python
+@click.group(name=group_name, help=group_help)
+def group_cmd():
+    pass
+```
+
+5. For each `(cmd_name, (module_id, descriptor))` in `members.items()`:
+   a. Create a lazy command loader: on first access, call `build_module_command(descriptor, self._executor, cmd_name=cmd_name)`.
+   b. Register the command on `group_cmd`.
+6. Return `group_cmd`.
+
+Implementation detail — the nested group uses a lightweight `LazyGroup` inner class to defer `build_module_command()` until the specific subcommand is invoked:
+
+```python
+class _LazyGroup(click.Group):
+    """Nested group that lazily builds commands from module descriptors."""
+
+    def __init__(
+        self,
+        members: dict[str, tuple[str, Any]],
+        executor: Executor,
+        help_text_max_length: int,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self._members = members
+        self._executor = executor
+        self._help_text_max_length = help_text_max_length
+        self._cmd_cache: dict[str, click.Command] = {}
 
     def list_commands(self, ctx: click.Context) -> list[str]:
-        """Return built-in commands + discovered module IDs."""
-        builtin = ["exec", "list", "describe", "completion", "man"]
-        module_ids = [m.canonical_id for m in self._registry.list()]
-        return sorted(set(builtin + module_ids))
+        return sorted(self._members.keys())
 
     def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
-        """Resolve a command by name. For module IDs, dynamically build a Click command."""
-        if cmd_name in self.commands:
-            return self.commands[cmd_name]
-        if cmd_name in self._module_cache:
-            return self._module_cache[cmd_name]
-        # Attempt module resolution
-        module_def = self._registry.get_definition(cmd_name)
-        if module_def is None:
+        if cmd_name in self._cmd_cache:
+            return self._cmd_cache[cmd_name]
+        entry = self._members.get(cmd_name)
+        if entry is None:
             return None
-        cmd = build_module_command(module_def, self._executor)
-        self._module_cache[cmd_name] = cmd
+        module_id, descriptor = entry
+        cmd = build_module_command(
+            descriptor,
+            self._executor,
+            help_text_max_length=self._help_text_max_length,
+            cmd_name=cmd_name,
+        )
+        self._cmd_cache[cmd_name] = cmd
         return cmd
 ```
 
-**Traces to:** FR-DISP-001 (base command entry point), FR-DISP-002 (module execution).
+**Method: `format_help(ctx, formatter)`**
 
-#### 8.2.2 Function: `build_module_command`
+Override Click's default help formatter to show groups in a collapsed format at root level:
 
-```python
-def build_module_command(module_def: ModuleDefinition, executor: Executor, help_text_max_length: int = 1000) -> click.Command:
-    """Build a Click Command from a module definition."""
-    input_schema = module_def.input_schema
-    resolved_schema = resolve_refs(input_schema, max_depth=32)
-    options = schema_to_click_options(resolved_schema)
+Logic steps:
+1. Call `_build_group_map()`.
+2. Write usage line via `self.format_usage(ctx, formatter)`.
+3. Write help text (root group description).
+4. Write "Commands:" section with built-in commands (exec, list, describe, completion, man).
+5. Write "Top-level Modules:" section with ungrouped modules (if any).
+6. Write "Groups:" section:
+   - For each group in sorted `self._group_map.keys()`:
+     - Compute count: `len(self._group_map[group_name])`.
+     - Compute short description: first member's `display.cli.group_description`, or `f"{group_name.capitalize()} commands"`.
+     - Format line: `  {group_name:20s}  {short_description} ({count} commands)`.
+7. Write epilog if present.
 
-    @click.command(name=module_def.canonical_id, help=module_def.description)
-    @click.option("--input", "stdin_input", type=click.STRING, default=None,
-                  help="Read JSON input from STDIN. Use '-' for piped input.")
-    @click.option("--yes", "auto_approve", is_flag=True, default=False,
-                  help="Bypass approval prompts.")
-    @click.option("--large-input", is_flag=True, default=False,
-                  help="Allow STDIN input exceeding 10MB.")
-    @click.pass_context
-    def command(ctx, stdin_input, auto_approve, large_input, **kwargs):
-        # 1. Collect input (merge STDIN + CLI flags)
-        merged = collect_input(stdin_input, kwargs, large_input)
-        # 2. Validate against schema
-        validate_input(merged, resolved_schema)
-        # 3. Check approval
-        check_approval(module_def, auto_approve)
-        # 4. Execute
-        audit_start = time.monotonic()
-        result = executor.call(module_def.canonical_id, merged)
-        duration_ms = int((time.monotonic() - audit_start) * 1000)
-        # 5. Audit log
-        write_audit_entry(module_def.canonical_id, merged, "success", 0, duration_ms)
-        # 6. Output
-        format_output(result, ctx)
+Example root `--help` output:
+```
+Usage: myproject [OPTIONS] COMMAND [ARGS]...
 
-    for opt in options:
-        command.params.append(opt)
-    return command
+  CLI adapter for the apcore module ecosystem.
+
+Options:
+  --version             Show the version and exit.
+  --extensions-dir PATH Path to apcore extensions directory.
+  --log-level [DEBUG|INFO|WARNING|ERROR]
+                        Log verbosity.
+  --help                Show this message and exit.
+
+Commands:
+  exec        Execute a module by canonical ID
+  list        List available modules
+  describe    Show module metadata and schema
+  completion  Generate shell completion script
+  man         Generate man page
+
+Groups:
+  product     Product management (4 commands)
+  user        User operations (3 commands)
+  health      Health checks (1 command)
 ```
 
-**Traces to:** FR-DISP-002 (module execution), FR-DISP-004 (STDIN input), FR-SCHEMA-001 (flag generation).
+Example `apcore-cli product --help` output:
+```
+Usage: myproject product [OPTIONS] COMMAND [ARGS]...
 
-#### 8.2.3 STDIN Input Collection
+  Product management (4 commands)
+
+Commands:
+  list        List all products
+  get         Get product by ID
+  create      Create a new product
+  delete      Delete a product
+```
+
+**Traces to:** FR-DISP-001, FR-DISP-002, ADR-08.
+
+#### 8.2.3 Function: `build_module_command`
+
+**Signature:** `build_module_command(module_def: ModuleDescriptor, executor: Executor, help_text_max_length: int = 1000, cmd_name: str | None = None) -> click.Command`
+
+Logic steps:
+1. Resolve display overlay fields (§5.13):
+   - Read `display = _get_display(module_def)`.
+   - Read `cli_display = display.get("cli") or {}`.
+2. Get `input_schema` from `module_def.input_schema`. Handle Pydantic v1/v2 model classes by converting to dict.
+3. Get `module_id = _get_module_id(module_def)` (canonical_id or module_id).
+4. Determine `effective_cmd_name = cmd_name or cli_display.get("alias") or module_id`.
+5. Determine `cmd_help = cli_display.get("description") or module_def.description`.
+6. If `input_schema` has properties: call `resolve_refs(input_schema, max_depth=32, module_id=module_id)`. On non-SystemExit exception: log WARNING, use raw schema.
+7. Call `schema_to_click_options(resolved_schema, max_help_length=help_text_max_length)`.
+8. Create callback function that:
+   a. Separates built-in options (input, yes, large_input, format, sandbox) from schema kwargs.
+   b. Calls `collect_input(stdin_input, kwargs, large_input)`.
+   c. Calls `reconvert_enum_values(merged, schema_options)`.
+   d. If schema has properties: calls `jsonschema.validate(merged, resolved_schema)`. On failure: exit 45.
+   e. Calls `check_approval(module_def, auto_approve)`.
+   f. Records `audit_start = time.monotonic()`.
+   g. Creates `Sandbox(enabled=sandbox_flag)`, calls `sandbox.execute(module_id, merged, executor)`.
+   h. Computes `duration_ms`.
+   i. Audit logs (success).
+   j. Formats and prints result.
+   k. On `KeyboardInterrupt`: exit 130.
+   l. On other exception: map error code, audit log (error), exit with mapped code.
+9. Create `click.Command` with `name=effective_cmd_name`, `help=cmd_help`, `callback=callback`.
+10. Append built-in options: `--input`, `--yes`, `--large-input`, `--format`, `--sandbox`.
+11. Guard: check schema property names do not collide with reserved names `{input, yes, large_input, format, sandbox}`. On collision: exit 2.
+12. Append schema-generated options.
+13. Return the command.
+
+**Traces to:** FR-DISP-002, FR-DISP-004, FR-SCHEMA-001.
+
+#### 8.2.4 STDIN Input Collection
 
 **Function:** `collect_input(stdin_flag: str | None, cli_kwargs: dict, large_input: bool) -> dict`
 
@@ -514,12 +928,12 @@ def build_module_command(module_def: ModuleDefinition, executor: Executor, help_
 **Merge precedence:** CLI flags override STDIN values for duplicate keys (SRS FR-DISP-004 Main Flow step 4).
 
 **Edge cases:**
-- STDIN is a JSON array: exit code 2, message "STDIN JSON must be an object, got array."
+- STDIN is a JSON array: exit code 2, message "STDIN JSON must be an object, got list."
 - STDIN is a JSON primitive (string, number, boolean, null): exit code 2, message "STDIN JSON must be an object, got {type}."
 - STDIN is invalid JSON: exit code 2, message includes parse error detail.
 - STDIN without `--input -`: ignored entirely.
 
-#### 8.2.4 Module ID Validation
+#### 8.2.5 Module ID Validation
 
 **Regex:** `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`
 
@@ -538,6 +952,50 @@ def build_module_command(module_def: ModuleDefinition, executor: Executor, help_
 | Empty string | No | 2 |
 
 **Traces to:** FR-DISP-002 AF-2.
+
+#### 8.2.6 Group Resolution Examples
+
+| module_id | display.cli.alias | display.cli.group | Resolved Group | Resolved Command | Invocation |
+|-----------|-------------------|-------------------|---------------|-----------------|------------|
+| `product.list_products.get` | `product.list` | _(absent)_ | `product` | `list` | `apcore-cli product list` |
+| `product.get_product_product__product_id_.get` | `product.get` | _(absent)_ | `product` | `get` | `apcore-cli product get` |
+| `health.check` | _(absent)_ | _(absent)_ | `health` | `check` | `apcore-cli health check` |
+| `math.add` | _(absent)_ | _(absent)_ | `math` | `add` | `apcore-cli math add` |
+| `standalone_tool` | _(absent)_ | _(absent)_ | _(None)_ | `standalone_tool` | `apcore-cli standalone_tool` |
+| `some.deep.nested.module` | `analytics.report` | _(absent)_ | `analytics` | `report` | `apcore-cli analytics report` |
+| `some.deep.nested.module` | `report` | `analytics` | `analytics` | `report` | `apcore-cli analytics report` |
+| `some.module` | `flat_cmd` | `""` | _(None)_ | `flat_cmd` | `apcore-cli flat_cmd` |
+
+#### 8.2.7 Function: `create_cli`
+
+**Signature:** `create_cli(extensions_dir: str | None = None, prog_name: str | None = None) -> click.Group`
+
+**File:** `apcore_cli/__main__.py`
+
+**Purpose:** Factory function that assembles and returns the fully configured Click group. In v2.0, uses `GroupedModuleGroup` instead of `LazyModuleGroup`.
+
+Logic steps:
+1. Resolve `prog_name` (FR-DISP-006):
+   a. If `prog_name` is not `None`, use it (Tier 1 — explicit parameter).
+   b. Otherwise, compute `os.path.basename(sys.argv[0])`.
+   c. If the result is empty, fall back to `"apcore-cli"`.
+2. Resolve and apply initial log level (3-tier precedence, before Click runs):
+   - Tier 1 (highest): `--log-level` CLI flag — applied at runtime in the group callback.
+   - Tier 2: `APCORE_CLI_LOGGING_LEVEL` env var — CLI-specific.
+   - Tier 3: `APCORE_LOGGING_LEVEL` env var — global fallback.
+   - Default: `logging.WARNING`.
+3. Resolve `extensions_dir` via ConfigResolver.
+4. Verify path exists and is readable. Exit 47 on failure.
+5. Instantiate `Registry(extensions_dir)`.
+6. Call `registry.discover()`. Log DEBUG/INFO.
+7. Instantiate `Executor(registry)`.
+8. Initialize `AuditLogger()`.
+9. **Build `click.Group` using `cls=GroupedModuleGroup`** (changed from `LazyModuleGroup` in v2.0).
+10. Add `click.version_option`, `--extensions-dir`, `--log-level` options.
+11. Register built-in commands via `register_discovery_commands()` and `register_shell_commands()`.
+12. Return the assembled group.
+
+**Traces to:** FR-DISP-001, FR-DISP-003, FR-DISP-005, FR-DISP-006.
 
 ### 8.3 Schema Parser
 
@@ -672,35 +1130,67 @@ flowchart TD
 
 #### 8.5.1 Command: `list`
 
-**Signature:** `apcore-cli list [--tag TAG]... [--format {table|json}]`
+**Signature:** `apcore-cli list [--tag TAG]... [--format {table|json}] [--flat]`
 
 | Parameter | Type | Default | Validation | SRS Reference |
 |-----------|------|---------|------------|---------------|
 | `--tag` | `str` (multiple) | None (no filter) | Each tag: `^[a-z][a-z0-9_-]*$`. Invalid tags: exit code 2. | FR-DISC-002 |
 | `--format` | `click.Choice(["table", "json"])` | TTY-adaptive: `table` if `stdout.isatty()`, else `json`. | Click validates. Invalid: exit code 2. | FR-DISC-004 |
+| `--flat` | `bool` (flag) | `False` | If True, show flat list without group headers. | — *(new in v2.0)* |
 
-**Table columns:**
+**Table output — grouped display (default, `--flat` not set):**
+
+When groups exist, the table output organizes modules under group headers:
+
+```
+Modules
+
+  product (4 commands)
+  ├── list        List all products
+  ├── get         Get product by ID
+  ├── create      Create a new product
+  └── delete      Delete a product
+
+  user (3 commands)
+  ├── list        List all users
+  ├── get         Get user by ID
+  └── create      Create a new user
+
+  health (1 command)
+  └── check       Run health check
+
+  Top-level
+  └── version     Show version info
+```
+
+**Table output — flat display (`--flat` flag):**
+
+Standard flat table as in v1.0:
 
 | Column | Source | Max Width | Truncation |
 |--------|--------|-----------|------------|
-| ID | `module.canonical_id` | 128 chars | No (IDs are max 128) |
-| Description | `module.description` | 80 chars | Append `...` if > 80 |
+| ID | CLI alias (or module_id) | 128 chars | No |
+| Description | display.cli.description or module.description | 80 chars | Append `...` if > 80 |
 | Tags | `", ".join(module.tags)` | Unlimited | No |
 
 **Filtering logic:** AND semantics. A module is included only if `set(specified_tags).issubset(set(module.tags))`.
 
-**Empty results:** Display table headers with note "No modules found." (or "No modules found matching tags: math, core."). Exit code 0.
+**Empty results:** Display note "No modules found." (or "No modules found matching tags: math, core."). Exit code 0.
 
-**JSON output format:**
+**JSON output format (both grouped and flat produce the same JSON):**
 ```json
 [
   {
-    "id": "math.add",
-    "description": "Add two numbers.",
-    "tags": ["math", "core"]
+    "id": "product.list",
+    "group": "product",
+    "command": "list",
+    "description": "List all products.",
+    "tags": ["product", "read"]
   }
 ]
 ```
+
+The `group` and `command` fields are added in v2.0. `group` is `null` for top-level modules.
 
 **Traces to:** FR-DISC-001, FR-DISC-002, FR-DISC-004.
 
@@ -708,28 +1198,30 @@ flowchart TD
 
 **Signature:** `apcore-cli describe <module_id> [--format {table|json}]`
 
+In v2.0, `describe` accepts module references in multiple formats:
+
+| Input Format | Resolution | Example |
+|-------------|-----------|---------|
+| Canonical module_id | Direct registry lookup | `apcore-cli describe product.list_products.get` |
+| `group.command` (grouped name) | Look up in group map, resolve to module_id | `apcore-cli describe product.list` |
+| CLI alias | Look up in alias map | `apcore-cli describe list` (if alias exists) |
+
+Logic steps:
+1. Try `module_id` as-is via `Registry.get_definition()`. If found, use it.
+2. If not found: try resolving as `group.command` — look up the group map for matching group name and command name, get the underlying `module_id`.
+3. If still not found: try as a CLI alias via `_alias_map`.
+4. If still not found: exit 44 "Module not found."
+
 | Parameter | Type | Validation | SRS Reference |
 |-----------|------|------------|---------------|
-| `module_id` | `str` (positional) | Canonical ID regex. Max 128 chars. | FR-DISC-003 |
+| `module_id` | `str` (positional) | Non-empty. If contains `.`, try as grouped address. | FR-DISC-003 |
 | `--format` | `click.Choice(["table", "json"])` | TTY-adaptive default. | FR-DISC-004 |
 
 **Table output sections:**
-1. **Core**: Module ID, full description, input_schema (syntax-highlighted JSON via `rich.syntax.Syntax`), output_schema (syntax-highlighted JSON).
-2. **Annotations**: `requires_approval`, `readonly`, `destructive`, `idempotent` (only if present).
-3. **Extension metadata**: All `x-` prefixed fields (only if present).
-
-**JSON output format:**
-```json
-{
-  "id": "math.add",
-  "description": "Add two numbers.",
-  "input_schema": {"properties": {"a": {"type": "integer"}, "b": {"type": "integer"}}, "required": ["a", "b"]},
-  "output_schema": {"properties": {"sum": {"type": "integer"}}},
-  "annotations": {"requires_approval": false, "readonly": true},
-  "tags": ["math", "core"],
-  "x-when-to-use": "When you need to add two integers."
-}
-```
+1. **Core**: Module ID, full description, input_schema (syntax-highlighted JSON), output_schema (syntax-highlighted JSON).
+2. **Group**: Group name and command name (if grouped). *(New in v2.0)*
+3. **Annotations**: `requires_approval`, `readonly`, `destructive`, `idempotent` (only if present).
+4. **Extension metadata**: All `x-` prefixed fields (only if present).
 
 **Traces to:** FR-DISC-003, FR-DISC-004.
 
@@ -903,7 +1395,6 @@ class AuditLogger:
             return os.getlogin()
         except OSError:
             pass
-        # Unix fallback: pwd module
         try:
             import pwd
             return pwd.getpwuid(os.getuid()).pw_name
@@ -956,7 +1447,6 @@ class Sandbox:
         """Execute a module, optionally within a sandbox."""
         if not self._enabled:
             return executor.call(module_id, input_data)
-
         return self._sandboxed_execute(module_id, input_data)
 
     def _sandboxed_execute(self, module_id: str, input_data: dict) -> Any:
@@ -973,7 +1463,6 @@ class Sandbox:
             restricted_env["HOME"] = tmpdir
             restricted_env["TMPDIR"] = tmpdir
 
-            # Serialize input and invoke via subprocess
             input_json = json.dumps(input_data)
             result = subprocess.run(
                 [sys.executable, "-m", "apcore_cli._sandbox_runner",
@@ -1008,7 +1497,7 @@ class Sandbox:
 
 ### 8.7 Shell Integration
 
-#### 8.7.1 Shell Completion (FR-SHELL-001)
+#### 8.7.1 Shell Completion (FR-SHELL-001) — Updated for Groups
 
 **Command:** `apcore-cli completion <shell>`
 
@@ -1016,25 +1505,56 @@ class Sandbox:
 |-----------|------|---------------|---------------|
 | `shell` | `str` (positional) | `bash`, `zsh`, `fish` | FR-SHELL-001 |
 
-**Implementation:** Leverage Click's built-in `shell_complete` module with custom `ShellComplete` subclass for dynamic module ID completion.
+**v2.0 changes:** Completion scripts must handle two-level command structure:
+1. First level: built-in commands + group names + top-level module names.
+2. Second level (within a group): command names from that group.
+3. Third level (within a command): module-specific flags from `input_schema`.
 
-```python
-@cli.command()
-@click.argument("shell", type=click.Choice(["bash", "zsh", "fish"]))
-def completion(shell: str):
-    """Generate shell completion script."""
-    if shell == "bash":
-        click.echo(_generate_bash_completion())
-    elif shell == "zsh":
-        click.echo(_generate_zsh_completion())
-    elif shell == "fish":
-        click.echo(_generate_fish_completion())
+**Bash completion — group-aware algorithm:**
+
+```bash
+_myproject() {
+    local cur prev opts groups
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    # Level 1: complete group names + built-in commands + top-level modules
+    if [[ ${COMP_CWORD} -eq 1 ]]; then
+        opts="exec list describe completion man"
+        groups=$(myproject list --format json 2>/dev/null \
+            | python3 -c "import sys,json;groups=set();
+[groups.add(m.get('group','')) for m in json.load(sys.stdin) if m.get('group')];
+print(' '.join(sorted(groups)))" 2>/dev/null)
+        COMPREPLY=( $(compgen -W "${opts} ${groups}" -- ${cur}) )
+        return 0
+    fi
+
+    # Level 2: if first word is a known group, complete its commands
+    if [[ ${COMP_CWORD} -eq 2 ]]; then
+        local group_cmds
+        group_cmds=$(myproject list --format json 2>/dev/null \
+            | python3 -c "import sys,json;
+[print(m['command']) for m in json.load(sys.stdin) if m.get('group')=='${COMP_WORDS[1]}']" 2>/dev/null)
+        if [[ -n "${group_cmds}" ]]; then
+            COMPREPLY=( $(compgen -W "${group_cmds}" -- ${cur}) )
+            return 0
+        fi
+    fi
+
+    # Level 2 for exec: complete module IDs
+    if [[ "${COMP_WORDS[1]}" == "exec" && ${COMP_CWORD} -eq 2 ]]; then
+        local modules
+        modules=$(myproject list --format json 2>/dev/null \
+            | python3 -c "import sys,json;[print(m['id']) for m in json.load(sys.stdin)]" 2>/dev/null)
+        COMPREPLY=( $(compgen -W "${modules}" -- ${cur}) )
+        return 0
+    fi
+}
+complete -F _myproject myproject
 ```
 
-**Dynamic completion sources:**
-1. Subcommands: `exec`, `list`, `describe`, `completion`, `man`.
-2. Module IDs: from `Registry.list()`, completed after `exec`.
-3. Module flags: from `input_schema.properties`, completed after `exec <module_id>`.
+**Zsh and Fish completions** follow the same two-level pattern, using shell-native completion mechanisms (`_describe`, `compadd`, `complete -c`).
 
 **Traces to:** FR-SHELL-001.
 
@@ -1046,7 +1566,7 @@ def completion(shell: str):
 |-----------|------|---------------|---------------|
 | `command` | `str` (positional) | Any valid subcommand name | FR-SHELL-002 |
 
-**Implementation:** Use `click-man` library or custom roff generation from Click command metadata.
+**v2.0 changes:** Man page generation supports group commands. `apcore-cli man product` generates a man page listing the group's subcommands. `apcore-cli man product.list` generates a man page for the specific command within the group.
 
 **Roff sections generated:**
 - `.TH` — Title heading with command name, section, and date.
@@ -1171,7 +1691,7 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 
 | Component | Logger Namespace | SRS Reference |
 |-----------|-----------------|---------------|
-| Core Dispatcher | `apcore_cli.dispatcher` | NFR-MNT-002 |
+| Core Dispatcher | `apcore_cli.cli` | NFR-MNT-002 |
 | Schema Parser | `apcore_cli.schema` | NFR-MNT-002 |
 | Approval Gate | `apcore_cli.approval` | NFR-MNT-002 |
 | Discovery | `apcore_cli.discovery` | NFR-MNT-002 |
@@ -1182,9 +1702,9 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 
 | Level | What is logged |
 |-------|---------------|
-| `DEBUG` | Full schema parsing traces, raw JSON payloads, config resolution steps, ref resolution path |
-| `INFO` | Module count on startup, execution status/timing, approval bypass events |
-| `WARNING` | Corrupt modules skipped, invalid env var values, keyring unavailable, audit log write failure |
+| `DEBUG` | Full schema parsing traces, raw JSON payloads, config resolution steps, ref resolution path, group map construction details |
+| `INFO` | Module count on startup, execution status/timing, approval bypass events, group count and membership |
+| `WARNING` | Corrupt modules skipped, invalid env var values, keyring unavailable, audit log write failure, group name collisions with built-in commands |
 | `ERROR` | Module execution failures (sanitized — no stack traces to terminal), authentication failures |
 
 ---
@@ -1194,13 +1714,13 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 | Layer | Technology | Version | Rationale | SRS Reference |
 |-------|-----------|---------|-----------|---------------|
 | Language | Python | >= 3.11 | Aligned with apcore >= 0.13.0 | SRS §4.4 |
-| CLI Framework | `click` | >= 8.1 | ADR-01. Dynamic command generation, prompts, completion. | FR-DISP-001, FR-SCHEMA-002, FR-APPR-002 |
+| CLI Framework | `click` | >= 8.1 | ADR-01. Dynamic command generation, nested groups, prompts, completion. | FR-DISP-001, FR-SCHEMA-002, FR-APPR-002 |
 | Validation | `jsonschema` | >= 4.20 | JSON Schema validation and `$ref` resolution. | FR-SCHEMA-006, NFR-SEC-002 |
 | Terminal Output | `rich` | >= 13.0 | Tables, syntax highlighting, styled text. | FR-DISC-001, FR-DISC-003 |
 | Credential Storage | `keyring` | >= 24.0 | OS-native keyring (macOS Keychain, GNOME, Windows). | FR-SEC-002 |
 | Encryption Fallback | `cryptography` | >= 41.0 | AES-256-GCM for headless environments. | FR-SEC-002 ADR-04 |
 | YAML Parsing | `pyyaml` | >= 6.0 | Config file parsing. | FR-DISP-005 |
-| Core Protocol | `apcore` | >= 0.13.0 | Registry, Executor, error hierarchy. | SRS §4.5 |
+| Core Protocol | `apcore` | >= 0.13.1 | Registry, Executor, error hierarchy, display overlay. | SRS §4.5 |
 | Distribution | PyPI | — | `pip install apcore-cli` | User requirement |
 
 ### 9.1 Naming Conventions
@@ -1208,10 +1728,11 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 | Element | Convention | Example |
 |---------|-----------|---------|
 | CLI Commands | kebab-case | `apcore-cli exec`, `apcore-cli list` |
+| CLI Groups | lowercase noun | `product`, `user`, `health` |
 | CLI Flags | `--kebab-case` | `--input-file`, `--dry-run` |
 | Environment Variables | `APCORE_{SECTION}_{KEY}` | `APCORE_EXTENSIONS_ROOT`, `APCORE_CLI_AUTO_APPROVE` |
 | Python Modules | `snake_case` | `schema_parser.py`, `config_encryptor.py` |
-| Python Classes | `PascalCase` | `LazyModuleGroup`, `ConfigResolver` |
+| Python Classes | `PascalCase` | `LazyModuleGroup`, `GroupedModuleGroup`, `ConfigResolver` |
 | Python Functions | `snake_case` | `schema_to_click_options()`, `resolve_refs()` |
 
 ---
@@ -1222,9 +1743,9 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 
 | NFR | Target | Implementation Strategy |
 |-----|--------|------------------------|
-| NFR-PERF-001: Startup < 100ms | < 100ms for `--help` with 100 modules | Lazy module loading in `LazyModuleGroup.get_command()`. Registry.list() returns metadata only (no schema loading at startup). |
-| NFR-PERF-002: Overhead < 50ms | < 50ms adapter overhead | Schema parsing occurs once per invocation and is cached in `_module_cache`. JSON validation uses compiled schemas via `jsonschema.Draft202012Validator`. |
-| NFR-PERF-003: 1000 modules | Startup < 100ms with 1000 modules | `list_commands()` returns string IDs only. No schema parsing on listing. Registry uses lazy directory scanning. |
+| NFR-PERF-001: Startup < 100ms | < 100ms for `--help` with 100 modules | Lazy module loading in `GroupedModuleGroup.get_command()`. Registry.list() returns metadata only (no schema loading at startup). Group map built lazily on first `list_commands()` or `get_command()` call. |
+| NFR-PERF-002: Overhead < 50ms | < 50ms adapter overhead | Schema parsing occurs once per invocation and is cached in `_module_cache`. JSON validation uses compiled schemas via `jsonschema.Draft202012Validator`. Group resolution adds < 1ms (dict lookup). |
+| NFR-PERF-003: 1000 modules | Startup < 100ms with 1000 modules | `list_commands()` returns group names (not individual commands). With 1000 modules across 50 groups, root help shows ~55 entries (5 built-in + 50 groups) instead of 1005. |
 
 ### 10.2 Security
 
@@ -1239,7 +1760,7 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 | NFR | Target | Implementation Strategy |
 |-----|--------|------------------------|
 | NFR-REL-001: Deterministic exit codes | 100% | Centralized error handler wrapping all commands. Maps exception types to exit codes. |
-| NFR-REL-002: Graceful degradation | 0 crashes | Try/except wrappers with user-friendly messages. No Python tracebacks to stdout/stderr (except in DEBUG mode). |
+| NFR-REL-002: Graceful degradation | 0 crashes | Try/except wrappers with user-friendly messages. No Python tracebacks to stdout/stderr (except in DEBUG mode). Group map build failures fall back to flat mode. |
 
 ### 10.4 Portability
 
@@ -1257,16 +1778,16 @@ apcore-cli/
 ├── pyproject.toml                 # Package metadata, dependencies, entry point
 ├── apcore_cli/
 │   ├── __init__.py                # Package init, version
-│   ├── __main__.py                # Entry point: main()
-│   ├── cli.py                     # LazyModuleGroup, build_module_command()
+│   ├── __main__.py                # Entry point: main(), create_cli()
+│   ├── cli.py                     # LazyModuleGroup, GroupedModuleGroup, build_module_command()
 │   ├── schema_parser.py           # schema_to_click_options(), type mapping
 │   ├── ref_resolver.py            # resolve_refs(), $ref inlining
 │   ├── approval.py                # check_approval(), TTY prompt, timeout
-│   ├── discovery.py               # list_cmd(), describe_cmd()
-│   ├── output.py                  # format_output(), TTY-adaptive formatting
+│   ├── discovery.py               # list_cmd(), describe_cmd() — group-aware
+│   ├── output.py                  # format_output(), TTY-adaptive, grouped list formatting
 │   ├── config.py                  # ConfigResolver
 │   ├── errors.py                  # Error hierarchy, exit code mapping
-│   ├── shell.py                   # completion_cmd(), man_cmd()
+│   ├── shell.py                   # completion_cmd(), man_cmd() — group-aware
 │   ├── _sandbox_runner.py         # Subprocess entry point for sandboxed execution
 │   └── security/
 │       ├── __init__.py            # Exports
@@ -1275,25 +1796,27 @@ apcore-cli/
 │       ├── audit.py               # AuditLogger
 │       └── sandbox.py             # Sandbox
 ├── tests/
-│   ├── test_cli.py
+│   ├── test_cli.py                # LazyModuleGroup + GroupedModuleGroup tests
+│   ├── test_grouped_commands.py   # Group resolution, nested invocation, help formatting
 │   ├── test_schema_parser.py
 │   ├── test_ref_resolver.py
 │   ├── test_approval.py
-│   ├── test_discovery.py
+│   ├── test_discovery.py          # Group-aware list and describe tests
 │   ├── test_config.py
 │   ├── test_security/
 │   │   ├── test_auth.py
 │   │   ├── test_config_encryptor.py
 │   │   ├── test_audit.py
 │   │   └── test_sandbox.py
-│   └── test_shell.py
+│   ├── test_shell.py              # Group-aware completion tests
+│   └── test_output.py             # Group-aware formatting tests
 └── docs/
-    ├── apcore-cli/
-    │   ├── srs.md
-    │   └── tech-design.md          # This document
+    ├── srs.md
+    ├── tech-design.md              # This document
     └── features/
         ├── overview.md
         ├── core-dispatcher.md
+        ├── grouped-commands.md     # NEW: Grouped commands feature spec
         ├── schema-parser.md
         ├── approval-gate.md
         ├── discovery.md
@@ -1319,7 +1842,7 @@ apcore-cli/
 name = "apcore-cli"
 requires-python = ">=3.11"
 dependencies = [
-    "apcore>=0.13.0",
+    "apcore>=0.13.1",
     "click>=8.1",
     "jsonschema>=4.20",
     "rich>=13.0",
@@ -1338,19 +1861,68 @@ apcore-cli = "apcore_cli.__main__:main"
 2. User runs `apcore-cli --help` — system uses default `./extensions` path.
 3. If no extensions directory found, clear error message suggests `APCORE_EXTENSIONS_ROOT`.
 4. User sets env var or uses `--extensions-dir` flag.
-5. `apcore-cli list` shows discovered modules.
+5. `apcore-cli list` shows discovered modules grouped by namespace.
+6. `apcore-cli <group> --help` shows commands within a group.
+7. `apcore-cli <group> <command> --flag value` executes a module.
 
 ---
 
-## 13. Traceability Matrix
+## 13. Testing Strategy
+
+### 13.1 Grouped Commands Test Plan
+
+| Test ID | Category | Description | Expected Result |
+|---------|----------|-------------|-----------------|
+| T-GRP-01 | Unit | `_resolve_group()` with `display.cli.group` set | Returns `(explicit_group, alias)` |
+| T-GRP-02 | Unit | `_resolve_group()` with `display.cli.group = ""` | Returns `(None, alias)` — top-level |
+| T-GRP-03 | Unit | `_resolve_group()` with no display overlay, dotted module_id | Returns `(prefix, suffix)` split on first `.` |
+| T-GRP-04 | Unit | `_resolve_group()` with no `.` in name | Returns `(None, name)` — top-level |
+| T-GRP-05 | Unit | `_build_group_map()` with 10 modules across 3 groups | `_group_map` has 3 keys with correct members |
+| T-GRP-06 | Unit | `_build_group_map()` with group name colliding with built-in command | WARNING logged, built-in command accessible |
+| T-GRP-07 | Unit | `list_commands()` returns built-in + group names + top-level | Sorted unique list |
+| T-GRP-08 | Integration | `apcore-cli product --help` | Shows commands within product group |
+| T-GRP-09 | Integration | `apcore-cli product list` | Executes the product.list module |
+| T-GRP-10 | Integration | `apcore-cli --help` | Shows "Groups:" section with counts |
+| T-GRP-11 | Integration | `apcore-cli exec product.list` | Direct exec still works (bypass groups) |
+| T-GRP-12 | Unit | `_create_group_command()` with single-command group | Returns `click.Group` with 1 command (not promoted) |
+| T-GRP-13 | Unit | `_resolve_group()` with alias containing `.` | Splits alias on first `.`, not module_id |
+| T-GRP-14 | Integration | `apcore-cli list` | Shows grouped module list |
+| T-GRP-15 | Integration | `apcore-cli list --flat` | Shows flat module list (v1 behavior) |
+| T-GRP-16 | Integration | `apcore-cli describe product.list` | Resolves group.command to module_id |
+| T-GRP-17 | Integration | `apcore-cli completion bash` | Completion script includes group-aware logic |
+| T-GRP-18 | Unit | `_build_group_map()` with registry failure | Falls back gracefully, logs WARNING |
+
+### 13.2 Existing Test Coverage (Updated)
+
+| Test File | Scope | Key Assertions |
+|-----------|-------|----------------|
+| `test_cli.py` | `LazyModuleGroup`, `GroupedModuleGroup`, `build_module_command` | Command routing, alias resolution, group resolution, module execution lifecycle |
+| `test_grouped_commands.py` | Group resolution algorithm, nested invocation, help formatting | All T-GRP-* tests above |
+| `test_schema_parser.py` | Type mapping, enum, required, help text | All FR-SCHEMA-* requirements |
+| `test_ref_resolver.py` | `$ref` inlining, circular detection, depth limit | FR-SCHEMA-006 |
+| `test_approval.py` | TTY prompt, non-TTY rejection, bypass, timeout | FR-APPR-001 through FR-APPR-005 |
+| `test_discovery.py` | `list` (grouped + flat), `describe` (group.command resolution), tag filtering | FR-DISC-001 through FR-DISC-004 |
+| `test_config.py` | 4-tier precedence, file parsing, malformed YAML | FR-DISP-005 |
+| `test_security/` | Auth, encryption, audit, sandbox | FR-SEC-001 through FR-SEC-004 |
+| `test_shell.py` | Completion scripts (group-aware), man pages | FR-SHELL-001, FR-SHELL-002 |
+| `test_output.py` | TTY-adaptive formatting, grouped list output | FR-DISC-004 |
+
+### 13.3 Coverage Target
+
+Minimum 85% line coverage across all modules, enforced via `pytest --cov=apcore_cli --cov-fail-under=85`. The new `GroupedModuleGroup` class and `_resolve_group()` function must achieve 95%+ coverage due to their central role in command routing.
+
+---
+
+## 14. Traceability Matrix
 
 | SRS Requirement | Tech Design Section | Component | Feature Spec |
 |-----------------|--------------------|-----------|----|
-| FR-DISP-001 | §8.2.1 | Core Dispatcher | `core-dispatcher.md` |
-| FR-DISP-002 | §8.2.2, §8.2.4 | Core Dispatcher | `core-dispatcher.md` |
-| FR-DISP-003 | §8.2.1 | Core Dispatcher | `core-dispatcher.md` |
-| FR-DISP-004 | §8.2.3 | Core Dispatcher | `core-dispatcher.md` |
+| FR-DISP-001 | §8.2.1, §8.2.2 | Core Dispatcher, Grouped Commands | `core-dispatcher.md`, `grouped-commands.md` |
+| FR-DISP-002 | §8.2.2, §8.2.3, §8.2.5 | Core Dispatcher, Grouped Commands | `core-dispatcher.md`, `grouped-commands.md` |
+| FR-DISP-003 | §8.2.7 | Core Dispatcher | `core-dispatcher.md` |
+| FR-DISP-004 | §8.2.4 | Core Dispatcher | `core-dispatcher.md` |
 | FR-DISP-005 | §8.8 | Config Resolver | `config-resolver.md` |
+| FR-DISP-006 | §8.2.7 | Core Dispatcher | `core-dispatcher.md` |
 | FR-SCHEMA-001 | §8.3.1 | Schema Parser | `schema-parser.md` |
 | FR-SCHEMA-002 | §8.3.2 | Schema Parser | `schema-parser.md` |
 | FR-SCHEMA-003 | §8.3.2 | Schema Parser | `schema-parser.md` |
@@ -1372,9 +1944,9 @@ apcore-cli = "apcore_cli.__main__:main"
 | FR-SEC-004 | §8.6.4 | Security Manager | `security.md` |
 | FR-SHELL-001 | §8.7.1 | Shell Integration | `shell-integration.md` |
 | FR-SHELL-002 | §8.7.2 | Shell Integration | `shell-integration.md` |
-| NFR-PERF-001 | §10.1 | Core Dispatcher | `core-dispatcher.md` |
+| NFR-PERF-001 | §10.1 | Core Dispatcher, Grouped Commands | `core-dispatcher.md`, `grouped-commands.md` |
 | NFR-PERF-002 | §10.1 | Core Dispatcher | `core-dispatcher.md` |
-| NFR-PERF-003 | §10.1 | Core Dispatcher | `core-dispatcher.md` |
+| NFR-PERF-003 | §10.1 | Core Dispatcher, Grouped Commands | `core-dispatcher.md`, `grouped-commands.md` |
 | NFR-SEC-001 | §10.2 | Security Manager | `security.md` |
 | NFR-SEC-002 | §10.2 | Schema Parser | `schema-parser.md` |
 | NFR-SEC-003 | §10.2 | Core Dispatcher | `core-dispatcher.md` |
@@ -1384,34 +1956,18 @@ apcore-cli = "apcore_cli.__main__:main"
 | NFR-MNT-002 | §8.11 | All | All |
 | NFR-PRT-001 | §10.4 | All | All |
 | NFR-PRT-002 | §10.4 | Output Formatter | `output-formatter.md` |
-| NFR-USB-001 | — | Schema Parser, Discovery | `schema-parser.md`, `discovery.md` |
+| NFR-USB-001 | — | Schema Parser, Discovery, Grouped Commands | `schema-parser.md`, `discovery.md`, `grouped-commands.md` |
 | NFR-USB-002 | §8.9 | All | All |
 
 ---
 
-## 14. Open Questions
+## 15. Open Questions
 
 | ID | Question | Status | Owner | Follow-up Plan |
 |----|----------|--------|-------|----------------|
 | OQ-01 | What is the default module execution timeout? | Open | Engineering | Propose 300s (5 min) default, configurable via `APCORE_CLI_TIMEOUT`. Resolve in Sprint 2. |
-| OQ-02 | Should shell completion use Click's built-in or custom implementation for dynamic module IDs? | Open | Engineering | Prototype Click's `shell_complete` in Sprint 3. If insufficient for dynamic flag completion, implement custom completer. |
+| OQ-02 | Should shell completion use Click's built-in or custom implementation for dynamic module IDs? | Resolved | Engineering | Custom implementation chosen (v1.0). Updated for group-aware completion in v2.0. |
 | OQ-03 | What is the audit log retention policy? | Open | Product | Propose no built-in rotation; document `logrotate` integration for Unix systems. Resolve before GA. |
 | OQ-04 | Should the 10MB STDIN limit be configurable via `apcore.yaml`? | Open | Engineering | Propose yes, add `cli.stdin_buffer_limit` config key. Low priority — resolve in Sprint 4. |
-| OQ-05 | What sandbox mechanism for Windows? | Open | Engineering | Phase 1: restricted environment dict (works on all platforms). Phase 2: investigate Windows AppContainer. Resolve before Windows GA testing. |
-| OQ-06 | Should `exec` output default to TTY-adaptive format like Discovery? | Open | Product | Propose: always output raw module result (not formatted). Users use `jq` or `--format` on `list`/`describe`. Resolve in Sprint 1. |
-| OQ-07 | How to present `anyOf`/`oneOf` to users? | Open | Engineering | Propose: merge all sub-schema properties as optional flags with help text indicating mutual exclusivity. Resolve in Sprint 2. |
-
----
-
-## 15. Implementation Order
-
-| Phase | Component | Priority | Dependencies | Estimated Effort |
-|-------|-----------|----------|-------------|-----------------|
-| 1 | Config Resolver | P0 | None | 1 day |
-| 2 | Core Dispatcher | P0 | Config Resolver | 3 days |
-| 3 | Schema Parser + Ref Resolver | P0 | Core Dispatcher | 3 days |
-| 4 | Output Formatter | P1 | Core Dispatcher | 1 day |
-| 5 | Discovery | P1 | Output Formatter | 2 days |
-| 6 | Approval Gate | P1 | Core Dispatcher | 2 days |
-| 7 | Security Manager | P1/P2 | Config Resolver | 3 days |
-| 8 | Shell Integration | P2 | All | 2 days |
+| OQ-05 | Should group names support multi-level nesting (e.g., `product.api.v2.list`)? | Resolved | Engineering | No. v2.0 supports single-level grouping only (split on first `.`). Deeper nesting deferred to a future version if demand warrants. Two levels (group + command) covers 95%+ of use cases based on FastAPI route analysis. |
+| OQ-06 | Should `display.cli.group_description` be added to binding.yaml? | Open | Engineering | Currently group descriptions are auto-generated from the group name. Consider allowing explicit descriptions in binding.yaml for richer help text. Low priority — resolve post-v0.3.0. |

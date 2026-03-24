@@ -30,10 +30,11 @@
 It serves as the terminal-native counterpart to `apcore-mcp` (Model Context Protocol) and `apcore-a2a` (Agent-to-Agent).
 
 ```
-    apcore Module Registry            apcore-cli Adapter
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━        ━━━━━━━━━━━━━━━━━━━━━━
+    apcore Module Registry            apcore-cli Adapter (grouped)
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   math.add(a, b)             ──┐
-  system.health.summary()    ──┤──→  apcore-cli math.add --a 1 --b 2
+  math.sub(a, b)             ──┤──→  apcore-cli math add --a 1 --b 2
+  system.health.summary()    ──┤──→  apcore-cli system health.summary
   git.commit(msg)            ──┤──→  apcore-cli list --tag math
   db.query(sql)              ──┘──→  apcore-cli describe math.add
 ```
@@ -144,8 +145,43 @@ apcore-cli greet.hello --name World
 
 ---
 
+## Adding Custom Commands
+
+### Fastest way (30 seconds)
+
+```bash
+apcore-cli init module ops.deploy -d "Deploy to environment"
+# Edit the generated file, add your logic
+```
+
+### Zero-import way (convention discovery)
+
+Drop a plain Python function into `commands/`:
+
+```python
+# commands/deploy.py
+def deploy(env: str, tag: str = "latest") -> dict:
+    """Deploy the app to the given environment."""
+    return {"status": "deployed", "env": env}
+```
+
+Then run with `--commands-dir commands/`:
+
+```bash
+apcore-cli --commands-dir commands/ deploy deploy --env prod
+```
+
+The `init module` command supports three styles via `--style`:
+- **decorator** (default) — generates a `@module`-decorated class in the extensions directory
+- **convention** — generates a plain Python function in the commands directory
+- **binding** — generates a `.binding.yaml` file
+
+---
+
 ## Key Features
 
+- **Grouped Commands** -- Modules with dots in their names are auto-grouped into nested subcommands (`apcore-cli product list` instead of `apcore-cli product.list`); `display.cli.group` in binding.yaml overrides the auto-detected group
+- **Display Overlay** -- `metadata["display"]["cli"]` controls CLI command names, descriptions, and guidance per module (§5.13); set via `binding_path` in `create_cli()` / `fastapi-apcore`
 - **Zero-Config Routing** -- Automatically maps module IDs (e.g., `math.add`) to CLI commands
 - **Schema-Driven Args** -- Uses `input_schema` to generate CLI arguments, types, and validation
 - **Boolean Flag Pairs** -- `--verbose` / `--no-verbose` from `"type": "boolean"` schema properties
@@ -259,8 +295,8 @@ cli:
 
 | apcore | CLI |
 |--------|-----|
-| `module_id` (`math.add`) | Command name (`apcore-cli math.add`) |
-| `description` | `--help` text |
+| `metadata["display"]["cli"]["alias"]` or `module_id` | Command name — auto-grouped by first `.` segment (`apcore-cli math add`) |
+| `metadata["display"]["cli"]["description"]` or `description` | `--help` text |
 | `input_schema.properties` | CLI flags (`--a`, `--b`) |
 | `input_schema.required` | Required flag enforcement |
 | `annotations.requires_approval` | HITL approval prompt |
@@ -274,7 +310,7 @@ User / AI Agent (terminal)
 apcore-cli (the adapter)
     |
     +-- ConfigResolver       4-tier config precedence
-    +-- LazyModuleGroup      Dynamic Click command generation
+    +-- GroupedModuleGroup   Auto-grouped nested Click commands (extends LazyModuleGroup)
     +-- SchemaParser         JSON Schema -> Click options
     +-- RefResolver          $ref / allOf / anyOf / oneOf
     +-- ApprovalGate         TTY-aware HITL approval

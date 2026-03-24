@@ -16,6 +16,8 @@ This directory contains the detailed feature specifications for `apcore-cli`. Fo
 | FE-06 | Shell Integration | [shell-integration.md](shell-integration.md) |
 | FE-07 | Config Resolver | [config-resolver.md](config-resolver.md) |
 | FE-08 | Output Formatter | [output-formatter.md](output-formatter.md) |
+| FE-09 | Grouped Commands | [grouped-commands.md](grouped-commands.md) |
+| FE-10 | Init Command | [init-command.md](init-command.md) |
 
 ---
 
@@ -23,6 +25,6 @@ This directory contains the detailed feature specifications for `apcore-cli`. Fo
 
 | Document | Location |
 |----------|----------|
-| Tech Design v1.0 | [`docs/tech-design.md`](../tech-design.md) |
+| Tech Design v2.0 | [`docs/tech-design.md`](../tech-design.md) |
 | SRS v0.1 | [`docs/srs.md`](../srs.md) |
 | Project Manifest | [`docs/project-apcore-cli.md`](../project-apcore-cli.md) |

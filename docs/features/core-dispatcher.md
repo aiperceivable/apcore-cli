@@ -3,14 +3,17 @@
 **Feature ID**: FE-01
 **Status**: Ready for Implementation
 **Priority**: P0
-**Parent**: [Tech Design v1.0](../tech-design.md) Section 8.2
+**Parent**: [Tech Design v2.0](../tech-design.md) Section 8.2
 **SRS Requirements**: FR-DISP-001, FR-DISP-002, FR-DISP-003, FR-DISP-004, FR-DISP-006
+**Related Features**: [Grouped Commands (FE-09)](grouped-commands.md)
 
 ---
 
 ## 1. Description
 
-The Core Dispatcher is the primary entry point for `apcore-cli`. It provides the `LazyModuleGroup` Click Group subclass that lazily discovers modules from the apcore Registry, routes commands to built-in subcommands or dynamically generated module commands, handles STDIN JSON input, and delegates execution to the apcore Executor.
+The Core Dispatcher is the primary entry point for `apcore-cli`. It provides the `LazyModuleGroup` Click Group subclass (and its `GroupedModuleGroup` subclass) that lazily discovers modules from the apcore Registry, routes commands to built-in subcommands or dynamically generated module commands, handles STDIN JSON input, and delegates execution to the apcore Executor.
+
+**v2.0 update:** In Tech Design v2.0, `create_cli()` uses `GroupedModuleGroup` (extends `LazyModuleGroup`) as the root Click group. This organizes modules into nested subcommand groups by namespace prefix. The `LazyModuleGroup` base class remains unchanged. See [Grouped Commands (FE-09)](grouped-commands.md) for the full grouped commands specification.
 
 ---
 
@@ -41,16 +44,22 @@ The Core Dispatcher is the primary entry point for `apcore-cli`. It provides the
 
 ```python
 class LazyModuleGroup(click.Group):
-    """Custom Click Group that lazily loads apcore modules as subcommands."""
+    """Custom Click Group that lazily loads apcore modules as subcommands.
 
-    def __init__(self, registry: Registry, executor: Executor, **kwargs):
+    Base class for GroupedModuleGroup. Handles display overlay alias resolution,
+    descriptor caching, and lazy command building.
+    """
+
+    def __init__(self, registry: Registry, executor: Executor,
+                 help_text_max_length: int = 1000, **kwargs):
         super().__init__(**kwargs)
         self._registry = registry
         self._executor = executor
+        self._help_text_max_length = help_text_max_length
         self._module_cache: dict[str, click.Command] = {}
-        self._alias_map: dict[str, str] = {}           # CLI alias → module_id
+        self._alias_map: dict[str, str] = {}           # CLI alias -> module_id
         self._alias_map_built: bool = False
-        self._descriptor_cache: dict[str, Any] = {}    # module_id → descriptor
+        self._descriptor_cache: dict[str, Any] = {}    # module_id -> descriptor
 ```
 
 **Method: `list_commands(ctx) -> list[str]`**
@@ -173,7 +182,7 @@ Logic steps:
 7. Log INFO: `"Initialized {prog_name} with {N} modules."`.
 8. Instantiate `Executor(registry)`.
 9. Initialize `AuditLogger()`. Set as module-level global via `set_audit_logger()`.
-10. Build `click.Group` using `cls=LazyModuleGroup`, `name=prog_name`, `registry=registry`, `executor=executor`.
+10. Build `click.Group` using `cls=GroupedModuleGroup` (v2.0; was `LazyModuleGroup` in v1.0), `name=prog_name`, `registry=registry`, `executor=executor`.
 11. Add `click.version_option(version=__version__, prog_name=prog_name)`.
 12. Add `--extensions-dir` and `--log-level` options to the root group.
 13. Register built-in commands via `register_discovery_commands()` and `register_shell_commands(cli, prog_name=prog_name)`.

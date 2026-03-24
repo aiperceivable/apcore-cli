@@ -26,6 +26,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `test_format_list_json_uses_display_overlay`: JSON output uses display overlay alias/description/tags.
 - `test_format_list_json_falls_back_to_scanner_when_no_overlay`: JSON output falls back to scanner values.
 
+### Added (Grouped Commands — FE-09)
+
+- **Feature spec `grouped-commands.md`** (FE-09) — nested subcommand groups for CLI. Auto-groups by first `.` segment, with `display.cli.group` override. Includes 10 requirements (FR-09-01 through FR-09-10), boundary values, error handling table, and 18 verification test cases.
+- **Tech Design v2.0** — full rewrite incorporating both §5.13 Display Overlay and Grouped CLI Commands. 3 alternative solutions with weighted comparison matrix, 8 ADRs, 5 sequence diagrams.
+- **Updated `core-dispatcher.md`** — references FE-09, documents `GroupedModuleGroup` as v2.0 root group.
+- **Updated `overview.md`** — added FE-09 row to feature table.
+
+### Added (Convention Module Discovery — §5.14)
+
+- **`apcore-cli init module <id>`** — scaffolding command with `--style` (decorator, convention, binding) and `--description` options. Generates module templates in the appropriate directory.
+- **`--commands-dir` CLI option** — path to a convention commands directory. When set, `ConventionScanner` from `apcore-toolkit` scans for plain functions and registers them as modules.
+
+### Tests (Convention Module Discovery)
+
+- 6 new tests in `tests/test_init_cmd.py` covering all three styles and options.
+
 ---
 
 ## [0.2.2] - 2026-03-22
