@@ -58,37 +58,60 @@ The `module_id` argument is split on the **last** `.` to derive `(prefix, func_n
 
 ### 4.3 Style: `decorator` (default dir: `extensions/`)
 
-Generates a single Python file at `{dir}/{module_id_with_underscores}.py`:
+Generates a single source file at `{dir}/{module_id_with_underscores}.{ext}` using the host language's module definition syntax. Each CLI implementation generates code in its own language:
 
+**Python** (`.py`):
 ```python
-"""Module: {module_id}"""
-
 from apcore import module
-
 
 @module(id="{module_id}", description="{description}")
 def {func_name}() -> dict:
-    """{description}"""
     # TODO: implement
     return {"status": "ok"}
+```
+
+**TypeScript** (`.ts`):
+```typescript
+import { module } from "apcore-js";
+import { Type } from "@sinclair/typebox";
+
+export const {funcName}Module = module({
+  id: "{module_id}",
+  description: "{description}",
+  inputSchema: Type.Object({}),
+  outputSchema: Type.Object({ status: Type.String() }),
+  execute: (_inputs) => {
+    // TODO: implement
+    return { status: "ok" };
+  },
+});
+```
+
+**Rust** (`.rs`):
+```rust
+use apcore::module::Module;
+use apcore::context::Context;
+use apcore::errors::ModuleError;
+use async_trait::async_trait;
+use serde_json::{json, Value};
+
+pub struct {FuncName}Module;
+
+#[async_trait]
+impl Module for {FuncName}Module {
+    fn description(&self) -> &str { "{description}" }
+    // ... input_schema, output_schema, execute
+}
 ```
 
 ### 4.4 Style: `convention` (default dir: `commands/`)
 
-Generates a Python file in a directory structure derived from the prefix. Multi-segment prefixes create nested directories.
+Generates a source file in a directory structure derived from the prefix. Multi-segment prefixes create nested directories. Each implementation uses its own language syntax.
 
-```python
-"""{description}"""
-
-CLI_GROUP = "{first_prefix_segment}"
-
-def {func_name}() -> dict:
-    """{description}"""
-    # TODO: implement
-    return {"status": "ok"}
-```
-
-The `CLI_GROUP` line is only emitted when the `module_id` contains a `.` separator.
+The `CLI_GROUP` constant is only emitted when the `module_id` contains a `.` separator. Language-specific syntax:
+- Python: `CLI_GROUP = "{group}"`
+- TypeScript: `export const CLI_GROUP = "{group}";`
+- Rust: `pub const CLI_GROUP: &str = "{group}";`
 
 ### 4.5 Style: `binding` (default dir: `bindings/`)
 
@@ -104,14 +127,7 @@ bindings:
     auto_schema: true
 ```
 
-2. **Companion source** at `commands/{prefix_with_underscores}.py` (only if it does not already exist):
-
-```python
-def {func_name}() -> dict:
-    """{description}"""
-    # TODO: implement
-    return {"status": "ok"}
-```
+2. **Companion source** at `commands/{prefix_with_underscores}.{ext}` (only if it does not already exist), using the host language's function syntax.
 
 ### 4.6 Options
 
