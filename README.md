@@ -328,9 +328,9 @@ apcore Registry + Executor (your modules, unchanged)
 
 | Language | Repository | Status |
 |----------|-----------|--------|
-| **Python** | [apcore-cli-python](https://github.com/aiperceivable/apcore-cli-python) | v0.2.1 -- 8 features, 263 tests |
-| **TypeScript** | [apcore-cli-typescript](https://github.com/aiperceivable/apcore-cli-typescript) | v0.2.1 -- 8 features, 183 tests |
-| **Rust** | [apcore-cli-rust](https://github.com/aiperceivable/apcore-cli-rust) | v0.2.1 -- 8 features, 459 tests |
+| **Python** | [apcore-cli-python](https://github.com/aiperceivable/apcore-cli-python) | v0.3.0 -- 10 features, 329 tests |
+| **TypeScript** | [apcore-cli-typescript](https://github.com/aiperceivable/apcore-cli-typescript) | v0.3.0 -- 10 features, 225 tests |
+| **Rust** | [apcore-cli-rust](https://github.com/aiperceivable/apcore-cli-rust) | v0.3.0 -- 10 features, 503 tests |
 
 ---
 
