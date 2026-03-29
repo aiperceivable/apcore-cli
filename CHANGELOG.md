@@ -4,6 +4,23 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] - 2026-03-29
+
+### Added
+
+- **FR-DISP-007: Verbose help mode** — Built-in apcore options (`--input`, `--yes`, `--large-input`, `--format`, `--sandbox`) are now hidden from `--help` output by default. Pass `--help --verbose` to display the full option list. Added `verbose` to reserved flag names to prevent schema property collisions.
+- **FR-SHELL-002: Universal man page generation** — `build_program_man_page()` generates a complete roff man page covering all registered commands (including downstream business commands). `configure_man_help()` adds `--help --man` support to any CLI program. Downstream projects get man pages with a single function call.
+- **Documentation URL support** — `set_docs_url()` / `setDocsUrl()` sets a base URL for online documentation links in help footers and man pages. Documented in tech-design §8.7.6 and shell-integration §4.10.
+
+### Changed
+
+- `--sandbox` is now always hidden from help (not yet implemented). FR-DISP-007 updated from "five" to "four" toggled options.
+- Improved built-in option descriptions across all three SDKs for clarity.
+- Updated `core-dispatcher.md` feature spec: added FR-01-07 traceability entry and built-in option visibility note.
+- Updated `tech-design.md`: documented verbose help behavior, `build_program_man_page` (§8.7.4), and `configure_man_help` (§8.7.5).
+- Updated `srs.md`: added FR-DISP-007 requirement; updated FR-SHELL-002 with full-program mode and acceptance criteria.
+- Updated `shell-integration.md` feature spec: added FR-06-03, §4.8 (`build_program_man_page`), §4.9 (`configure_man_help`), and verification tests T-SHELL-09 through T-SHELL-13.
+
 ## [0.3.0] - 2026-03-23
 
 ### Added

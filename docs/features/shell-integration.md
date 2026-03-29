@@ -19,7 +19,8 @@ Shell Integration provides two subcommands: `apcore-cli completion <shell>` for 
 | Req ID | SRS Ref | Description |
 |--------|---------|-------------|
 | FR-06-01 | FR-SHELL-001 | Shell completion script generation for bash, zsh, fish. |
-| FR-06-02 | FR-SHELL-002 | Man page generation in roff format. |
+| FR-06-02 | FR-SHELL-002 | Man page generation in roff format (single-command via `man <command>`). |
+| FR-06-03 | FR-SHELL-002 | Full-program man page via `--help --man` (covers all registered commands including downstream). |
 
 ---
 
@@ -161,6 +162,79 @@ Logic steps:
 apcore-cli man exec | man -l -
 ```
 
+### 4.8 Function: `build_program_man_page`
+
+**Signature (TypeScript)**: `buildProgramManPage(program: Command, progName: string, version: string, description?: string, docsUrl?: string): string`
+**Signature (Python)**: `build_program_man_page(cli: click.Group, prog_name: str, version: str, description: str | None = None, docs_url: str | None = None) -> str`
+**Signature (Rust)**: `build_program_man_page(cmd: &clap::Command, prog_name: &str, version: &str, description: Option<&str>, docs_url: Option<&str>) -> String`
+
+Generates a complete roff man page covering the entire CLI program. Covers all registered commands, including downstream business commands injected via `GroupedModuleGroup`.
+
+Logic steps:
+1. Resolve description: explicit parameter, or program description, or `"{prog_name} CLI"`.
+2. Generate `.TH` header with program name (uppercased), version, manual label.
+3. Generate `.SH NAME`, `.SH SYNOPSIS`, `.SH DESCRIPTION`.
+4. Generate `.SH GLOBAL OPTIONS`: iterate visible options on the root command, excluding `help`, `version`, `all`, `man`.
+5. Generate `.SH COMMANDS`: iterate all visible subcommands:
+   a. For each command: emit `.TP` with `{prog_name} {command_name}`, description, and visible options.
+   b. For nested subcommands (groups): emit `.TP` with `{prog_name} {group} {subcommand}`, description, and visible options.
+   c. Hidden options (from `--verbose` mode) are excluded via `visibleOptions()` / `is_hide_set()`.
+6. Generate `.SH ENVIRONMENT`: standard apcore env vars.
+7. Generate `.SH EXIT CODES`: standard exit code table.
+8. Generate `.SH SEE ALSO`: pointer to `--help --verbose`.
+9. Return the roff string.
+
+### 4.9 Function: `configure_man_help`
+
+**Signature (TypeScript)**: `configureManHelp(program: Command, progName: string, version: string, description?: string, docsUrl?: string): void`
+**Signature (Python)**: `configure_man_help(cli: click.Group, prog_name: str, version: str, description: str | None = None, docs_url: str | None = None) -> None`
+**Signature (Rust)**: Pre-parse `has_man_flag()` in main + call `build_program_man_page()` (clap has no hook system). Pass `docs_url` from caller.
+
+Adds `--man` as a hidden global option and intercepts help output. When `--man` is present alongside `--help`, outputs the complete roff man page and exits.
+
+Logic steps:
+1. Add `--man` as a hidden option to the root command.
+2. **TypeScript (Commander.js)**: Use `addHelpText("beforeAll", ...)` to intercept. If `program.opts().man` is true, call `buildProgramManPage()`, write to stdout, and `process.exit(0)`.
+3. **Python (Click)**: Pre-parse `sys.argv` for `--man` and `--help`. If both present, call `build_program_man_page()`, print, and `sys.exit(0)`. (Click's eager `--help` handling requires pre-parsing.)
+4. **Rust (clap)**: Pre-parse `--man` and `--help` from raw argv before clap processes arguments. If both present, build the CLI command tree (without directory validation), call `build_program_man_page()`, print, and `std::process::exit(0)`.
+
+**Usage for downstream projects:**
+```typescript
+// TypeScript
+import { configureManHelp } from 'apcore-cli';
+configureManHelp(program, 'reach', '0.2.0', 'ReachForge: The Social Influence Engine', 'https://reachforge.dev/docs');
+```
+```python
+# Python
+from apcore_cli.shell import configure_man_help
+configure_man_help(cli, "reach", "0.2.0", "ReachForge: The Social Influence Engine", "https://reachforge.dev/docs")
+```
+
+### 4.10 Function: `set_docs_url`
+
+**Signature (TypeScript)**: `setDocsUrl(url: string | null): void`
+**Signature (Python)**: `set_docs_url(url: str | None) -> None`
+**Signature (Rust)**: `set_docs_url(url: Option<String>)`
+
+Sets the base URL for online documentation. When set:
+- Per-command `--help` footer appends: `Docs: {url}/commands/{command_name}`
+- `build_program_man_page` SEE ALSO appends: `Full documentation at {url}`
+
+When not set (default `null`/`None`): no docs link is shown anywhere.
+
+**Usage for man page installation:**
+```bash
+# Generate man page file
+reach --help --man > reach.1
+
+# Install (symlink for development)
+sudo mkdir -p /usr/local/share/man/man1
+sudo ln -sf /path/to/reach.1 /usr/local/share/man/man1/reach.1
+
+# Verify
+man reach
+```
+
 ---
 
 ## 5. Parameter Validation
@@ -193,3 +267,8 @@ apcore-cli man exec | man -l -
 | T-SHELL-06 | `apcore-cli man exec` | stdout: roff format with `.TH`, command name. Exit 0. |
 | T-SHELL-07 | `apcore-cli man exec \| man -l -` | Man page renders correctly. |
 | T-SHELL-08 | `apcore-cli man nonexistent` | stderr: "Unknown command". Exit 2. |
+| T-SHELL-09 | `apcore-cli --help --man` | stdout: complete roff man page with `.TH`, `.SH COMMANDS` covering all registered commands. Exit 0. |
+| T-SHELL-10 | `apcore-cli --help --man \| mandoc -a` | Full man page renders correctly with all commands and options. |
+| T-SHELL-11 | Downstream project calls `configure_man_help(program, "myapp", "1.0.0")`, then runs `myapp --help --man` | stdout: roff man page with program name "myapp" and all downstream commands. |
+| T-SHELL-12 | `apcore-cli --help --man` without `--verbose` | Built-in options (`--input`, `--yes`, etc.) do NOT appear in the COMMANDS section. |
+| T-SHELL-13 | `apcore-cli --help --man --verbose` | Built-in options appear in the COMMANDS section. |

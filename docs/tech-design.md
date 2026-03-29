@@ -903,8 +903,8 @@ Logic steps:
    k. On `KeyboardInterrupt`: exit 130.
    l. On other exception: map error code, audit log (error), exit with mapped code.
 9. Create `click.Command` with `name=effective_cmd_name`, `help=cmd_help`, `callback=callback`.
-10. Append built-in options: `--input`, `--yes`, `--large-input`, `--format`, `--sandbox`.
-11. Guard: check schema property names do not collide with reserved names `{input, yes, large_input, format, sandbox}`. On collision: exit 2.
+10. Append built-in options: `--input`, `--yes`, `--large-input`, `--format`, `--sandbox`. These options are hidden from `--help` output by default; when `--verbose` is passed globally, they become visible.
+11. Guard: check schema property names do not collide with reserved names `{input, yes, large_input, format, sandbox, verbose}`. On collision: exit 2.
 12. Append schema-generated options.
 13. Return the command.
 
@@ -1576,6 +1576,72 @@ complete -F _myproject myproject
 - `OPTIONS` — All flags with types and help text.
 - `EXIT CODES` — Table of all exit codes (from §8.9).
 - `SEE ALSO` — References to other apcore-cli commands.
+
+**Traces to:** FR-SHELL-002.
+
+#### 8.7.4 Full-Program Man Page (`build_program_man_page`)
+
+**Purpose:** Generate a complete roff man page covering ALL registered commands (including downstream business commands injected via `GroupedModuleGroup`). This replaces the need for downstream projects to implement their own man page generation.
+
+**Signatures:**
+- TypeScript: `buildProgramManPage(program: Command, progName: string, version: string, description?: string, docsUrl?: string): string`
+- Python: `build_program_man_page(cli: click.Group, prog_name: str, version: str, description: str | None = None, docs_url: str | None = None) -> str`
+- Rust: `build_program_man_page(cmd: &clap::Command, prog_name: &str, version: &str, description: Option<&str>, docs_url: Option<&str>) -> String`
+
+**Roff sections generated:**
+- `.TH` — Title heading with program name (uppercased), version.
+- `NAME` — Program name and description.
+- `SYNOPSIS` — `{prog_name} [global-options] command [command-options]`.
+- `DESCRIPTION` — Program description.
+- `GLOBAL OPTIONS` — Visible root options (excludes `help`, `version`, `all`, `man`).
+- `COMMANDS` — All visible commands with their options; nested subcommands expanded. Hidden options (from `--verbose` mode) are excluded.
+- `ENVIRONMENT` — Standard apcore environment variables.
+- `EXIT CODES` — Standard exit code table.
+- `SEE ALSO` — Pointer to `--help --verbose`. If `docsUrl` is provided, includes a link to the full documentation.
+
+#### 8.7.5 Man Help Configuration (`configure_man_help`)
+
+**Purpose:** One-line integration for downstream projects to add `--help --man` support.
+
+**Signatures:**
+- TypeScript: `configureManHelp(program: Command, progName: string, version: string, description?: string, docsUrl?: string): void`
+- Python: `configure_man_help(cli: click.Group, prog_name: str, version: str, description: str | None = None, docs_url: str | None = None) -> None`
+- Rust: Pre-parse `has_man_flag(args)` + call `build_program_man_page()` in main (pass `docs_url` from caller).
+
+**Logic:**
+1. Adds `--man` as a hidden global option.
+2. When `--man` is passed alongside `--help`, intercepts before normal help rendering.
+3. Calls `build_program_man_page()` with the fully-built command tree.
+4. Writes roff to stdout and exits with code 0.
+
+**Framework-specific handling:**
+- Commander.js: `addHelpText("beforeAll", ...)` hook.
+- Click: Pre-parse `sys.argv` (Click's eager `--help` exits before callbacks run).
+- clap: Pre-parse raw argv before `clap::Command::parse()`.
+
+**Traces to:** FR-SHELL-002.
+
+#### 8.7.6 Documentation URL (`set_docs_url`)
+
+**Purpose:** Allow downstream projects to display a link to online documentation in command help footers and man pages. No default value — if not set, no docs link is shown.
+
+**Signatures:**
+- TypeScript: `setDocsUrl(url: string | null): void` (module-level setter; read by `buildModuleCommand`)
+- Python: `set_docs_url(url: str | None) -> None` (module-level setter; read by `build_module_command`)
+- Rust: `set_docs_url(url: Option<String>)` / `get_docs_url() -> Option<String>` (global `Mutex<Option<String>>`)
+
+**Behavior when set:**
+- Per-command `--help` footer appends: `Docs: {url}/commands/{command_name}`
+- `build_program_man_page` SEE ALSO appends: `Full documentation at {url}`
+
+**Behavior when not set (default):**
+- No docs link shown anywhere.
+
+**Usage:**
+```typescript
+import { setDocsUrl } from 'apcore-cli';
+setDocsUrl('https://docs.apcore.dev/cli');
+```
 
 **Traces to:** FR-SHELL-002.
 

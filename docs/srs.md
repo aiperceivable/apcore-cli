@@ -437,6 +437,44 @@ The system provides eight feature groups:
 
 ---
 
+#### FR-DISP-007: Verbose Help Mode
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-DISP-007 |
+| **Title** | Verbose Help Mode |
+| **Priority** | P2 |
+| **Priority Rationale** | UX improvement. Built-in apcore options are noise for most users; AI agents and power users can opt in via `--verbose`. |
+| **Source** | Feature Spec FE-01; v0.4.0 |
+
+**Description:** The system shall hide four built-in apcore options (`--input`, `--yes`, `--large-input`, `--format`) from `--help` output by default. When the global `--verbose` flag is passed alongside `--help`, the system shall display the full option list including these built-in options. The `--sandbox` option is always hidden (not yet implemented) and is not affected by `--verbose`. The `--verbose` flag shall be pre-parsed from `argv` before the CLI framework processes arguments, since help rendering occurs during parsing. The flag name `verbose` shall be added to the reserved property names set to prevent schema collisions.
+
+**Actors:** Developer, AI Agent
+
+**Preconditions:**
+- The CLI adapter is installed and a module command exists.
+
+**Main Flow:**
+1. At startup, the system shall scan raw `argv` for `--verbose` before the CLI framework parses arguments.
+2. If `--verbose` is present, the system shall set a global flag indicating verbose help mode.
+3. When building module commands via `build_module_command()`, four built-in options (`--input`, `--yes`, `--large-input`, `--format`) shall be marked as hidden when verbose mode is off, and visible when verbose mode is on. The `--sandbox` option shall remain always hidden until implemented.
+4. The `--verbose` flag shall be registered as a global CLI option with help text: "Show all options in help output (including built-in apcore options)."
+
+**Alternative Flows:**
+- **AF-1: `--verbose` without `--help`.** The flag is accepted but has no visible effect on command execution.
+- **AF-2: Schema property named `verbose`.** The system shall reject it with exit code 2, as `verbose` is a reserved flag name.
+
+**Postconditions:**
+- Default `--help` output shows only schema-derived options.
+- `--help --verbose` output shows all options (schema-derived + built-in).
+
+**Acceptance Criteria:**
+- **AC-1:** Given a module with property `name`, when the user runs `apcore-cli module --help`, then `--input`, `--yes`, `--large-input`, `--format`, and `--sandbox` shall NOT appear in the output.
+- **AC-2:** Given the same module, when the user runs `apcore-cli module --help --verbose`, then `--input`, `--yes`, `--large-input`, and `--format` SHALL appear in the output. `--sandbox` shall remain hidden (not yet implemented).
+- **AC-3:** Given a module with a schema property named `verbose`, when the system builds the command, then it shall exit with code 2 and a collision error message.
+
+---
+
 ### 5.2 Schema Parser (SCHEMA)
 
 #### FR-SCHEMA-001: Property-to-Flag Mapping
@@ -1266,23 +1304,38 @@ The system provides eight feature groups:
 | **Priority Rationale** | Standard Unix convention for CLI documentation. Not blocking but provides integration with `man` command. |
 | **Source** | User requirements (shell ecosystem integration) |
 
-**Description:** The system shall generate man pages in roff format from module metadata and CLI command definitions. The system shall provide an `apcore-cli man <command>` subcommand or a build-time script that generates man pages for installation. Man pages shall include the command synopsis, description, options, examples, and exit codes.
+**Description:** The system shall generate man pages in roff format from module metadata and CLI command definitions. Two generation modes are supported:
 
-**Actors:** Developer
+1. **Single-command mode** — `apcore-cli man <command>` generates a man page for one command.
+2. **Full-program mode** — `--help --man` generates a complete man page covering ALL registered commands (including downstream business commands injected via GroupedModuleGroup). This mode does not occupy a subcommand name and is the recommended approach for downstream projects.
+
+The system shall provide `build_program_man_page()` and `configure_man_help()` as public API functions so downstream projects can integrate man page generation with a single function call.
+
+**Actors:** Developer, AI Agent
 
 **Preconditions:**
 - The Registry is loaded (for module-specific man pages).
 
-**Main Flow:**
+**Main Flow (single-command mode):**
 1. The user invokes `apcore-cli man exec` or `apcore-cli man list`.
 2. The system shall generate a man page in roff format for the specified command.
 3. The man page shall include: NAME, SYNOPSIS, DESCRIPTION, OPTIONS, EXIT CODES, SEE ALSO.
 4. The system shall write the roff output to stdout.
 5. The user may pipe to `man -l -` for immediate display.
 
+**Main Flow (full-program mode):**
+1. The downstream project calls `configure_man_help(program, prog_name, version, description)` during CLI setup.
+2. This adds a hidden `--man` global option to the CLI.
+3. When the user invokes `{prog_name} --help --man`, the system pre-parses `--man` from argv before the CLI framework processes help.
+4. The system calls `build_program_man_page()` which iterates all visible commands (including downstream business commands), generating a complete roff man page with: TH, NAME, SYNOPSIS, DESCRIPTION, GLOBAL OPTIONS, COMMANDS (with nested subcommands and their options), ENVIRONMENT, EXIT CODES, SEE ALSO.
+5. The system writes the roff output to stdout and exits.
+6. Hidden options (from `--verbose` mode) are excluded from the man page by default.
+
 **Alternative Flows:**
 
-- **AF-1: Unknown Command.** If the specified command does not exist, the system shall write to stderr: `Error: Unknown command '{command}'.` and exit with code 2.
+- **AF-1: Unknown Command (single-command mode).** If the specified command does not exist, the system shall write to stderr: `Error: Unknown command '{command}'.` and exit with code 2.
+- **AF-2: `--man` without `--help`.** The `--man` flag is accepted but has no effect on command execution.
+- **AF-3: `--help --man --verbose`.** The man page includes all options (including built-in apcore options that are normally hidden).
 
 **Postconditions:**
 - A man page in roff format is written to stdout.
@@ -1291,6 +1344,9 @@ The system provides eight feature groups:
 
 - **AC-1:** Given the user runs `apcore-cli man exec`, then stdout shall contain roff-formatted text including `.TH` (title heading) and the command name.
 - **AC-2:** Given the user runs `apcore-cli man exec | man -l -`, then the man page shall render correctly in the terminal.
+- **AC-3:** Given a downstream project calls `configure_man_help(program, "myapp", "1.0.0")`, when the user runs `myapp --help --man`, then stdout shall contain a complete roff man page covering all registered commands.
+- **AC-4:** Given a downstream project has registered module commands via `GroupedModuleGroup`, when `--help --man` is invoked, then the man page shall include all module commands and their schema-derived options.
+- **AC-5:** Given `--help --man` is invoked, then the man page shall NOT include the `--man` option itself in the GLOBAL OPTIONS section (it is hidden).
 
 ---
 

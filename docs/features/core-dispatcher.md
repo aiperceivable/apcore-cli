@@ -27,6 +27,7 @@ The Core Dispatcher is the primary entry point for `apcore-cli`. It provides the
 | FR-01-04 | FR-DISP-001 AF-3 | Version flag: `{prog_name} --version` prints `{prog_name}, version X.Y.Z`. |
 | FR-01-05 | FR-DISP-004 | STDIN JSON input when `--input -` is specified. |
 | FR-01-06 | FR-DISP-006 | CLI program name resolved from `argv[0]` basename; explicit `prog_name` parameter overrides. |
+| FR-01-07 | FR-DISP-007 | Verbose help mode: built-in options hidden by default, shown with `--verbose`. |
 
 ---
 
@@ -106,7 +107,8 @@ Logic steps:
 4. Create a Click command with:
    - `name`: `metadata["display"]["cli"]["alias"]` if present, else `module_def.canonical_id`
    - `help`: `metadata["display"]["cli"]["description"]` if present, else `module_def.description`
-   - Built-in options: `--input`, `--yes`, `--large-input`, `--format`, `--sandbox`
+   - Built-in options: `--input`, `--yes`, `--large-input`, `--format` (hidden from `--help` by default; shown when `--verbose` is passed), `--sandbox` (always hidden — not yet implemented)
+   - Global option: `--verbose` (controls built-in option visibility in help output)
 5. The command callback:
    a. Call `collect_input(stdin_input, kwargs, large_input)` to merge STDIN + CLI flags.
    b. Call `jsonschema.validate(merged, resolved_schema)`. On failure: exit 45 with validation error detail.

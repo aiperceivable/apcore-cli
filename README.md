@@ -192,7 +192,9 @@ The `init module` command supports three styles via `--style`:
 - **Schema Validation** -- Inputs validated against JSON Schema before execution, with `$ref`/`allOf`/`anyOf`/`oneOf` resolution
 - **Security** -- API key auth (keyring + AES-256-GCM), append-only audit logging, subprocess sandboxing
 - **Shell Completions** -- `apcore-cli completion bash|zsh|fish` generates completion scripts with dynamic module ID completion
-- **Man Pages** -- `apcore-cli man <command>` generates roff-formatted man pages
+- **Man Pages** -- `apcore-cli man <command>` generates roff-formatted man pages; `--help --man` generates a full program man page covering all commands
+- **Verbose Help** -- Built-in apcore options are hidden by default; pass `--help --verbose` to show the full option list
+- **Documentation Links** -- `set_docs_url()` / `setDocsUrl()` adds online documentation URLs to help footers and man pages
 - **Audit Logging** -- All executions logged to `~/.apcore-cli/audit.jsonl` with SHA-256 input hashing
 
 ---
