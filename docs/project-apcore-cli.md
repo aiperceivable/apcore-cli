@@ -43,7 +43,7 @@ Maps high-level requirements (from [ideas/draft.md](../ideas/draft.md)) to featu
 ---
 
 ## Project Dependencies
-- `apcore >= 0.13.0` (Core protocol, Registry, Executor, error hierarchy)
+- `apcore >= 0.15.1` (Core protocol, Registry, Executor, error hierarchy, Config Bus)
 - `click >= 8.1` (CLI framework — confirmed in [Tech Design v1.0](tech-design.md), ADR-01)
 - `jsonschema >= 4.20` (JSON Schema validation and parsing)
 - `rich >= 13.0` (Terminal output formatting — tables, syntax highlighting)

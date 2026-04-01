@@ -1779,14 +1779,14 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 
 | Layer | Technology | Version | Rationale | SRS Reference |
 |-------|-----------|---------|-----------|---------------|
-| Language | Python | >= 3.11 | Aligned with apcore >= 0.13.0 | SRS §4.4 |
+| Language | Python | >= 3.11 | Aligned with apcore >= 0.15.1 | SRS §4.4 |
 | CLI Framework | `click` | >= 8.1 | ADR-01. Dynamic command generation, nested groups, prompts, completion. | FR-DISP-001, FR-SCHEMA-002, FR-APPR-002 |
 | Validation | `jsonschema` | >= 4.20 | JSON Schema validation and `$ref` resolution. | FR-SCHEMA-006, NFR-SEC-002 |
 | Terminal Output | `rich` | >= 13.0 | Tables, syntax highlighting, styled text. | FR-DISC-001, FR-DISC-003 |
 | Credential Storage | `keyring` | >= 24.0 | OS-native keyring (macOS Keychain, GNOME, Windows). | FR-SEC-002 |
 | Encryption Fallback | `cryptography` | >= 41.0 | AES-256-GCM for headless environments. | FR-SEC-002 ADR-04 |
 | YAML Parsing | `pyyaml` | >= 6.0 | Config file parsing. | FR-DISP-005 |
-| Core Protocol | `apcore` | >= 0.13.1 | Registry, Executor, error hierarchy, display overlay. | SRS §4.5 |
+| Core Protocol | `apcore` | >= 0.15.0 | Registry, Executor, error hierarchy, display overlay, Config Bus. | SRS §4.5 |
 | Distribution | PyPI | — | `pip install apcore-cli` | User requirement |
 
 ### 9.1 Naming Conventions
@@ -1908,7 +1908,7 @@ apcore-cli/
 name = "apcore-cli"
 requires-python = ">=3.11"
 dependencies = [
-    "apcore>=0.13.1",
+    "apcore>=0.15.1",
     "click>=8.1",
     "jsonschema>=4.20",
     "rich>=13.0",

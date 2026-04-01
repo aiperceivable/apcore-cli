@@ -4,6 +4,19 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0] - 2026-03-31
+
+### Changed
+
+- **Dependency bump**: requires `apcore >= 0.15.1` (was `>= 0.13.0`). Adds Config Bus namespace registration, canonical event type naming, Error Formatter Registry support, and simplified env var prefix convention.
+- Updated SRS, Tech Design, and Project Manifest to reflect `apcore >= 0.15.1` dependency.
+
+### Added
+
+- **Config Bus integration** — `apcore-cli` registers namespace `apcore-cli` with env prefix `APCORE_CLI` at import time via `Config.register_namespace()`. Supports unified `apcore.yaml` configuration in namespace mode alongside legacy flat-key mode.
+- **Canonical event types** — Spec updated to reference dot-namespaced canonical event names (`apcore.module.toggled`, `apcore.config.updated`, `apcore.module.reloaded`, `apcore.health.recovered`) from apcore 0.15.0. SDKs should adopt these names when implementing event subscriptions.
+- **New error codes** — Handle `CONFIG_NAMESPACE_RESERVED`, `CONFIG_NAMESPACE_DUPLICATE`, `CONFIG_ENV_PREFIX_CONFLICT`, `CONFIG_MOUNT_ERROR`, `CONFIG_BIND_ERROR`, `ERROR_FORMATTER_DUPLICATE` from apcore 0.15.0.
+
 ## [0.4.0] - 2026-03-29
 
 ### Added
