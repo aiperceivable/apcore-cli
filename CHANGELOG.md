@@ -4,6 +4,17 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.1] - 2026-04-03
+
+### Added
+
+- **FR-DISP-008: Pre-populated registry support** — `create_cli()` accepts optional `registry` and `executor` parameters. When a pre-populated Registry is provided, filesystem discovery is skipped entirely. This enables frameworks that register modules at runtime (e.g. apflow's bridge) to generate CLI commands from their existing registry without requiring an extensions directory on disk.
+- Cross-language API table in tech-design §8.2.7 and core-dispatcher §4.5: Python `create_cli(registry=)`, TypeScript `createCli({ registry })` via `CreateCliOptions`, Rust `CliConfig { registry }`.
+- Verification tests T-DISP-18 through T-DISP-20 for pre-populated registry path.
+- Passing `executor` without `registry` is a validation error (ValueError/throw).
+
+---
+
 ## [0.5.0] - 2026-03-31
 
 ### Changed

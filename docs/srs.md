@@ -475,6 +475,53 @@ The system provides eight feature groups:
 
 ---
 
+#### FR-DISP-008: Pre-Populated Registry Support
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-DISP-008 |
+| **Title** | Pre-Populated Registry Support |
+| **Priority** | P1 |
+| **Priority Rationale** | Required for framework embedding. Without this, frameworks that register modules at runtime cannot use apcore-cli — they must hand-write CLI commands or maintain a parallel extensions directory. |
+| **Source** | Feature Spec FE-01 FR-01-08; v0.5.1 |
+
+**Description:** The `create_cli()` factory function shall accept optional `registry` and `executor` parameters. When a pre-populated `Registry` instance is provided, the system shall skip filesystem discovery entirely (no extensions directory resolution, no directory validation, no `Registry.discover()` call). If `executor` is omitted but `registry` is provided, the system shall auto-build an `Executor` from the given registry. Passing `executor` without `registry` is a validation error.
+
+**Actors:** Framework Developer
+
+**Preconditions:**
+- The caller has a populated `Registry` instance with modules already registered.
+
+**Main Flow:**
+1. The caller invokes `create_cli(registry=my_registry, prog_name="myapp")`.
+2. The system validates that `executor` is not provided without `registry`.
+3. The system skips extensions directory resolution and filesystem discovery.
+4. If `executor` is None, the system instantiates `Executor(registry)`.
+5. The system proceeds to build the CLI group using the provided registry and executor.
+
+**Alternative Flows:**
+- **AF-1: `executor` without `registry`.** The system raises `ValueError("executor requires registry — pass both or neither")`.
+- **AF-2: Both `registry` and `extensions_dir` provided.** `registry` takes precedence; `extensions_dir` is ignored.
+
+**Postconditions:**
+- CLI group is created with module commands derived from the pre-populated registry.
+- No filesystem access occurred for module discovery.
+
+**Acceptance Criteria:**
+- **AC-1:** Given a pre-populated Registry with N modules, when `create_cli(registry=reg)` is called, then the CLI group shall contain commands for all N modules without requiring an extensions directory.
+- **AC-2:** Given `create_cli(registry=reg)` is called without an extensions directory on disk, then the system shall NOT exit with code 47.
+- **AC-3:** Given `create_cli(executor=exec)` is called without `registry`, then the system shall raise `ValueError`.
+
+**Cross-language equivalents:**
+
+| Language | API |
+|----------|-----|
+| Python | `create_cli(registry=reg, executor=exec)` |
+| TypeScript | `createCli({ registry, executor, progName })` via `CreateCliOptions` |
+| Rust | `CliConfig { registry: Some(provider), executor: Some(exec), .. }` |
+
+---
+
 ### 5.2 Schema Parser (SCHEMA)
 
 #### FR-SCHEMA-001: Property-to-Flag Mapping

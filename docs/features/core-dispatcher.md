@@ -28,6 +28,7 @@ The Core Dispatcher is the primary entry point for `apcore-cli`. It provides the
 | FR-01-05 | FR-DISP-004 | STDIN JSON input when `--input -` is specified. |
 | FR-01-06 | FR-DISP-006 | CLI program name resolved from `argv[0]` basename; explicit `prog_name` parameter overrides. |
 | FR-01-07 | FR-DISP-007 | Verbose help mode: built-in options hidden by default, shown with `--verbose`. |
+| FR-01-08 | FR-DISP-008 | Pre-populated registry: `create_cli()` accepts optional `registry` and `executor` parameters, skipping filesystem discovery when provided. |
 
 ---
 
@@ -151,13 +152,16 @@ Logic steps:
 
 ### 4.5 Function: `create_cli`
 
-**Signature**: `create_cli(extensions_dir: str | None = None, prog_name: str | None = None) -> click.Group`
+**Signature**: `create_cli(extensions_dir: str | None = None, prog_name: str | None = None, commands_dir: str | None = None, binding_path: str | None = None, registry: Any | None = None, executor: Any | None = None) -> click.Group`
 
 **File**: `apcore_cli/__main__.py`
 
 **Purpose**: Factory function that assembles and returns the fully configured Click group. Separating construction from invocation enables library users to embed the CLI in a larger application and override settings (including the program name) without touching entry-point code.
 
+**Pre-populated registry support (v0.5.1):** When a `registry` parameter is provided, filesystem discovery is skipped entirely. This enables frameworks that register modules at runtime (e.g. apflow's bridge, which populates the registry programmatically via `create_apflow_registry()`) to generate CLI commands from their existing registry without requiring an extensions directory on disk.
+
 Logic steps:
+0. **Validate parameters:** If `executor` is not None and `registry` is None, raise `ValueError("executor requires registry — pass both or neither")`.
 1. Resolve `prog_name` (FR-DISP-006):
    a. If `prog_name` is not `None`, use it (Tier 1 — explicit parameter).
    b. Otherwise, compute `os.path.basename(sys.argv[0])`.
@@ -173,22 +177,34 @@ Logic steps:
    b. Call `logging.basicConfig(level=..., format="%(levelname)s: %(message)s")` once (no-op on subsequent calls).
    c. Set `logging.getLogger("apcore").setLevel(ERROR)` when the resolved level is above INFO; set to the resolved level when INFO or lower. This suppresses noisy upstream apcore output unless the user explicitly requests verbose output.
    d. At runtime the `--log-level` flag overrides: call `logging.getLogger().setLevel(level)` (not `basicConfig`) and apply the same `apcore` level logic. Accepted choices: `DEBUG`, `INFO`, `WARNING`, `ERROR` (case-insensitive).
-3. Resolve `extensions_dir`:
+3. **If `registry` is provided** (pre-populated path):
+   a. If `executor` is None, instantiate `Executor(registry)`.
+   b. Log INFO: `"Using pre-populated registry ({N} modules)."`.
+   c. Skip steps 4–9 (no filesystem resolution, no directory validation, no discovery).
+4. Resolve `extensions_dir`:
    a. If `extensions_dir` is not `None`, use it.
    b. Otherwise, instantiate `ConfigResolver()` and call `config.resolve("extensions.root", cli_flag="--extensions-dir", env_var="APCORE_EXTENSIONS_ROOT")`.
-4. Verify `extensions_dir` path exists and is a readable directory:
+5. Verify `extensions_dir` path exists and is a readable directory:
    - Not exists: exit 47, message "Extensions directory not found: '{path}'. Set APCORE_EXTENSIONS_ROOT or verify the path."
    - Not readable: exit 47, message "Cannot read extensions directory: '{path}'. Check file permissions."
-5. Instantiate `Registry(extensions_dir)`.
-6. Call `registry.discover()`. Log DEBUG: `"Loading extensions from {extensions_dir}"`.
-7. Log INFO: `"Initialized {prog_name} with {N} modules."`.
-8. Instantiate `Executor(registry)`.
-9. Initialize `AuditLogger()`. Set as module-level global via `set_audit_logger()`.
-10. Build `click.Group` using `cls=GroupedModuleGroup` (v2.0; was `LazyModuleGroup` in v1.0), `name=prog_name`, `registry=registry`, `executor=executor`.
-11. Add `click.version_option(version=__version__, prog_name=prog_name)`.
-12. Add `--extensions-dir` and `--log-level` options to the root group.
-13. Register built-in commands via `register_discovery_commands()` and `register_shell_commands(cli, prog_name=prog_name)`.
-14. Return the assembled `click.Group`.
+6. Instantiate `Registry(extensions_dir)`.
+7. Call `registry.discover()`. Log DEBUG: `"Loading extensions from {extensions_dir}"`.
+8. Log INFO: `"Initialized {prog_name} with {N} modules."`.
+9. Instantiate `Executor(registry)`.
+10. Initialize `AuditLogger()`. Set as module-level global via `set_audit_logger()`.
+11. Build `click.Group` using `cls=GroupedModuleGroup` (v2.0; was `LazyModuleGroup` in v1.0), `name=prog_name`, `registry=registry`, `executor=executor`.
+12. Add `click.version_option(version=__version__, prog_name=prog_name)`.
+13. Add `--extensions-dir` and `--log-level` options to the root group.
+14. Register built-in commands via `register_discovery_commands()` and `register_shell_commands(cli, prog_name=prog_name)`.
+15. Return the assembled `click.Group`.
+
+**Cross-language equivalents:**
+
+| Language | API | Pre-populated registry |
+|----------|-----|----------------------|
+| Python | `create_cli(registry=reg, executor=exec)` | `registry` + optional `executor` kwargs |
+| TypeScript | `createCli({ registry, executor, progName })` | `CreateCliOptions` interface |
+| Rust | `CliConfig { registry, executor, .. }` | `CliConfig` struct with `Default` impl |
 
 ### 4.6 Function: `main`
 
@@ -267,3 +283,6 @@ Logic steps:
 | T-DISP-15 | Downstream entry point `myproject --version` (installed as `myproject = "apcore_cli.__main__:main"`) | Output: `myproject, version X.Y.Z`. Exit 0. |
 | T-DISP-16 | `create_cli(prog_name="custom-name")` invoked with `--help` | Help output contains `custom-name`. Does not contain `apcore-cli`. |
 | T-DISP-17 | `create_cli(prog_name=None)` invoked when `argv[0]` is `pytest` | Help output contains `pytest` (argv[0] basename). Falls back gracefully. |
+| T-DISP-18 | `create_cli(registry=mock_registry, executor=mock_executor)` | CLI created without filesystem access. No exit 47. Modules from registry available. |
+| T-DISP-19 | `create_cli(registry=mock_registry)` (executor omitted) | Executor auto-built from provided registry. CLI created successfully. |
+| T-DISP-20 | `create_cli(executor=mock_executor)` (registry omitted) | `ValueError` raised: "executor requires registry". |

@@ -968,34 +968,62 @@ Logic steps:
 
 #### 8.2.7 Function: `create_cli`
 
-**Signature:** `create_cli(extensions_dir: str | None = None, prog_name: str | None = None) -> click.Group`
+**Signature:** `create_cli(extensions_dir: str | None = None, prog_name: str | None = None, commands_dir: str | None = None, binding_path: str | None = None, registry: Any | None = None, executor: Any | None = None) -> click.Group`
 
 **File:** `apcore_cli/__main__.py`
 
 **Purpose:** Factory function that assembles and returns the fully configured Click group. In v2.0, uses `GroupedModuleGroup` instead of `LazyModuleGroup`.
 
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `extensions_dir` | `str \| None` | `None` | Path to extensions directory. Resolved via ConfigResolver when None. |
+| `prog_name` | `str \| None` | `None` | Program name for help/version. Derived from `argv[0]` when None. |
+| `commands_dir` | `str \| None` | `None` | Convention-based commands directory (requires apcore-toolkit). |
+| `binding_path` | `str \| None` | `None` | Path to binding.yaml for display overlay (requires apcore-toolkit). |
+| `registry` | `Any \| None` | `None` | Pre-populated Registry instance. Skips filesystem discovery when provided. |
+| `executor` | `Any \| None` | `None` | Pre-built Executor instance. Auto-built from registry if omitted. |
+
+**Validation:** Passing `executor` without `registry` raises `ValueError`. This is a usage error — the executor has no meaning without the registry it was built from.
+
 Logic steps:
-1. Resolve `prog_name` (FR-DISP-006):
+1. **Validate parameters:** If `executor` is not None and `registry` is None, raise `ValueError("executor requires registry — pass both or neither")`.
+2. Resolve `prog_name` (FR-DISP-006):
    a. If `prog_name` is not `None`, use it (Tier 1 — explicit parameter).
    b. Otherwise, compute `os.path.basename(sys.argv[0])`.
    c. If the result is empty, fall back to `"apcore-cli"`.
-2. Resolve and apply initial log level (3-tier precedence, before Click runs):
+3. Resolve and apply initial log level (3-tier precedence, before Click runs):
    - Tier 1 (highest): `--log-level` CLI flag — applied at runtime in the group callback.
    - Tier 2: `APCORE_CLI_LOGGING_LEVEL` env var — CLI-specific.
    - Tier 3: `APCORE_LOGGING_LEVEL` env var — global fallback.
    - Default: `logging.WARNING`.
-3. Resolve `extensions_dir` via ConfigResolver.
-4. Verify path exists and is readable. Exit 47 on failure.
-5. Instantiate `Registry(extensions_dir)`.
-6. Call `registry.discover()`. Log DEBUG/INFO.
-7. Instantiate `Executor(registry)`.
-8. Initialize `AuditLogger()`.
-9. **Build `click.Group` using `cls=GroupedModuleGroup`** (changed from `LazyModuleGroup` in v2.0).
-10. Add `click.version_option`, `--extensions-dir`, `--log-level` options.
-11. Register built-in commands via `register_discovery_commands()` and `register_shell_commands()`.
-12. Return the assembled group.
+4. **If `registry` is provided** (pre-populated path):
+   a. If `executor` is None, instantiate `Executor(registry)`.
+   b. Log INFO: `"Using pre-populated registry ({N} modules)."`.
+   c. Skip steps 5–8 (no filesystem discovery).
+5. **Else** (standard filesystem path):
+   a. Resolve `extensions_dir` via ConfigResolver.
+   b. Verify path exists and is readable. Exit 47 on failure.
+   c. Instantiate `Registry(extensions_dir)`.
+   d. Call `registry.discover()`. Log DEBUG/INFO.
+   e. Run ConventionScanner if `commands_dir` is set.
+   f. Instantiate `Executor(registry)`.
+6. Initialize `AuditLogger()`.
+7. **Build `click.Group` using `cls=GroupedModuleGroup`** (changed from `LazyModuleGroup` in v2.0).
+8. Add `click.version_option`, `--extensions-dir`, `--log-level` options.
+9. Register built-in commands via `register_discovery_commands()` and `register_shell_commands()`.
+10. Return the assembled group.
 
-**Traces to:** FR-DISP-001, FR-DISP-003, FR-DISP-005, FR-DISP-006.
+**Cross-language equivalents:**
+
+| Language | API | Pre-populated registry |
+|----------|-----|----------------------|
+| Python | `create_cli(registry=reg, executor=exec)` | `registry` + optional `executor` kwargs |
+| TypeScript | `createCli({ registry, executor, progName })` | `CreateCliOptions` interface |
+| Rust | `CliConfig { registry, executor, .. }` | `CliConfig` struct with `Default` impl |
+
+**Traces to:** FR-DISP-001, FR-DISP-003, FR-DISP-005, FR-DISP-006, FR-DISP-008.
 
 ### 8.3 Schema Parser
 
