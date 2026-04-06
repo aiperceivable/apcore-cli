@@ -4,6 +4,43 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.0] - 2026-04-06
+
+### Changed
+
+- **Dependency bump**: requires `apcore >= 0.17.1` (was `>= 0.15.1`). Incorporates three apcore releases:
+  - **apcore 0.16.0**: Execution Pipeline Strategy (`ExecutionStrategy`, `PipelineEngine`, `PipelineTrace`, 11 built-in steps, preset strategies), `Executor.strategy` parameter, `call_with_trace()` / `call_async_with_trace()`, Config Bus enhancements (`env_style`, `max_depth`, `env_prefix` auto-derivation, `env_map`), `ContextKey<T>` typed accessors, `ModuleAnnotations.extra` field, ACL condition handlers (`register_condition()`, `$or`/`$not`, `async_check()`).
+  - **apcore 0.17.0**: Pipeline v2 declarative step metadata (`match_modules`, `ignore_errors`, `pure`, `timeout_ms`), `PipelineContext.dry_run` / `version_hint` / `executed_middlewares`, `StepTrace.skip_reason`, `safety_check` → `call_chain_guard` rename, pipeline step reorder (middleware_before now executes before input_validation), YAML pipeline configuration.
+  - **apcore 0.17.1**: `minimal` execution strategy preset (4-step pipeline), `requires`/`provides` step dependency metadata.
+- Updated SRS, Tech Design, Project Manifest, and feature spec to reflect `apcore >= 0.17.1` dependency.
+- Updated ADR-03 (Executor Integration) to document optional `strategy` parameter and `call_with_trace()` availability.
+- Updated SRS Execution Constraint to reference the standard 11-step pipeline and custom `ExecutionStrategy` support via pre-configured Executor.
+
+### Added
+
+- **FE-11: Usability Enhancements** — 11 new capabilities implemented across Python, TypeScript, and Rust SDKs:
+  - **`--dry-run` preflight mode** (§3.1) — Validates module call without executing via `Executor.validate()`. Standalone `validate` command also added.
+  - **System management commands** (§3.2) — `health`, `usage`, `enable`, `disable`, `reload`, `config get`/`config set`. Delegates to `system.*` modules; graceful no-op when unavailable.
+  - **Enhanced error output** (§3.3) — Structured JSON errors with `ai_guidance`, `suggestion`, `retryable`, `user_fixable`, `details`. TTY mode shows suggestion and retryable; JSON mode includes all fields.
+  - **`--trace` pipeline visualization** (§3.4) — Displays per-step execution trace via `call_with_trace()`.
+  - **ApprovalHandler integration** (§3.5) — `--approval-timeout` (configurable), `--approval-token` (async resume). `CliApprovalHandler` class wraps TTY prompt as standard `ApprovalHandler` protocol.
+  - **`--stream` output** (§3.6) — JSONL streaming via `Executor.stream()` for modules with `annotations.streaming=true`.
+  - **Enhanced `list` command** (§3.7) — `--search`, `--status`, `--annotation`, `--sort`, `--reverse`, `--deprecated`, `--deps` filters.
+  - **`--strategy` selection** (§3.8) — Choose execution pipeline: `standard`, `internal`, `testing`, `performance`, `minimal`. New `describe-pipeline` command.
+  - **Output format extensions** (§3.9) — `--format csv|yaml|jsonl` and `--fields` for dot-path field selection.
+  - **Multi-level grouping** (§3.10) — `cli.group_depth` config (default: 1, max: 3).
+  - **Custom command extension point** (§3.11) — `create_cli(extra_commands=[...])` for downstream projects.
+- **New error code**: Handle `CONFIG_ENV_MAP_CONFLICT` from apcore 0.16.0.
+- New config keys: `cli.approval_timeout` (60), `cli.strategy` ("standard"), `cli.group_depth` (1).
+- New environment variables: `APCORE_CLI_APPROVAL_TIMEOUT`, `APCORE_CLI_STRATEGY`, `APCORE_CLI_GROUP_DEPTH`.
+
+### Fixed
+
+- **Schema parser**: Required schema properties now correctly enforced at CLI level (was silently optional).
+- **Approval gate**: Fixed inverted logic in annotation type guard that could crash on malformed annotations.
+
+---
+
 ## [0.5.1] - 2026-04-03
 
 ### Added

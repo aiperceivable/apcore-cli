@@ -131,10 +131,10 @@ The system provides eight feature groups:
 
 ### 4.4 Constraints
 
-1. **Language Constraint**: The system shall be implemented in Python >= 3.11, aligned with apcore >= 0.15.1 requirements.
+1. **Language Constraint**: The system shall be implemented in Python >= 3.11, aligned with apcore >= 0.17.1 requirements.
 2. **Framework Constraint**: The system shall use the `click` library for CLI command construction (Tech Design ADR-01).
 3. **Naming Constraint**: The default CLI program name (as shown in `--help` and `--version` output) shall be derived from the invoking entry-point script name (`argv[0]` basename). It shall NOT be hardcoded to `apcore-cli`. Downstream projects that install their own entry-point script shall receive their project name in all output automatically. An explicit `prog_name` parameter shall override this. Fallback when `argv[0]` is unavailable: `apcore-cli`. See FR-DISP-006 and Tech Design ADR-02.
-4. **Execution Constraint**: The system shall use apcore's `Executor` for module invocation, preserving the full middleware chain (Tech Design ADR-03).
+4. **Execution Constraint**: The system shall use apcore's `Executor` for module invocation, preserving the full execution pipeline (Tech Design ADR-03). The system uses the standard 11-step pipeline by default; a pre-configured Executor with a custom `ExecutionStrategy` may be provided via `create_cli(executor=...)`.
 5. **Error Code Constraint**: All exit codes shall align with PROTOCOL_SPEC section 8.
 6. **Environment Variable Constraint**: All environment variables shall follow the `APCORE_{SECTION}_{KEY}` naming convention (PROTOCOL_SPEC section 9.2).
 
@@ -151,7 +151,7 @@ The system provides eight feature groups:
 
 | Dependency | Version | Purpose |
 |-----------|---------|---------|
-| `apcore` | >= 0.15.0 | Core protocol, Registry, Executor, error hierarchy, Config Bus |
+| `apcore` | >= 0.17.1 | Core protocol, Registry, Executor, error hierarchy, Config Bus, Execution Pipeline Strategy |
 | `click` | >= 8.1 | CLI framework for command construction |
 | `jsonschema` | >= 4.20 | JSON Schema validation and parsing |
 | `rich` | >= 13.0 | Terminal output formatting (tables, syntax highlighting) |
@@ -1548,7 +1548,7 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 | **Metric** | Number of supported operating systems where the full test suite passes |
 | **Target** | 3 (Linux, macOS, Windows) with Python >= 3.11 |
 | **Measurement Method** | CI matrix running the full test suite on Ubuntu latest, macOS latest, and Windows latest with Python 3.11 and 3.12. |
-| **Threshold Rationale** | User requirements specify "Linux, macOS, Windows (Python 3.11+)." Python's cross-platform nature enables this with minimal platform-specific code. Requires 3.11+ to align with apcore >= 0.15.1. |
+| **Threshold Rationale** | User requirements specify "Linux, macOS, Windows (Python 3.11+)." Python's cross-platform nature enables this with minimal platform-specific code. Requires 3.11+ to align with apcore >= 0.17.1. |
 
 #### NFR-PRT-002: Terminal Compatibility
 
@@ -1667,7 +1667,7 @@ Not applicable. The system runs as a software process and does not interface dir
 
 | Interface | Version | Protocol | Direction | Description |
 |-----------|---------|----------|-----------|-------------|
-| `apcore` | >= 0.15.0 | Python API | Outbound | Registry discovery, module metadata retrieval, Executor invocation, Config Bus namespace registration. The system imports `apcore.Registry`, `apcore.Executor`, `apcore.Config`, and the error hierarchy. |
+| `apcore` | >= 0.17.1 | Python API | Outbound | Registry discovery, module metadata retrieval, Executor invocation, Config Bus namespace registration, Execution Pipeline Strategy. The system imports `apcore.Registry`, `apcore.Executor`, `apcore.Config`, and the error hierarchy. |
 | `click` | >= 8.1 | Python API | Internal | CLI command tree construction, argument parsing, help generation, interactive prompts. |
 | `jsonschema` | >= 4.20 | Python API | Internal | Input validation against module JSON Schema definitions. |
 | `rich` | >= 13.0 | Python API | Internal | Terminal output formatting including tables, syntax highlighting, and styled text. |

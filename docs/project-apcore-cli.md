@@ -19,6 +19,7 @@
 | **FE-06** | **Shell Integration** | Shell completion scripts (bash/zsh/fish) and man page generation. | P2 | [shell-integration.md](features/shell-integration.md) |
 | **FE-07** | **Config Resolver** | 4-tier configuration precedence (CLI > Env > File > Default). | P0 | [config-resolver.md](features/config-resolver.md) |
 | **FE-08** | **Output Formatter** | TTY-adaptive output formatting (JSON for pipes, tables for terminals). | P1 | [output-formatter.md](features/output-formatter.md) |
+| **FE-11** | **Usability Enhancements** | Dry-run, system commands, error guidance, trace, streaming, enhanced discovery, strategy selection, output formats, multi-level grouping, custom commands. | P0–P2 | [usability-enhancements.md](features/usability-enhancements.md) |
 
 ---
 
@@ -43,7 +44,7 @@ Maps high-level requirements (from [ideas/draft.md](../ideas/draft.md)) to featu
 ---
 
 ## Project Dependencies
-- `apcore >= 0.15.1` (Core protocol, Registry, Executor, error hierarchy, Config Bus)
+- `apcore >= 0.17.1` (Core protocol, Registry, Executor, error hierarchy, Config Bus, Execution Pipeline Strategy)
 - `click >= 8.1` (CLI framework — confirmed in [Tech Design v1.0](tech-design.md), ADR-01)
 - `jsonschema >= 4.20` (JSON Schema validation and parsing)
 - `rich >= 13.0` (Terminal output formatting — tables, syntax highlighting)
