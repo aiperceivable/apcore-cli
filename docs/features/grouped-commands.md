@@ -104,7 +104,7 @@ Logic steps:
 **Signature**: `list_commands(ctx: click.Context) -> list[str]`
 
 Logic steps:
-1. `builtin = list(BUILTIN_COMMANDS)` (exec, list, describe, completion, man).
+1. `builtin = list(BUILTIN_COMMANDS)` — canonical 14-entry constant defined in Tech Design §8.2.1 (single source of truth; do not hard-code the list here).
 2. Call `_build_group_map()`.
 3. `group_names = [g for g in self._group_map if g not in BUILTIN_COMMANDS]`.
 4. `top_names = list(self._top_level_modules.keys())`.

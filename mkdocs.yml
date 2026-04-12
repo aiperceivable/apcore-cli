@@ -68,6 +68,10 @@ nav:
       - Output Formatter: features/output-formatter.md
       - Security Manager: features/security.md
       - Shell Integration: features/shell-integration.md
+      - Grouped Commands: features/grouped-commands.md
+      - Init Command: features/init-command.md
+      - Usability Enhancements: features/usability-enhancements.md
+      - Exposure Filtering: features/exposure-filtering.md
 
 extra:
   social:

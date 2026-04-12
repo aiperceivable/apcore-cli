@@ -3,7 +3,7 @@
 **Feature ID**: FE-06
 **Status**: Ready for Implementation
 **Priority**: P2
-**Parent**: [Tech Design v1.0](../tech-design.md) Section 8.7
+**Parent**: [Tech Design v2.0](../tech-design.md) Section 8.7
 **SRS Requirements**: FR-SHELL-001, FR-SHELL-002
 
 ---

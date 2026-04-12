@@ -241,11 +241,9 @@ registry = Registry("./extensions")
 registry.discover()
 executor = Executor(registry)
 result = executor.call(module_id, validated_input)
-
-# Programmatic mode (library use)
-def create_cli(executor: Executor) -> click.Group:
-    ...
 ```
+
+For the canonical library-use factory signature, see §8.2.7 "Consolidated Signature".
 
 ### ADR-04: Encrypted Configuration — Keyring with AES-256-GCM Fallback
 
@@ -643,12 +641,20 @@ Logic steps:
 **Method: `list_commands(ctx) -> list[str]`**
 
 Logic steps:
-1. Define built-in commands: `["exec", "list", "describe", "completion", "man"]`.
+1. Define built-in commands via the canonical `BUILTIN_COMMANDS` constant:
+   ```python
+   BUILTIN_COMMANDS = [
+       "completion", "config", "describe", "describe-pipeline", "disable",
+       "enable", "exec", "health", "init", "list", "man", "reload", "usage",
+       "validate",
+   ]
+   ```
+   (14 entries, alphabetically sorted. See FE-10 for `init` and FE-11 for the system-management commands `config`, `describe-pipeline`, `disable`, `enable`, `health`, `reload`, `usage`, `validate`.)
 2. Call `_build_alias_map()`.
 3. Build reverse map: `module_id -> alias` from `_alias_map`.
 4. Get all module IDs from `registry.list()`.
 5. For each module_id: use the alias if one exists, else use the module_id.
-6. Return `sorted(set(builtin + names))`.
+6. Return `sorted(set(BUILTIN_COMMANDS + names))`.
 
 Edge cases:
 - Registry returns empty list: return only built-in commands.
@@ -735,11 +741,19 @@ Logic steps:
 **Method: `list_commands(ctx) -> list[str]`**
 
 Logic steps:
-1. Define built-in commands: `["exec", "list", "describe", "completion", "man"]`.
+1. Use the canonical `BUILTIN_COMMANDS` constant (14 entries, alphabetically sorted):
+   ```python
+   BUILTIN_COMMANDS = [
+       "completion", "config", "describe", "describe-pipeline", "disable",
+       "enable", "exec", "health", "init", "list", "man", "reload", "usage",
+       "validate",
+   ]
+   ```
+   See FE-10 for the `init` subcommand and FE-11 for the system-management commands.
 2. Call `_build_group_map()`.
 3. Collect group names from `self._group_map.keys()`.
 4. Collect top-level module names from `self._top_level_modules.keys()`.
-5. Return `sorted(set(builtin + list(group_names) + list(top_level_names)))`.
+5. Return `sorted(set(BUILTIN_COMMANDS + list(group_names) + list(top_level_names)))`.
 
 Edge cases:
 - A group name collides with a built-in command name (e.g., module `list.something`): the built-in command takes priority. Log WARNING: `"Group name 'list' conflicts with built-in command. Modules in this group will be inaccessible via grouped commands. Use 'exec' to invoke them."`.
@@ -825,7 +839,7 @@ Logic steps:
 1. Call `_build_group_map()`.
 2. Write usage line via `self.format_usage(ctx, formatter)`.
 3. Write help text (root group description).
-4. Write "Commands:" section with built-in commands (exec, list, describe, completion, man).
+4. Write "Commands:" section with all 14 built-in commands from the canonical `BUILTIN_COMMANDS` constant.
 5. Write "Top-level Modules:" section with ungrouped modules (if any).
 6. Write "Groups:" section:
    - For each group in sorted `self._group_map.keys()`:
@@ -968,7 +982,24 @@ Logic steps:
 
 #### 8.2.7 Function: `create_cli`
 
-**Signature:** `create_cli(extensions_dir: str | None = None, prog_name: str | None = None, commands_dir: str | None = None, binding_path: str | None = None, registry: Any | None = None, executor: Any | None = None) -> click.Group`
+##### Consolidated Signature (Canonical)
+
+This is the **authoritative** signature for `create_cli()`. All feature specs
+that touch `create_cli` must reference this section; they may show only the
+incremental parameter they add rather than re-declaring the full signature.
+
+```python
+create_cli(
+    extensions_dir: str | None = None,
+    prog_name: str | None = None,
+    commands_dir: str | None = None,
+    binding_path: str | None = None,
+    registry: Registry | None = None,
+    executor: Executor | None = None,
+    expose: dict | ExposureFilter | None = None,
+    extra_commands: list | None = None,
+) -> click.Group
+```
 
 **File:** `apcore_cli/__main__.py`
 
@@ -976,14 +1007,20 @@ Logic steps:
 
 **Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `extensions_dir` | `str \| None` | `None` | Path to extensions directory. Resolved via ConfigResolver when None. |
-| `prog_name` | `str \| None` | `None` | Program name for help/version. Derived from `argv[0]` when None. |
-| `commands_dir` | `str \| None` | `None` | Convention-based commands directory (requires apcore-toolkit). |
-| `binding_path` | `str \| None` | `None` | Path to binding.yaml for display overlay (requires apcore-toolkit). |
-| `registry` | `Any \| None` | `None` | Pre-populated Registry instance. Skips filesystem discovery when provided. |
-| `executor` | `Any \| None` | `None` | Pre-built Executor instance. Auto-built from registry if omitted. |
+| Parameter | Type | Default | Description | Introduced |
+|-----------|------|---------|-------------|-----------|
+| `extensions_dir` | `str \| None` | `None` | Path to extensions directory. Resolved via ConfigResolver when None. | v0.1 |
+| `prog_name` | `str \| None` | `None` | Program name for help/version. Derived from `argv[0]` when None. | v0.1 |
+| `commands_dir` | `str \| None` | `None` | Convention-based commands directory (requires apcore-toolkit). | v0.4 |
+| `binding_path` | `str \| None` | `None` | Path to binding.yaml for display overlay (requires apcore-toolkit). | v0.4 |
+| `registry` | `Registry \| None` | `None` | Pre-populated Registry instance. Skips filesystem discovery when provided. | v0.5.1 |
+| `executor` | `Executor \| None` | `None` | Pre-built Executor instance. Auto-built from registry if omitted. | v0.5.1 |
+| `expose` | `dict \| ExposureFilter \| None` | `None` | Module exposure filter (see FE-12). Accepts a dict, an `ExposureFilter` instance, or None (fall through to config). | v0.6.0 |
+| `extra_commands` | `list \| None` | `None` | Additional custom Click commands/groups to register alongside built-in commands (see FE-11). | v0.6.0 |
+
+**Raises:** `ValueError("executor requires registry — pass both or neither")` if `executor` is passed without `registry`. Exits 47 on config-not-found (extensions directory missing or unreadable).
+
+**Feature references:** `extra_commands` is specified in FE-11 (Usability Enhancements §3.11); `expose` is specified in FE-12 (Module Exposure Filtering §4.8).
 
 **Validation:** Passing `executor` without `registry` raises `ValueError`. This is a usage error — the executor has no meaning without the registry it was built from.
 
@@ -999,16 +1036,18 @@ Logic steps:
    - Tier 3: `APCORE_LOGGING_LEVEL` env var — global fallback.
    - Default: `logging.WARNING`.
 4. **If `registry` is provided** (pre-populated path):
-   a. If `executor` is None, instantiate `Executor(registry)`.
-   b. Log INFO: `"Using pre-populated registry ({N} modules)."`.
-   c. Skip steps 5–8 (no filesystem discovery).
+   a. Instantiate `CliApprovalHandler(auto_approve=cli_flags["yes"], timeout=resolved_timeout)`.
+   b. If `executor` is None, instantiate `Executor(registry, approval_handler=handler)`.
+   c. Log INFO: `"Using pre-populated registry ({N} modules)."`.
+   d. Skip steps 5–8 (no filesystem discovery).
 5. **Else** (standard filesystem path):
    a. Resolve `extensions_dir` via ConfigResolver.
    b. Verify path exists and is readable. Exit 47 on failure.
    c. Instantiate `Registry(extensions_dir)`.
    d. Call `registry.discover()`. Log DEBUG/INFO.
    e. Run ConventionScanner if `commands_dir` is set.
-   f. Instantiate `Executor(registry)`.
+   f. Instantiate `CliApprovalHandler(auto_approve=cli_flags["yes"], timeout=resolved_timeout)`.
+   g. Instantiate `Executor(registry, approval_handler=handler)`.
 6. Initialize `AuditLogger()`.
 7. **Build `click.Group` using `cls=GroupedModuleGroup`** (changed from `LazyModuleGroup` in v2.0).
 8. Add `click.version_option`, `--extensions-dir`, `--log-level` options.
@@ -1119,7 +1158,9 @@ When a property has an `enum` field:
 
 #### 8.4.1 Function: `check_approval`
 
-**Signature:** `check_approval(module_def: ModuleDefinition, auto_approve: bool) -> None`
+**Signature:** `check_approval(module_def: ModuleDefinition, auto_approve: bool, timeout: int = 60) -> None`
+
+> Note: `timeout` parameter added in v0.6.0 (default 60 seconds).
 
 **Flow:**
 
@@ -1607,7 +1648,7 @@ complete -F _myproject myproject
 
 **Traces to:** FR-SHELL-002.
 
-#### 8.7.4 Full-Program Man Page (`build_program_man_page`)
+#### 8.7.3 Full-Program Man Page (`build_program_man_page`)
 
 **Purpose:** Generate a complete roff man page covering ALL registered commands (including downstream business commands injected via `GroupedModuleGroup`). This replaces the need for downstream projects to implement their own man page generation.
 
@@ -1627,7 +1668,7 @@ complete -F _myproject myproject
 - `EXIT CODES` — Standard exit code table.
 - `SEE ALSO` — Pointer to `--help --verbose`. If `docsUrl` is provided, includes a link to the full documentation.
 
-#### 8.7.5 Man Help Configuration (`configure_man_help`)
+#### 8.7.4 Man Help Configuration (`configure_man_help`)
 
 **Purpose:** One-line integration for downstream projects to add `--help --man` support.
 
@@ -1649,7 +1690,7 @@ complete -F _myproject myproject
 
 **Traces to:** FR-SHELL-002.
 
-#### 8.7.6 Documentation URL (`set_docs_url`)
+#### 8.7.5 Documentation URL (`set_docs_url`)
 
 **Purpose:** Allow downstream projects to display a link to online documentation in command help footers and man pages. No default value — if not set, no docs link is shown.
 
@@ -1690,6 +1731,9 @@ class ConfigResolver:
         "cli.stdin_buffer_limit": 10_485_760,  # 10 MB
         "cli.auto_approve": False,
         "cli.help_text_max_length": 1000,
+        "cli.approval_timeout": 60,      # seconds (added v0.6.0)
+        "cli.strategy": "standard",      # execution pipeline strategy (added v0.6.0)
+        "cli.group_depth": 1,            # multi-level grouping depth (added v0.6.0)
     }
 
     def __init__(self, cli_flags: dict[str, Any] = None, config_path: str = "apcore.yaml"):
@@ -1778,6 +1822,11 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 | `APCORE_LOGGING_LEVEL` | Log verbosity (global apcore setting; fallback when `APCORE_CLI_LOGGING_LEVEL` is unset) | `WARNING` | Must be one of `DEBUG`, `INFO`, `WARNING`, `ERROR`. Case-insensitive. Invalid: WARNING logged, use default. | NFR-MNT-002 |
 | `APCORE_AUTH_API_KEY` | API key for remote registry | _(unset)_ | Non-empty string. Max 512 chars. | FR-SEC-001 |
 | `APCORE_CLI_SANDBOX` | Enable execution sandboxing | _(unset)_ | Must be exactly `"1"` to activate. | FR-SEC-004 |
+| `APCORE_CLI_HELP_TEXT_MAX_LENGTH` | Max help text length (characters) — added v0.2.1 | `1000` | Positive integer. Invalid: WARNING logged, use default. | FR-SCHEMA-005 |
+| `APCORE_CLI_APPROVAL_TIMEOUT` | TTY approval prompt timeout in seconds — added v0.6.0 | `60` | Positive integer (1..3600). Invalid: WARNING logged, use default. | FR-APPR-005 |
+| `APCORE_CLI_STRATEGY` | Execution pipeline strategy — added v0.6.0 | `"standard"` | String. Must resolve to a registered strategy. | FR-DISP-002 |
+| `APCORE_CLI_GROUP_DEPTH` | Multi-level grouping depth — added v0.6.0 | `1` | Integer 1..3. Out of range: clamp with WARNING. | FR-DISP-001 |
+| `APCORE_CLI_EXPOSE_MODE` | Module exposure mode — added v0.6.0 | `"all"` | Enum: `"all"` \| `"include"` \| `"exclude"`. Invalid: exit 2. | FR-DISP-001 |
 
 ### 8.11 Observability
 
@@ -1800,6 +1849,33 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 | `INFO` | Module count on startup, execution status/timing, approval bypass events, group count and membership |
 | `WARNING` | Corrupt modules skipped, invalid env var values, keyring unavailable, audit log write failure, group name collisions with built-in commands |
 | `ERROR` | Module execution failures (sanitized — no stack traces to terminal), authentication failures |
+
+### 8.12 Init Command Implementation
+
+> **TODO (B-004):** Backfill implementation design for FE-10 Init Command. See `docs/features/init-command.md` for the feature definition.
+>
+> Coverage: the `init` click.Group + `init module <id>` subcommand, template engine for decorator/convention/binding styles, `--dir` / `--description` flag handling, path-traversal validation, module-id collision detection against `BUILTIN_COMMANDS`. Module path: `src/apcore_cli/init_cmd.py`. Entry point: `register_init_command(cli)` called from `create_cli`.
+
+### 8.13 Usability Enhancements Implementation
+
+> **TODO (B-004):** Backfill implementation design for FE-11 Usability Enhancements. See `docs/features/usability-enhancements.md` for the feature definition.
+>
+> Coverage:
+> - `CliApprovalHandler` class (async `request_approval`/`check_approval` methods) — `src/apcore_cli/approval.py`.
+> - System management commands (`health`, `usage`, `enable`, `disable`, `reload`, `config get/set`) — `src/apcore_cli/system_cmd.py`. Entry point: `register_system_commands(cli, executor)`.
+> - `describe-pipeline` + `--strategy` flag — `src/apcore_cli/strategy.py`. Entry point: `register_pipeline_command(cli, executor)`.
+> - `validate` command + `--dry-run` flag — separate module or inside `discovery.py`. Entry point: `register_validate_command(cli, registry, executor)`.
+> - Enhanced `list` filters (`--search`, `--status`, `--annotation`, `--sort`, `--reverse`, `--deprecated`, `--deps`) — extensions to `format_module_list` in `src/apcore_cli/output.py`.
+> - Extended `--format` values (`csv`, `yaml`, `jsonl`) — `src/apcore_cli/output.py`.
+> - `--fields <dotpath>` — dot-path output field selector in `format_exec_result`.
+> - `--trace` / `--stream` — wired through `Executor.call_with_trace()` and `Executor.stream()`.
+> - `extra_commands` parameter on `create_cli` — collision detection against `BUILTIN_COMMANDS`.
+
+### 8.14 Module Exposure Filter Implementation
+
+> **TODO (B-004):** Backfill implementation design for FE-12 Exposure Filtering. See `docs/features/exposure-filtering.md` for the feature definition.
+>
+> Coverage: `ExposureFilter` class (`src/apcore_cli/exposure.py`) with `__init__(mode, include, exclude)`, `is_exposed(module_id)`, `filter_modules(ids)`, and `@classmethod from_config(dict)`. Glob-based matching: `*` matches a single dotted segment, `**` matches across segments. Integration with `GroupedModuleGroup` via an `exposure_filter` attribute / constructor parameter. The `expose=` kwarg on `create_cli` accepts either a dict (passed to `from_config`) or an `ExposureFilter` instance directly. `list` command's `--exposure {exposed,hidden,all}` filter flag defers to the same filter.
 
 ---
 

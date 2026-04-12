@@ -67,9 +67,9 @@ class LazyModuleGroup(click.Group):
 **Method: `list_commands(ctx) -> list[str]`**
 
 Logic steps:
-1. Define built-in commands list: `["exec", "list", "describe", "completion", "man"]`.
+1. Use the canonical `BUILTIN_COMMANDS` constant (14 entries) defined in Tech Design §8.2.1. This is the single source of truth — do not hard-code the list here.
 2. If `_alias_map_built` is False: call `_build_alias_map()`.
-3. Return `sorted(set(builtin + list(self._alias_map.keys())))`.
+3. Return `sorted(set(BUILTIN_COMMANDS + list(self._alias_map.keys())))`.
 
 Edge cases:
 - Registry returns empty list: return only built-in commands.
@@ -152,7 +152,20 @@ Logic steps:
 
 ### 4.5 Function: `create_cli`
 
-**Signature**: `create_cli(extensions_dir: str | None = None, prog_name: str | None = None, commands_dir: str | None = None, binding_path: str | None = None, registry: Any | None = None, executor: Any | None = None) -> click.Group`
+**Canonical signature**: see Tech Design v2.0 §8.2.7 "Consolidated Signature" — this is the single source of truth for the full 8-parameter form.
+
+```python
+create_cli(
+    extensions_dir: str | None = None,
+    prog_name: str | None = None,
+    commands_dir: str | None = None,
+    binding_path: str | None = None,
+    registry: Registry | None = None,
+    executor: Executor | None = None,
+    expose: dict | ExposureFilter | None = None,
+    extra_commands: list | None = None,
+) -> click.Group
+```
 
 **File**: `apcore_cli/__main__.py`
 
@@ -178,9 +191,10 @@ Logic steps:
    c. Set `logging.getLogger("apcore").setLevel(ERROR)` when the resolved level is above INFO; set to the resolved level when INFO or lower. This suppresses noisy upstream apcore output unless the user explicitly requests verbose output.
    d. At runtime the `--log-level` flag overrides: call `logging.getLogger().setLevel(level)` (not `basicConfig`) and apply the same `apcore` level logic. Accepted choices: `DEBUG`, `INFO`, `WARNING`, `ERROR` (case-insensitive).
 3. **If `registry` is provided** (pre-populated path):
-   a. If `executor` is None, instantiate `Executor(registry)`.
-   b. Log INFO: `"Using pre-populated registry ({N} modules)."`.
-   c. Skip steps 4–9 (no filesystem resolution, no directory validation, no discovery).
+   a. Instantiate `CliApprovalHandler(auto_approve=cli_flags["yes"], timeout=resolved_timeout)`.
+   b. If `executor` is None, instantiate `Executor(registry, approval_handler=handler)`.
+   c. Log INFO: `"Using pre-populated registry ({N} modules)."`.
+   d. Skip steps 4–9 (no filesystem resolution, no directory validation, no discovery).
 4. Resolve `extensions_dir`:
    a. If `extensions_dir` is not `None`, use it.
    b. Otherwise, instantiate `ConfigResolver()` and call `config.resolve("extensions.root", cli_flag="--extensions-dir", env_var="APCORE_EXTENSIONS_ROOT")`.
@@ -190,7 +204,7 @@ Logic steps:
 6. Instantiate `Registry(extensions_dir)`.
 7. Call `registry.discover()`. Log DEBUG: `"Loading extensions from {extensions_dir}"`.
 8. Log INFO: `"Initialized {prog_name} with {N} modules."`.
-9. Instantiate `Executor(registry)`.
+9. Instantiate `CliApprovalHandler(auto_approve=cli_flags["yes"], timeout=resolved_timeout)`, then instantiate `Executor(registry, approval_handler=handler)`.
 10. Initialize `AuditLogger()`. Set as module-level global via `set_audit_logger()`.
 11. Build `click.Group` using `cls=GroupedModuleGroup` (v2.0; was `LazyModuleGroup` in v1.0), `name=prog_name`, `registry=registry`, `executor=executor`.
 12. Add `click.version_option(version=__version__, prog_name=prog_name)`.

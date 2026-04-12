@@ -3,7 +3,7 @@
 **Feature ID**: FE-04
 **Status**: Ready for Implementation
 **Priority**: P1
-**Parent**: [Tech Design v1.0](../tech-design.md) Section 8.5
+**Parent**: [Tech Design v2.0](../tech-design.md) Section 8.5
 **SRS Requirements**: FR-DISC-001, FR-DISC-002, FR-DISC-003, FR-DISC-004
 
 ---

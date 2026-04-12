@@ -3,7 +3,7 @@
 **Feature ID**: FE-03
 **Status**: Ready for Implementation
 **Priority**: P1
-**Parent**: [Tech Design v1.0](../tech-design.md) Section 8.4
+**Parent**: [Tech Design v2.0](../tech-design.md) Section 8.4
 **SRS Requirements**: FR-APPR-001, FR-APPR-002, FR-APPR-003, FR-APPR-004, FR-APPR-005
 
 ---
@@ -36,7 +36,7 @@ The Approval Gate is a TTY-aware Human-in-the-Loop (HITL) middleware that interc
 
 ### 4.1 Function: `check_approval`
 
-**Signature**: `check_approval(module_def: Any, auto_approve: bool) -> None`
+**Signature**: `check_approval(module_def: Any, auto_approve: bool, timeout: int = 60) -> None`
 
 **Returns**: `None` if approved (or approval not required). Raises `SystemExit` if denied/timed out/pending.
 

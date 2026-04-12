@@ -2,8 +2,8 @@
   "description": "CLI argument and output parity (Algorithm C01)",
   "test_cases": [
     {
-      "id": "run_command_output",
-      "args": ["run", "math.add", "--inputs", "{\"a\": 1, \"b\": 2}", "--json"],
+      "id": "exec_command_output",
+      "args": ["exec", "math.add", "--input", "{\"a\": 1, \"b\": 2}", "--format", "json"],
       "expected_json_output": {
         "module_id": "math.add",
         "result": { "sum": 3 },
@@ -13,20 +13,19 @@
     },
     {
       "id": "list_command_keys",
-      "args": ["list", "--json"],
+      "args": ["list", "--format", "json"],
       "expected_json_keys": [
         "module_id",
         "version",
         "description",
-        "is_perceivable",
         "tags"
       ]
     },
     {
       "id": "error_exit_codes",
-      "args": ["run", "non_existent_module"],
-      "expected_exit_code": 127,
-      "expected_stderr_contains": "MODULE_NOT_FOUND"
+      "args": ["exec", "non_existent_module"],
+      "expected_exit_code": 44,
+      "expected_stderr_contains": "not found"
     }
   ]
 }

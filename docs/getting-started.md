@@ -237,7 +237,7 @@ Generate and install completion scripts for your shell:
 | `46` | Approval denied or timed out |
 | `47` | Configuration error |
 
-For the full exit code reference, see the [Tech Design](tech-design.md) Section 8.1.
+For the full exit code reference, see the [Tech Design](tech-design.md) Section 8.9.
 
 ---
 

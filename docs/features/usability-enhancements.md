@@ -650,12 +650,18 @@ Built-in handler types:
 The existing `check_approval()` function in `approval.py` becomes a thin wrapper:
 
 ```python
-# Before: check_approval(module_def, executor, auto_approve, context)
+# Before: check_approval(module_def, auto_approve)  # 2-arg form, pre-v0.6.0
 # After:  handler.request_approval(ApprovalRequest(...))
 
-# For backward compatibility, check_approval() delegates to the handler:
-def check_approval(module_def, executor, auto_approve=False):
-    handler = getattr(executor, '_approval_handler', None) or CliApprovalHandler(auto_approve)
+# For backward compatibility, check_approval() delegates to the handler.
+# The canonical v0.6.0 signature adds an explicit `timeout` parameter.
+# The shim constructs a fresh CliApprovalHandler per call; the executor API
+# does not expose `_approval_handler`, so handler state is not retrieved
+# from the executor. In the normal create_cli() path, the module-level
+# handler is wired onto Executor(registry, approval_handler=handler)
+# and the Executor drives the approval flow directly.
+def check_approval(module_def, auto_approve, timeout=60):
+    handler = CliApprovalHandler(auto_approve=auto_approve, timeout=timeout)
     request = ApprovalRequest(
         module_id=module_def.module_id,
         arguments={},
@@ -975,13 +981,9 @@ apcore-cli <module_id> --fields result.status,result.count
 Add `extra_commands` parameter to `create_cli()`:
 
 ```python
-def create_cli(
-    extensions_dir=None,
-    registry=None,
-    executor=None,
-    prog_name=None,
-    extra_commands: list[click.Command | click.Group] | None = None,
-) -> click.Group:
+# Full signature: see tech-design §8.2.7 "Consolidated Signature"
+# This feature adds the `extra_commands` parameter:
+create_cli(..., extra_commands: list[click.Command | click.Group] | None = None)
 ```
 
 **Cross-language equivalents:**

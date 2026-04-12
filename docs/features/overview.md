@@ -18,7 +18,8 @@ This directory contains the detailed feature specifications for `apcore-cli`. Fo
 | FE-08 | Output Formatter | [output-formatter.md](output-formatter.md) |
 | FE-09 | Grouped Commands | [grouped-commands.md](grouped-commands.md) |
 | FE-10 | Init Command | [init-command.md](init-command.md) |
-| FE-11 | Usability Enhancements (v0.7.0) | [usability-enhancements.md](usability-enhancements.md) |
+| FE-11 | Usability Enhancements (v0.6.0) | [usability-enhancements.md](usability-enhancements.md) |
+| FE-12 | Module Exposure Filtering | [exposure-filtering.md](exposure-filtering.md) |
 
 ---
 

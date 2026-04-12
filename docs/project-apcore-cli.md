@@ -2,8 +2,8 @@
 
 **Project Name**: apcore-cli
 **Strategy**: Multi-Split
-**Status**: Scoping
-**Date**: 2026-03-14
+**Status**: Released v0.6.0
+**Date**: 2026-04-06
 
 ---
 
@@ -19,7 +19,10 @@
 | **FE-06** | **Shell Integration** | Shell completion scripts (bash/zsh/fish) and man page generation. | P2 | [shell-integration.md](features/shell-integration.md) |
 | **FE-07** | **Config Resolver** | 4-tier configuration precedence (CLI > Env > File > Default). | P0 | [config-resolver.md](features/config-resolver.md) |
 | **FE-08** | **Output Formatter** | TTY-adaptive output formatting (JSON for pipes, tables for terminals). | P1 | [output-formatter.md](features/output-formatter.md) |
+| **FE-09** | **Grouped Commands** | Auto-grouping of dotted module IDs into nested Click groups with `display.cli.group` override and collapsed root help. | P1 | [grouped-commands.md](features/grouped-commands.md) |
+| **FE-10** | **Init Command** | Scaffolding subcommand (`apcore-cli init module <id>`) for decorator/convention/binding styles. | P1 | [init-command.md](features/init-command.md) |
 | **FE-11** | **Usability Enhancements** | Dry-run, system commands, error guidance, trace, streaming, enhanced discovery, strategy selection, output formats, multi-level grouping, custom commands. | P0–P2 | [usability-enhancements.md](features/usability-enhancements.md) |
+| **FE-12** | **Module Exposure Filtering** | Declarative `expose` config (all/include/exclude) with glob patterns to filter which modules surface as CLI commands. | P1 | [exposure-filtering.md](features/exposure-filtering.md) |
 
 ---
 
@@ -45,7 +48,7 @@ Maps high-level requirements (from [ideas/draft.md](../ideas/draft.md)) to featu
 
 ## Project Dependencies
 - `apcore >= 0.17.1` (Core protocol, Registry, Executor, error hierarchy, Config Bus, Execution Pipeline Strategy)
-- `click >= 8.1` (CLI framework — confirmed in [Tech Design v1.0](tech-design.md), ADR-01)
+- `click >= 8.1` (CLI framework — confirmed in [Tech Design v2.0](tech-design.md), ADR-01)
 - `jsonschema >= 4.20` (JSON Schema validation and parsing)
 - `rich >= 13.0` (Terminal output formatting — tables, syntax highlighting)
 - `pyyaml >= 6.0` (Configuration file parsing)
@@ -64,6 +67,10 @@ Maps high-level requirements (from [ideas/draft.md](../ideas/draft.md)) to featu
 6. **Approval Gate** (FE-03): Adds governance and safety for sensitive module execution.
 7. **Security Manager** (FE-05): Authentication, encryption, auditing, sandboxing.
 8. **Shell Integration** (FE-06): Completion scripts and man pages.
+9. **Grouped Commands** (FE-09): Auto-grouping layer over Core Dispatcher (v0.3.0).
+10. **Init Command** (FE-10): Scaffolding subcommand (v0.4.0).
+11. **Usability Enhancements** (FE-11): Dry-run, system commands, trace, strategy, multi-level grouping, custom commands (v0.6.0).
+12. **Module Exposure Filtering** (FE-12): Declarative exposure filter over discovered modules (v0.6.0).
 
 ---
 
@@ -77,7 +84,11 @@ FE-07 Config Resolver (foundation)
         ├── FE-08 Output Formatter (used by FE-01, FE-04)
         │     └── FE-04 Discovery (depends on FE-01, FE-08)
         ├── FE-05 Security Manager (depends on FE-07)
-        └── FE-06 Shell Integration (depends on FE-01, FE-02)
+        ├── FE-06 Shell Integration (depends on FE-01, FE-02)
+        ├── FE-09 Grouped Commands (depends on FE-01)
+        │     └── FE-12 Exposure Filtering (depends on FE-09, FE-07)
+        ├── FE-10 Init Command (depends on FE-01)
+        └── FE-11 Usability Enhancements (depends on FE-01, FE-03, FE-07)
 ```
 
 ---

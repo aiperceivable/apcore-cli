@@ -63,7 +63,7 @@ The system shall NOT provide remote execution via apcore-a2a (deferred to Phase 
 
 | Ref ID | Document | Location |
 |--------|----------|----------|
-| REF-01 | Tech Design v1.0: apcore-cli | `docs/tech-design.md` |
+| REF-01 | Tech Design v2.0: apcore-cli | `docs/tech-design.md` |
 | REF-02 | Feature Spec: Core Dispatcher | `docs/features/core-dispatcher.md` |
 | REF-03 | Feature Spec: Schema Parser | `docs/features/schema-parser.md` |
 | REF-04 | Feature Spec: Approval Gate | `docs/features/approval-gate.md` |
@@ -170,7 +170,7 @@ The system provides eight feature groups:
 | **Title** | Base Command Entry Point |
 | **Priority** | P0 |
 | **Priority Rationale** | Foundation requirement. All other features depend on the base command existing. Without this, no CLI interaction is possible. |
-| **Source** | Tech Design v1.0 ADR-02; Feature Spec FE-01 FR-01-01 |
+| **Source** | Tech Design v2.0 ADR-02; Feature Spec FE-01 FR-01-01 |
 
 **Description:** The system shall provide a base command `apcore-cli` that serves as the root entry point for all CLI interactions. The base command shall display a help message listing all available subcommands when invoked with `--help` or when invoked with no arguments.
 
@@ -186,7 +186,7 @@ The system provides eight feature groups:
 4. The system shall display a help message containing:
    - The program name (`apcore-cli`).
    - A brief description of the tool.
-   - A list of built-in subcommands (`list`, `describe`, `completion`, `man`).
+   - A list of built-in subcommands: the 14 built-in subcommands defined in Tech Design §8.2.1 `BUILTIN_COMMANDS` constant (SRS defers to tech-design as the authoritative list).
    - A list of available module Canonical IDs (as dynamically registered top-level subcommands).
 5. The system shall exit with code 0.
 
@@ -202,7 +202,7 @@ The system provides eight feature groups:
 
 **Acceptance Criteria:**
 
-- **AC-1:** Given `apcore-cli` is installed and a valid extensions directory exists, when the user runs `apcore-cli --help`, then the output shall contain the text "list", "describe", "completion", and "man" as available subcommands, along with any registered module IDs, and the process shall exit with code 0.
+- **AC-1:** Given `apcore-cli` is installed and a valid extensions directory exists, when the user runs `apcore-cli --help`, then the help output shall contain all 14 built-in commands from `BUILTIN_COMMANDS` (Tech Design §8.2.1), along with any registered module IDs, and the process shall exit with code 0.
 - **AC-2:** Given the configured extensions directory does not exist, when the user runs `apcore-cli --help`, then stderr shall contain a message including the text "extensions" and a suggestion to set `APCORE_EXTENSIONS_ROOT`, and the process shall exit with code 47.
 - **AC-3:** Given the Registry contains modules `math.add` and `text.summarize`, when the user runs `apcore-cli --help`, then the output shall list both `math.add` and `text.summarize`.
 
@@ -216,7 +216,7 @@ The system provides eight feature groups:
 | **Title** | Module Execution via Direct Subcommand |
 | **Priority** | P0 |
 | **Priority Rationale** | Core value proposition. Without execution, the CLI has no utility. |
-| **Source** | Tech Design v1.0 ADR-03; Feature Spec FE-01 FR-01-02; ideas/draft.md FR-001 |
+| **Source** | Tech Design v2.0 ADR-03; Feature Spec FE-01 FR-01-02; ideas/draft.md FR-001 |
 
 **Description:** The system shall expose each registered module as a direct top-level subcommand (e.g., `apcore-cli math.add`). When invoked, the system accepts a Canonical Module ID as the command name, resolves the module from the Registry, validates input arguments against the module's `input_schema`, and invokes the module via the apcore `Executor.call()` method. The system shall write the module's result to stdout and exit with code 0 on success.
 
@@ -361,7 +361,7 @@ The system provides eight feature groups:
 | **Title** | Configuration Precedence |
 | **Priority** | P0 |
 | **Priority Rationale** | Foundational behavior required by PROTOCOL_SPEC section 9.2. Governs how all configurable values are resolved. |
-| **Source** | Tech Design v1.0 section 8.3; PROTOCOL_SPEC section 9.2 |
+| **Source** | Tech Design v2.0 section 8.3; PROTOCOL_SPEC section 9.2 |
 
 **Description:** The system shall resolve all configurable values using a four-tier precedence hierarchy. For any given configuration key, the system shall use the value from the highest-priority source that provides a value.
 
@@ -734,7 +734,7 @@ The system provides eight feature groups:
 | **Title** | JSON Schema Reference Resolution |
 | **Priority** | P0 |
 | **Priority Rationale** | Modules with composed schemas using `$ref` and `$defs` cannot be invoked without resolution. Blocking for any non-trivial module. |
-| **Source** | Feature Spec FE-02 FR-02-06; Tech Design v1.0 section 8.2 |
+| **Source** | Feature Spec FE-02 FR-02-06; Tech Design v2.0 section 8.2 |
 
 **Description:** The system shall inline all `$ref` and `$defs` references in a module's `input_schema` before parsing properties into CLI flags. Resolution shall track visited references to detect circular references. The maximum `$ref` resolution depth shall be 32. Schema composition keywords (`allOf`, `anyOf`, `oneOf`) shall be flattened to top-level properties up to 3 levels of nesting.
 
@@ -902,7 +902,7 @@ The system provides eight feature groups:
 | **Title** | Approval Bypass Mechanisms |
 | **Priority** | P1 |
 | **Priority Rationale** | Enables CI/CD pipelines, scripted workflows, and agent automation to run approval-required modules without interactive prompts. |
-| **Source** | Feature Spec FE-03 FR-03-05; Tech Design v1.0 section 8.3 |
+| **Source** | Feature Spec FE-03 FR-03-05; Tech Design v2.0 section 8.3 |
 
 **Description:** The system shall provide two mechanisms to bypass the Approval Gate. Bypass evaluation shall follow a strict priority order: (1) `--yes` CLI flag (highest), (2) `APCORE_CLI_AUTO_APPROVE=1` environment variable. If either is active, the system shall skip the TTY prompt and non-TTY rejection, log the bypass, and proceed directly to execution.
 
@@ -1397,7 +1397,36 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 
 ---
 
-### 5.7 CRUD Matrix
+### 5.7 Init Command (INIT)
+
+> **TODO (B-004):** Backfill requirements for FE-10 Init Command. See `docs/features/init-command.md` for the feature definition. Requirements IDs in the FR-INIT-001..00N range should mirror the feature spec's "Functional Requirements" table. Coverage: `init module <id>` subcommand, `--style {decorator,convention,binding}` flag, `--dir` path override, `--description` template, path-traversal rejection, collision detection against BUILTIN_COMMANDS.
+
+### 5.8 Usability Enhancements (USB)
+
+> **TODO (B-004):** Backfill requirements for FE-11 Usability Enhancements. See `docs/features/usability-enhancements.md`. Coverage:
+> - `validate <module-id>` / `--dry-run` flag — preflight checks without execution (FR-USB-VALIDATE-*).
+> - `--trace` — emit execution pipeline trace (FR-USB-TRACE-*).
+> - `--stream` — stream results line-by-line for stream-capable modules (FR-USB-STREAM-*).
+> - `--strategy <name>` — override execution strategy (FR-USB-STRATEGY-*).
+> - System management commands: `health`, `usage`, `enable`, `disable`, `reload`, `config get/set` (FR-USB-SYSTEM-*).
+> - `describe-pipeline` — show execution pipeline steps (FR-USB-PIPELINE-*).
+> - Enhanced `list` flags: `--search`, `--status`, `--annotation`, `--sort`, `--reverse`, `--deprecated`, `--deps` (FR-USB-LIST-*).
+> - Extended `--format` values: `csv`, `yaml`, `jsonl` (in addition to json/table).
+> - `--fields <dotpath>` — select specific output fields (FR-USB-FIELDS-*).
+> - `CliApprovalHandler` async protocol methods (FR-USB-APPROVAL-*).
+> - `extra_commands` injection point on `create_cli` (FR-USB-EXTRA-*).
+
+### 5.9 Module Exposure Filtering (EXP)
+
+> **TODO (B-004):** Backfill requirements for FE-12 Exposure Filtering. See `docs/features/exposure-filtering.md`. Coverage:
+> - `ExposureFilter` class with `mode`, `include`, `exclude` fields (FR-EXP-FILTER-*).
+> - `ExposureFilter.from_config(dict)` classmethod (FR-EXP-LOADER-*).
+> - `is_exposed(module_id)` and `filter_modules(ids)` methods (FR-EXP-API-*).
+> - `expose=` parameter on `create_cli` accepting dict or ExposureFilter instance (FR-EXP-WIRE-*).
+> - Glob pattern matching semantics (`*` single segment, `**` cross-segment) (FR-EXP-GLOB-*).
+> - `list --exposure {exposed,hidden,all}` filter flag (FR-EXP-LIST-*).
+
+### 5.10 CRUD Matrix
 
 | Entity | Create | Read | Update | Delete |
 |--------|--------|------|--------|--------|
@@ -1422,7 +1451,7 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 | **Metric** | Wall-clock time from process start to help text output |
 | **Target** | < 100 milliseconds |
 | **Measurement Method** | `time apcore-cli --help` averaged over 10 runs with a warm filesystem cache, using a Registry containing 100 modules |
-| **Threshold Rationale** | Tech Design v1.0 section 3.2 Goal: "Minimal overhead (<100ms) for one-shot executions." ideas/draft.md NFR-001: "Execution overhead < 100ms." Sub-100ms ensures CLI feels instantaneous to developers and does not bottleneck agent workflows. |
+| **Threshold Rationale** | Tech Design v2.0 section 3.2 Goal: "Minimal overhead (<100ms) for one-shot executions." ideas/draft.md NFR-001: "Execution overhead < 100ms." Sub-100ms ensures CLI feels instantaneous to developers and does not bottleneck agent workflows. |
 
 #### NFR-PERF-002: Module Execution Overhead
 
@@ -1481,7 +1510,7 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 | **Metric** | Maximum STDIN size accepted without `--large-input` flag |
 | **Target** | 10 MB |
 | **Measurement Method** | Pipe input exceeding 10 MB to `apcore-cli exec module --input -` without `--large-input` and verify rejection with exit code 2. |
-| **Threshold Rationale** | Tech Design v1.0 section 8.2: "STDIN > 10MB: Reject with GENERAL_INVALID_INPUT." The 10MB limit prevents out-of-memory conditions in memory-constrained environments while accommodating typical JSON payloads (99th percentile < 1MB). |
+| **Threshold Rationale** | Tech Design v2.0 section 8.2: "STDIN > 10MB: Reject with GENERAL_INVALID_INPUT." The 10MB limit prevents out-of-memory conditions in memory-constrained environments while accommodating typical JSON payloads (99th percentile < 1MB). |
 
 ---
 
@@ -1533,7 +1562,7 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 | **Metric** | Percentage of components with dedicated logger namespace and configurable verbosity |
 | **Target** | 100% of components (dispatcher, schema, approval, discovery) |
 | **Measurement Method** | Code review verifying each component uses `logging.getLogger("apcore_cli.{component}")` and respects `APCORE_CLI_LOGGING_LEVEL` (CLI-specific, highest priority) / `APCORE_LOGGING_LEVEL` (global fallback) / `--log-level`. |
-| **Threshold Rationale** | Tech Design v1.0 section 8.4 specifies structured logging with namespace `apcore_cli`. Consistent logging enables debugging in production and integration with centralized log aggregation. |
+| **Threshold Rationale** | Tech Design v2.0 section 8.4 specifies structured logging with namespace `apcore_cli`. Consistent logging enables debugging in production and integration with centralized log aggregation. |
 
 ---
 
@@ -1692,7 +1721,7 @@ This SRS was developed in **standalone mode** without an upstream Product Requir
 
 | Source | Location | Contribution |
 |--------|----------|-------------|
-| **Tech Design v1.0** | `docs/tech-design.md` | Architecture decisions (ADR-01 through ADR-03), error taxonomy, environment variable conventions, component design, performance targets. |
+| **Tech Design v2.0** | `docs/tech-design.md` | Architecture decisions (ADR-01 through ADR-03), error taxonomy, environment variable conventions, component design, performance targets. |
 | **Feature Specs** | `docs/features/*.md` | Functional requirements for Core Dispatcher (FE-01), Schema Parser (FE-02), Approval Gate (FE-03), and Discovery (FE-04). Boundary values and verification criteria. |
 | **User Clarification Interview** | N/A (inline) | Security requirements (auth, encryption, audit, sandbox), shell integration (completion, man pages), user characteristics (developer + AI agent), performance constraints. |
 | **ideas/draft.md** | `ideas/draft.md` | Original requirement IDs (FR-001 through FR-004, NFR-001 through NFR-002), problem statement, and validation rationale. |
