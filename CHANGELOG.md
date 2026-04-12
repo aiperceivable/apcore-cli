@@ -4,6 +4,34 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.0] - 2026-04-12
+
+### Added
+
+- **FE-12: Module Exposure Filtering** — Declarative control over which discovered modules are exposed as CLI commands. Feature spec: `docs/features/exposure-filtering.md`.
+  - `expose` section in `apcore.yaml` with three modes: `all` (default), `include` (whitelist), `exclude` (blacklist).
+  - Glob-pattern matching on module IDs (e.g., `admin.*`, `webhooks.*`, `*.sse`).
+  - `ExposureFilter` class with `is_exposed()` and `filter_modules()` methods.
+  - `create_cli(expose=...)` parameter accepting `dict` or `ExposureFilter` instance.
+  - `list --exposure {exposed,hidden,all}` filter flag.
+  - 4-tier config precedence: `CliConfig.expose` > `--expose-mode` CLI flag > env var > `apcore.yaml`.
+  - Hidden modules remain invocable via `exec <module_id>` (UX filter, not a security boundary).
+- **Apache 2.0 license** added (`LICENSE` file).
+- SRS: added requirement sections for FE-10 (Init Command), FE-11 (Usability Enhancements), FE-12 (Exposure Filtering) as TODO backfill items (B-004).
+
+### Changed
+
+- **Tech Design v2.0** — Major revision:
+  - `BUILTIN_COMMANDS` canonicalized as a 14-entry alphabetically sorted constant, referenced throughout.
+  - `create_cli()` consolidated signature (§8.2.7) is now the authoritative reference; feature specs reference it incrementally.
+  - `create_cli()` gains `expose` parameter for programmatic exposure filtering.
+- SRS references updated from "Tech Design v1.0" to "Tech Design v2.0" throughout.
+- SRS AC-1 for FR-DISP-001 updated: help output must list all 14 built-in commands from `BUILTIN_COMMANDS`.
+- Conformance fixture `cli_parity.json` updated: `run` → `exec`, `--json` → `--format json`, `--inputs` → `--input`, exit code `127` → `44`, removed `is_perceivable` key.
+- FE-11 version label corrected from "v0.7.0" to "v0.6.0" in feature overview.
+
+---
+
 ## [0.6.0] - 2026-04-06
 
 ### Changed

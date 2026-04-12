@@ -68,7 +68,7 @@ It serves as the terminal-native counterpart to `apcore-mcp` (Model Context Prot
     ```toml
     # Cargo.toml
     [dependencies]
-    apcore-cli = "0.6"
+    apcore-cli = "0.7"
     ```
 
     ```bash
@@ -413,6 +413,7 @@ apcore-cli data.export --query "SELECT *" --stream
 
 ## Key Features
 
+- **Module Exposure Filtering** -- Declarative `expose` config in `apcore.yaml` controls which modules appear as CLI commands (`all`, `include`, `exclude` modes with glob patterns); hidden modules remain invocable via `exec`
 - **Grouped Commands** -- Modules with dots in their names are auto-grouped into nested subcommands (`apcore-cli product list` instead of `apcore-cli product.list`); `display.cli.group` in binding.yaml overrides the auto-detected group
 - **Display Overlay** -- `metadata["display"]["cli"]` controls CLI command names, descriptions, and guidance per module (§5.13); set via `binding_path` in `create_cli()` / `fastapi-apcore`
 - **Zero-Config Routing** -- Automatically maps module IDs (e.g., `math.add`) to CLI commands
@@ -527,6 +528,7 @@ apcore-cli uses a 4-tier configuration precedence:
 | `APCORE_CLI_APPROVAL_TIMEOUT` | Approval prompt timeout in seconds | `60` |
 | `APCORE_CLI_STRATEGY` | Default execution pipeline strategy | `standard` |
 | `APCORE_CLI_GROUP_DEPTH` | Multi-level grouping depth for nested subcommands | `1` |
+| `APCORE_CLI_EXPOSE_MODE` | Module exposure mode: `all`, `include`, `exclude` | `all` |
 
 ### Config File (`apcore.yaml`)
 
@@ -542,6 +544,10 @@ cli:
   approval_timeout: 60
   strategy: standard
   group_depth: 1
+expose:
+  mode: all               # "all" | "include" | "exclude"
+  include: []             # Glob patterns (used when mode is "include")
+  exclude: []             # Glob patterns (used when mode is "exclude")
 ```
 
 ---
@@ -585,9 +591,9 @@ apcore Registry + Executor (your modules, unchanged)
 
 | Language | Repository | Status |
 |----------|-----------|--------|
-| **Python** | [apcore-cli-python](https://github.com/aiperceivable/apcore-cli-python) | v0.6.0 -- 11 features, 348 tests |
-| **TypeScript** | [apcore-cli-typescript](https://github.com/aiperceivable/apcore-cli-typescript) | v0.6.0 -- 11 features, 247 tests |
-| **Rust** | [apcore-cli-rust](https://github.com/aiperceivable/apcore-cli-rust) | v0.6.0 -- 11 features, 553 tests |
+| **Python** | [apcore-cli-python](https://github.com/aiperceivable/apcore-cli-python) | v0.7.0 -- 12 features |
+| **TypeScript** | [apcore-cli-typescript](https://github.com/aiperceivable/apcore-cli-typescript) | v0.7.0 -- 12 features |
+| **Rust** | [apcore-cli-rust](https://github.com/aiperceivable/apcore-cli-rust) | v0.7.0 -- 12 features |
 
 ---
 
@@ -598,7 +604,7 @@ This repository contains the **specification and design documents**:
 ```
 apcore-cli/
 ├── docs/
-│   ├── project-apcore-cli.md  Project manifest (11 features)
+│   ├── project-apcore-cli.md  Project manifest (12 features)
 │   ├── tech-design.md         Tech Design v2.0
 │   ├── srs.md                 Software Requirements Specification
 │   └── features/
@@ -613,7 +619,8 @@ apcore-cli/
 │       ├── shell-integration.md        FE-06: Completions, man pages
 │       ├── grouped-commands.md         FE-09: Nested subcommands
 │       ├── init-command.md             FE-10: Module scaffolding
-│       └── usability-enhancements.md   FE-11: v0.6.0 enhancements
+│       ├── usability-enhancements.md   FE-11: v0.6.0 enhancements
+│       └── exposure-filtering.md      FE-12: Module exposure filtering
 ├── conformance/               Cross-language test fixtures
 ├── CHANGELOG.md
 └── README.md
