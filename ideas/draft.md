@@ -1,3 +1,7 @@
+> **Historical Planning Artifact:** This document is the original Spec Forge idea draft for apcore-cli. It is preserved for traceability (referenced by `docs/srs.md` requirement Source fields). It is not a published documentation page — do not treat it as current specification.
+
+---
+
 # Idea Draft: apcore-cli
 
 **Status**: VALIDATED (High Demand for CLI-first AI Agent architectures)

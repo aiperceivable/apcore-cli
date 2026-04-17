@@ -1,5 +1,7 @@
 {
   "description": "CLI argument and output parity (Algorithm C01)",
+  "version": "0.7.0",
+  "conformance_spec": "Algorithm C01",
   "test_cases": [
     {
       "id": "exec_command_output",
@@ -26,6 +28,95 @@
       "args": ["exec", "non_existent_module"],
       "expected_exit_code": 44,
       "expected_stderr_contains": "not found"
+    },
+    {
+      "id": "describe_command_keys",
+      "args": ["describe", "math.add", "--format", "json"],
+      "expected_json_keys": [
+        "module_id",
+        "version",
+        "description",
+        "input_schema",
+        "tags",
+        "annotations"
+      ]
+    },
+    {
+      "id": "list_with_format_json_is_array",
+      "args": ["list", "--format", "json"],
+      "expected_output_type": "array",
+      "expected_json_keys": [
+        "module_id",
+        "version",
+        "description",
+        "tags"
+      ]
+    },
+    {
+      "id": "exec_dry_run_exit_zero",
+      "args": ["exec", "math.add", "--input", "{\"a\": 1, \"b\": 2}", "--dry-run"],
+      "expected_exit_code": 0,
+      "expected_json_output": {
+        "status": "dry_run",
+        "valid": true
+      }
+    },
+    {
+      "id": "validate_module_valid",
+      "args": ["validate", "math.add", "--input", "{\"a\": 1, \"b\": 2}", "--format", "json"],
+      "expected_exit_code": 0,
+      "expected_json_output": {
+        "valid": true,
+        "module_id": "math.add"
+      }
+    },
+    {
+      "id": "exec_missing_required_input_exit_45",
+      "args": ["exec", "math.add", "--format", "json"],
+      "expected_exit_code": 45,
+      "expected_stderr_contains": "Validation failed"
+    },
+    {
+      "id": "exec_schema_validation_error_exit_45",
+      "args": ["exec", "math.add", "--input", "{\"a\": \"not_a_number\"}", "--format", "json"],
+      "expected_exit_code": 45
+    },
+    {
+      "id": "list_search_filter",
+      "args": ["list", "--search", "math", "--format", "json"],
+      "expected_json_keys": [
+        "module_id",
+        "description",
+        "tags"
+      ]
+    },
+    {
+      "id": "list_status_filter",
+      "args": ["list", "--status", "enabled", "--format", "json"],
+      "expected_exit_code": 0
+    },
+    {
+      "id": "exec_with_trace",
+      "args": ["exec", "math.add", "--input", "{\"a\": 1, \"b\": 2}", "--trace", "--format", "json"],
+      "expected_json_output": {
+        "status": "success",
+        "trace": { "steps": [] }
+      }
+    },
+    {
+      "id": "help_exit_zero",
+      "args": ["--help"],
+      "expected_exit_code": 0
+    },
+    {
+      "id": "version_flag_exit_zero",
+      "args": ["--version"],
+      "expected_exit_code": 0
+    },
+    {
+      "id": "invalid_command_exit_2",
+      "args": ["nonexistent_command"],
+      "expected_exit_code": 2
     }
   ]
 }

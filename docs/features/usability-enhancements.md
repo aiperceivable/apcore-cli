@@ -1,7 +1,7 @@
 # Feature Spec: Usability Enhancements (v0.6.0)
 
 **Feature ID**: FE-11
-**Status**: Draft
+**Status**: Implemented (v0.6.0)
 **Priority**: P0–P2 (see per-section priority)
 **Parent**: [Tech Design v2.0](../tech-design.md)
 **apcore Dependency**: `>= 0.17.1`
@@ -759,74 +759,13 @@ async def _stream_and_print(executor, module_id, inputs, format):
 
 **Problem:** `apcore-cli list` only supports exact tag filtering. No search, no status/annotation filtering, no sorting.
 
+The enhanced list flags (`--search`, `--status`, `--annotation`, `--sort`, `--reverse`, `--deprecated`, `--deps`) are documented in the canonical location: [Discovery feature spec §Enhanced List Flags](discovery.md#enhanced-list-flags-v060).
+
 **apcore APIs used:**
 - `ModuleDescriptor`: all fields (annotations, tags, enabled, deprecated, dependencies)
 - `ModuleAnnotations`: destructive, requires_approval, readonly, streaming, cacheable
 
-#### 3.7.1 New Flags for `list`
-
-```
-apcore-cli list [--tag TAG]... [--search QUERY] [--status STATUS]
-                [--annotation KEY] [--sort FIELD] [--reverse]
-                [--deprecated] [--deps]
-```
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--search` / `-s` | string | Fuzzy search across module_id + description (case-insensitive substring match) |
-| `--status` | choice | `enabled` (default), `disabled`, `all` |
-| `--annotation` / `-a` | multi | Filter by annotation flag: `destructive`, `requires-approval`, `readonly`, `streaming`, `cacheable`, `idempotent` |
-| `--sort` | choice | `id` (default), `calls`, `errors`, `latency`. The latter three require `system.usage.summary` data; when system modules are unavailable, fall back to `id` sort with WARNING: "Usage data not available; sorting by id." |
-| `--reverse` | flag | Reverse sort order |
-| `--deprecated` | flag | Include deprecated modules (excluded by default) |
-| `--deps` | flag | Show dependency count column |
-
-#### 3.7.2 Examples
-
-```bash
-# Find all destructive modules requiring approval
-apcore-cli list --annotation destructive --annotation requires-approval
-
-# Search for "email" across all modules
-apcore-cli list --search email
-
-# Show disabled modules
-apcore-cli list --status disabled
-
-# Sort by error count (descending)
-apcore-cli list --sort errors --reverse
-
-# Include deprecated modules
-apcore-cli list --deprecated
-```
-
-#### 3.7.3 Enhanced Table Output
-
-```
-apcore-cli list --annotation destructive --deps
-
-  Module                  Description                   Tags          Deps  Flags
-  ──────────────────────  ────────────────────────────  ────────────  ────  ──────
-  db.drop_table           Drop a database table         db,admin      2     ⚠D ✋A
-  fs.delete_recursive     Recursively delete directory  fs,cleanup    0     ⚠D ✋A
-```
-
-Flag legend (shown in footer): `⚠D` = destructive, `✋A` = requires approval, `📡S` = streaming, `💾C` = cacheable, `🔒R` = readonly
-
-In non-TTY mode, flags are rendered as comma-separated keywords: `destructive,requires_approval`.
-
-#### 3.7.4 Verification Tests
-
-| ID | Test |
-|----|------|
-| T-LST-01 | `--search email` matches module_id and description |
-| T-LST-02 | `--annotation destructive` filters to destructive-only modules |
-| T-LST-03 | `--status disabled` shows only disabled modules |
-| T-LST-04 | `--sort errors` sorts by error count (requires usage data) |
-| T-LST-05 | `--deprecated` includes deprecated modules with visual indicator |
-| T-LST-06 | `--deps` shows dependency count column |
-| T-LST-07 | Multiple `--annotation` flags combine with AND logic |
-| T-LST-08 | `--search` + `--tag` combine (AND) |
+**Verification tests:** T-LST-01 through T-LST-08 (see discovery.md).
 
 ---
 

@@ -4,6 +4,8 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
 ## [0.7.0] - 2026-04-12
 
 ### Added
@@ -213,3 +215,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Configuration section with 4-tier precedence and environment variables
 - Architecture diagram and apcore-to-CLI mapping table
 - CHANGELOG.md
+
+[Unreleased]: https://github.com/aiperceivable/apcore-cli/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/aiperceivable/apcore-cli/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/aiperceivable/apcore-cli/compare/v0.5.1...v0.6.0
+[0.5.1]: https://github.com/aiperceivable/apcore-cli/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/aiperceivable/apcore-cli/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/aiperceivable/apcore-cli/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/aiperceivable/apcore-cli/compare/v0.2.2...v0.3.0
+[0.2.2]: https://github.com/aiperceivable/apcore-cli/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/aiperceivable/apcore-cli/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/aiperceivable/apcore-cli/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/aiperceivable/apcore-cli/releases/tag/v0.1.0

@@ -7,10 +7,10 @@
 | Field | Value |
 |-------|-------|
 | **Document Title** | Technical Design: apcore-cli |
-| **Version** | 2.0 |
+| **Version** | 2.7 |
 | **Author** | Spec Forge |
-| **Date** | 2026-03-23 |
-| **Status** | Draft |
+| **Date** | 2026-04-15 |
+| **Status** | Active |
 | **Supersedes** | Tech Design v1.0 (`docs/tech-design.md`) |
 | **Upstream SRS** | `docs/srs.md` (SRS-APCORE-CLI-001 v0.1) |
 
@@ -20,6 +20,7 @@
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 2.7 | 2026-04-15 | Spec Forge | Add §8.12 Init Command implementation, §8.13 Usability Enhancements implementation, §8.14 Module Exposure Filter implementation. Update status to Active. |
 | 1.0 | 2026-03-14 | Spec Forge | Full rewrite from SRS. Supersedes v0.4. Adds security stack, shell integration, C4 diagrams, traceability matrix. |
 | 2.0 | 2026-03-23 | Spec Forge | Adds Display Overlay integration (ADR-07), Grouped CLI Commands (ADR-08). New `GroupedModuleGroup` class, group resolution algorithm, updated discovery/shell/output components. |
 
@@ -1852,30 +1853,190 @@ All exit codes aligned with apcore PROTOCOL_SPEC section 8.
 
 ### 8.12 Init Command Implementation
 
-> **TODO (B-004):** Backfill implementation design for FE-10 Init Command. See `docs/features/init-command.md` for the feature definition.
->
-> Coverage: the `init` click.Group + `init module <id>` subcommand, template engine for decorator/convention/binding styles, `--dir` / `--description` flag handling, path-traversal validation, module-id collision detection against `BUILTIN_COMMANDS`. Module path: `src/apcore_cli/init_cmd.py`. Entry point: `register_init_command(cli)` called from `create_cli`.
+**Feature**: FE-10 | **Module**: `apcore_cli/init_cmd.py` | **Entry point**: `register_init_command(cli)`
+
+#### 8.12.1 Command Structure
+
+`init` is a `click.Group` attached to the root CLI. The sole subcommand is `module`:
+
+```
+apcore-cli init module <MODULE_ID> [--style {decorator,convention,binding}]
+                                   [--dir DIR] [-d DESCRIPTION]
+```
+
+`register_init_command(cli)` is called in `create_cli()` after all other command registrations.
+
+#### 8.12.2 Module ID Parsing
+
+`MODULE_ID` is split on the **last** `.` to derive `(prefix, func_name)`:
+
+- `ops.deploy` → `prefix="ops"`, `func_name="deploy"`
+- `standalone` → `prefix="standalone"`, `func_name="standalone"` (no separator)
+
+#### 8.12.3 Template Engine
+
+Three style modes, each producing language-specific boilerplate:
+
+| Style | Default dir | Output |
+|-------|-------------|--------|
+| `decorator` | `extensions/` | Single source file with `@module(id=..., description=...)` decorator |
+| `convention` | `commands/` | Source file with function + `CLI_GROUP` constant (when prefix present) |
+| `binding` | `bindings/` | `.binding.yaml` file + companion source file (only if not already present) |
+
+Template substitution variables: `{module_id}`, `{func_name}`, `{prefix}`, `{description}`. File names use underscores in place of dots (`ops.deploy` → `ops_deploy.py`).
+
+#### 8.12.4 Options
+
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--style` | — | `convention` | Module style: `decorator`, `convention`, or `binding` |
+| `--dir` | — | Style-dependent | Output directory override |
+| `--description` | `-d` | `"TODO: add description"` | Module description embedded in generated files |
+
+#### 8.12.5 Path-Traversal Validation
+
+Before writing, the resolved output path is checked with `Path.resolve()`. If the resolved path escapes the current working directory (i.e., does not start with `cwd`), the command exits with code 2 and an error message: `"Error: --dir path must be within the current working directory."` This prevents `--dir ../../etc` attacks.
+
+#### 8.12.6 Collision Detection
+
+Before generating files, `MODULE_ID` is checked against `BUILTIN_COMMANDS` (the set of reserved CLI command names: `list`, `describe`, `exec`, `health`, `usage`, `enable`, `disable`, `reload`, `config`, `init`, `validate`). On collision, exit 2: `"Error: '{module_id}' conflicts with a built-in command name."`.
+
+#### 8.12.7 `--commands-dir` Integration in `create_cli()`
+
+`create_cli()` accepts `commands_dir: str | None`. When set, it imports `ConventionScanner` from `apcore_toolkit` and scans the directory before Click command building. `ImportError` is caught and logged as WARNING — the CLI continues normally without convention modules. See `docs/features/init-command.md §4.7` for the full pseudocode.
 
 ### 8.13 Usability Enhancements Implementation
 
-> **TODO (B-004):** Backfill implementation design for FE-11 Usability Enhancements. See `docs/features/usability-enhancements.md` for the feature definition.
->
-> Coverage:
-> - `CliApprovalHandler` class (async `request_approval`/`check_approval` methods) — `src/apcore_cli/approval.py`.
-> - System management commands (`health`, `usage`, `enable`, `disable`, `reload`, `config get/set`) — `src/apcore_cli/system_cmd.py`. Entry point: `register_system_commands(cli, executor)`.
-> - `describe-pipeline` + `--strategy` flag — `src/apcore_cli/strategy.py`. Entry point: `register_pipeline_command(cli, executor)`.
-> - `validate` command + `--dry-run` flag — separate module or inside `discovery.py`. Entry point: `register_validate_command(cli, registry, executor)`.
-> - Enhanced `list` filters (`--search`, `--status`, `--annotation`, `--sort`, `--reverse`, `--deprecated`, `--deps`) — extensions to `format_module_list` in `src/apcore_cli/output.py`.
-> - Extended `--format` values (`csv`, `yaml`, `jsonl`) — `src/apcore_cli/output.py`.
-> - `--fields <dotpath>` — dot-path output field selector in `format_exec_result`.
-> - `--trace` / `--stream` — wired through `Executor.call_with_trace()` and `Executor.stream()`.
-> - `extra_commands` parameter on `create_cli` — collision detection against `BUILTIN_COMMANDS`.
+**Feature**: FE-11 | **apcore dependency**: `>= 0.17.1`
+
+#### 8.13.1 Module Structure
+
+| Module | Responsibility |
+|--------|---------------|
+| `apcore_cli/approval.py` | `CliApprovalHandler` class; backward-compat `check_approval()` shim |
+| `apcore_cli/system_cmd.py` | `health`, `usage`, `enable`, `disable`, `reload`, `config` commands; `register_system_commands(cli, executor)` |
+| `apcore_cli/output.py` | Enhanced `format_module_list` (search/filter/sort flags); extended `--format` values (`csv`, `yaml`, `jsonl`); `--fields` dot-path selector in `format_exec_result` |
+| `apcore_cli/cli.py` / `__main__.py` | `--trace`, `--stream`, `--strategy`, `--dry-run` wired through `build_module_command`; `extra_commands` collision detection |
+
+#### 8.13.2 `CliApprovalHandler`
+
+Implements the apcore `ApprovalHandler` protocol in `apcore_cli/approval.py`:
+
+```python
+class CliApprovalHandler:
+    def __init__(self, auto_approve: bool = False, timeout: int = 60) -> None: ...
+    async def request_approval(self, request: ApprovalRequest) -> ApprovalResult: ...
+    async def check_approval(self, approval_id: str) -> ApprovalResult: ...
+```
+
+Behavior: auto-approves when `auto_approve=True` or `APCORE_CLI_AUTO_APPROVE=1`; rejects silently in non-TTY without `--yes`; shows a timed prompt (default 60 s, configurable via `APCORE_CLI_APPROVAL_TIMEOUT`) in TTY. Wired onto `Executor` at construction: `Executor(registry, approval_handler=handler)`.
+
+#### 8.13.3 System Management Commands
+
+`register_system_commands(cli, executor)` in `apcore_cli/system_cmd.py` probes `executor.validate("system.health.summary", {})` at registration time; if the module is absent it returns without adding any commands. When present it registers: `health`, `usage`, `enable`, `disable`, `reload`, `config`. Each command delegates to the corresponding `system.*` apcore module via `executor.call()`. `enable`/`disable`/`reload`/`config set` require `--reason` (enforced by Click) and trigger the standard approval gate.
+
+#### 8.13.4 Dry-Run / `validate` Command
+
+`--dry-run` flag on any module execution command calls `Executor.validate(module_id, inputs)` instead of `Executor.call()` and formats the `PreflightResult` (TTY: symbol-prefixed checklist; JSON: structured object). The standalone `validate <module_id>` subcommand does the same thing. Exit codes follow the first failed check: schema → 45, not-found → 44, ACL denied → 77, other → 1.
+
+#### 8.13.5 `--trace` and `--stream`
+
+- **`--trace`**: `build_module_command` uses `Executor.call_with_trace(module_id, inputs, context)` instead of `call()`. The returned `PipelineTrace` (`.steps: list[StepTrace]`) is printed to stderr after the result — TTY: symbol-prefixed step table; JSON: merged under `_trace` key.
+- **`--stream`**: checks `annotations.streaming`; if `True` drives `Executor.stream(module_id, inputs)` via `asyncio.run()`, writing JSONL chunks to stdout with immediate flush. If `False`, logs WARNING and falls back to `call()`.
+
+#### 8.13.6 `--strategy` Flag
+
+`Executor(registry, strategy=strategy_name)` is constructed with the strategy resolved from (in precedence order): `--strategy` CLI flag → `APCORE_CLI_STRATEGY` env var → `apcore.yaml` → default `"standard"`. The `describe-pipeline --strategy <name>` subcommand instantiates a temporary executor with that strategy and prints its pipeline step list without executing a module.
+
+#### 8.13.7 `extra_commands` and Collision Detection
+
+`create_cli(extra_commands: list[click.Command] | None = None)` accepts caller-supplied commands. Before registration each command's `name` is checked against `BUILTIN_COMMANDS`. Collision raises `ValueError` at startup: `"extra_commands contains a name that conflicts with built-in command: '{name}'."`.
+
+#### 8.13.8 Key apcore APIs
+
+| apcore API | Used by |
+|------------|---------|
+| `Executor.call(module_id, inputs, context)` | All standard module invocations |
+| `Executor.call_with_trace(module_id, inputs, context) → (result, PipelineTrace)` | `--trace` flag |
+| `Executor.stream(module_id, inputs, context) → AsyncIterator[dict]` | `--stream` flag |
+| `Executor.validate(module_id, inputs, context) → PreflightResult` | `--dry-run` flag, `validate` command, system-command availability probe |
+| `Executor(registry, strategy=..., approval_handler=...)` | `create_cli()` executor construction |
 
 ### 8.14 Module Exposure Filter Implementation
 
-> **TODO (B-004):** Backfill implementation design for FE-12 Exposure Filtering. See `docs/features/exposure-filtering.md` for the feature definition.
->
-> Coverage: `ExposureFilter` class (`src/apcore_cli/exposure.py`) with `__init__(mode, include, exclude)`, `is_exposed(module_id)`, `filter_modules(ids)`, and `@classmethod from_config(dict)`. Glob-based matching: `*` matches a single dotted segment, `**` matches across segments. Integration with `GroupedModuleGroup` via an `exposure_filter` attribute / constructor parameter. The `expose=` kwarg on `create_cli` accepts either a dict (passed to `from_config`) or an `ExposureFilter` instance directly. `list` command's `--exposure {exposed,hidden,all}` filter flag defers to the same filter.
+**Feature**: FE-12 | **Module**: `apcore_cli/exposure.py`
+
+#### 8.14.1 `ExposureFilter` Class
+
+```python
+class ExposureFilter:
+    def __init__(
+        self,
+        mode: str = "all",           # "all" | "include" | "exclude"
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
+    ) -> None: ...
+
+    @classmethod
+    def from_config(cls, config: dict) -> "ExposureFilter": ...
+
+    def is_exposed(self, module_id: str) -> bool: ...
+
+    def filter_modules(self, module_ids: list[str]) -> tuple[list[str], list[str]]: ...
+    #  Returns (exposed_ids, hidden_ids)
+```
+
+`from_config` reads the `expose` key from a parsed config dict (e.g., parsed `apcore.yaml`), validates `mode`, and returns a configured instance. Invalid mode raises `click.BadParameter`. Non-list `include`/`exclude` or empty-string patterns are logged as WARNING and skipped.
+
+#### 8.14.2 Glob Matching Semantics
+
+Patterns are converted to anchored regular expressions at `__init__` time (compiled once, cached):
+
+| Pattern | Semantics |
+|---------|-----------|
+| `*` | Matches any single dotted segment (`[^.]*`) |
+| `**` | Matches across segment boundaries (`.*`) |
+| `admin.*` | `admin.users` ✓ — `admin.users.list` ✗ |
+| `admin.**` | `admin.users` ✓ — `admin.users.list` ✓ |
+| `*.get` | `product.get` ✓ — `product.get.all` ✗ |
+| `system.health` | Exact match only |
+
+Implementation: replace `**` with a sentinel, replace remaining `*` with `[^.]*`, replace sentinel with `.*`, then wrap with `^...$` and compile via `re.fullmatch`.
+
+#### 8.14.3 `is_exposed` Logic
+
+- `mode="all"` → always `True`.
+- `mode="include"` → `True` if any include pattern matches; `False` otherwise (empty list → zero modules exposed).
+- `mode="exclude"` → `False` if any exclude pattern matches; `True` otherwise (empty list → all modules exposed).
+
+#### 8.14.4 Integration: `GroupedModuleGroup`
+
+`GroupedModuleGroup.__init__()` gains an `exposure_filter: ExposureFilter = ExposureFilter()` parameter (default is `mode="all"` — fully backward compatible). In `_build_group_map()`, each `module_id` is checked with `self._exposure_filter.is_exposed(module_id)` before building Click commands. Hidden modules are skipped; empty groups produced by filtering are omitted from `--help`. The `exec` subcommand bypasses the filter entirely (exposure is a UX optimization, not a security boundary).
+
+#### 8.14.5 `create_cli(expose=...)` Parameter
+
+```python
+create_cli(..., expose: dict | ExposureFilter | None = None) -> click.Group
+```
+
+Precedence (highest to lowest):
+
+1. `expose` kwarg — `ExposureFilter` instance used directly; `dict` passed to `ExposureFilter.from_config`.
+2. `APCORE_CLI_EXPOSE_MODE` env var — overrides `mode` only; `include`/`exclude` patterns still come from `apcore.yaml`.
+3. `apcore.yaml` `expose` section.
+4. Default: `mode="all"`.
+
+The constructed `ExposureFilter` is passed to `GroupedModuleGroup` via the `exposure_filter` constructor parameter.
+
+#### 8.14.6 `list --exposure` Flag
+
+The `list` command gains:
+
+```
+--exposure [exposed|hidden|all]   Filter by exposure status. Default: exposed.
+```
+
+`exposed` keeps only modules where `is_exposed()` is `True`; `hidden` keeps only `False`; `all` keeps all and adds an "Exposure" column (`✓` / `—`) to the table output. The flag delegates to the same `ExposureFilter` instance used by `GroupedModuleGroup`.
 
 ---
 

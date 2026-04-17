@@ -3,8 +3,7 @@
 **Feature ID**: FE-10
 **Status**: Ready for Implementation
 **Priority**: P1
-**Parent**: [Tech Design v2.0](../tech-design.md) Section 8.12 (to be added)
-<!-- TODO: Section 8.12 does not yet exist in tech-design.md. Pending the FE-10/11/12 SRS + tech-design backfill. -->
+**Parent**: [Tech Design v2.0](../tech-design.md) Section 8.12
 
 **SRS Requirements**: FR-USB-001, FR-DISC-001, NFR-USB-001
 

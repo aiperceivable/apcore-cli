@@ -70,6 +70,30 @@ Logic steps:
    b. Print `json.dumps(result, indent=2)` to stdout.
 6. Exit code 0.
 
+#### Enhanced List Flags (v0.6.0)
+
+The following flags were added in v0.6.0 (FE-11 Usability Enhancements):
+
+```
+apcore-cli list [--tag TAG]... [--search QUERY] [--status STATUS]
+                [--annotation KEY] [--sort FIELD] [--reverse]
+                [--deprecated] [--deps]
+```
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--search` / `-s` | string | Fuzzy search across module_id + description (case-insensitive substring match) |
+| `--status` | choice | `enabled` (default), `disabled`, `all` |
+| `--annotation` / `-a` | multi | Filter by annotation flag: `destructive`, `requires-approval`, `readonly`, `streaming`, `cacheable`, `idempotent` |
+| `--sort` | choice | `id` (default), `calls`, `errors`, `latency`. The latter three require `system.usage.summary` data; when system modules are unavailable, fall back to `id` sort with WARNING. |
+| `--reverse` | flag | Reverse sort order |
+| `--deprecated` | flag | Include deprecated modules (excluded by default) |
+| `--deps` | flag | Show dependency count column |
+
+Flag legend in TTY output: `⚠D` = destructive, `✋A` = requires approval, `📡S` = streaming, `💾C` = cacheable, `🔒R` = readonly. In non-TTY mode, flags render as comma-separated keywords.
+
+See [Usability Enhancements](usability-enhancements.md#discovery) for full examples and verification tests.
+
 ### 4.2 Command: `describe_cmd`
 
 **Registration**: `@cli.command("describe")`

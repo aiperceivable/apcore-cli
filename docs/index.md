@@ -1,8 +1,35 @@
 # apcore-cli
 
-Automatic MCP Server & OpenAI Tools Bridge for apcore — zero code changes required.
+**The CLI Adapter for apcore — Expose modules as high-performance, AI-perceivable command-line tools.**
 
-See the [README](https://github.com/aiperceivable/apcore-cli) for the user guide and the links below for detailed docs.
+> Build once, invoke by Code, AI, or Terminal.
+
+apcore-cli takes your **apcore modules** and automatically exposes them as **CLI subcommands** — with zero code changes. It is the terminal-native counterpart to `apcore-mcp` (Model Context Protocol) and `apcore-a2a` (Agent-to-Agent).
+
+## Key Features
+
+- **Zero-code CLI generation** — `create_cli()` scans your extensions directory and registers every module as a subcommand automatically.
+- **AI-perceivable output** — `--format json` emits structured JSON consumed by AI agents; TTY mode renders rich tables for humans.
+- **Full apcore pipeline integration** — `--dry-run`, `--trace`, `--strategy`, and `--stream` expose the apcore execution pipeline directly from the terminal.
+- **Cross-language** — identical CLI behaviour across Python, TypeScript, and Rust SDKs, verified by the shared conformance suite.
+- **Exposure filtering** — `expose:` in `apcore.yaml` controls which modules appear as commands (whitelist / blacklist / glob patterns).
+
+## Quick Install
+
+=== "Python"
+    ```bash
+    pip install apcore-cli
+    ```
+
+=== "TypeScript"
+    ```bash
+    npm install apcore-cli
+    ```
+
+=== "Rust"
+    ```bash
+    cargo add apcore-cli
+    ```
 
 ## Documentation
 

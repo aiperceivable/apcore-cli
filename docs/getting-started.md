@@ -243,6 +243,6 @@ For the full exit code reference, see the [Tech Design](tech-design.md) Section 
 
 ## Next steps
 
-- [Configuration](configuration.md) -- Full configuration reference
+- [Config Resolver](features/config-resolver.md) — Full configuration reference
 - [Tech Design](tech-design.md) -- Architecture and design decisions
 - [Feature Specs](features/overview.md) -- Detailed specs for each component

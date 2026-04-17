@@ -1,0 +1,154 @@
+<svg width="512" height="620" viewBox="30 60 450 560" xmlns="http://www.w3.org/2000/svg">
+  <!-- apcore-cli logo: Jellyfish (apcore) + Nautilus (CLI adapter) -->
+
+  <defs>
+    <!-- === Jellyfish Gradients === -->
+    <radialGradient id="bellGrad" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#4338CA"/>
+    </radialGradient>
+    <radialGradient id="jellyGlowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#67E8F9" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#67E8F9" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="jTentGrad1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4F46E5" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="jTentGrad2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- === Nautilus Gradients === -->
+    <radialGradient id="shellGrad" cx="42%" cy="45%" r="52%">
+      <stop offset="0%" stop-color="#FDBA74"/>
+      <stop offset="55%" stop-color="#F97316"/>
+      <stop offset="100%" stop-color="#C2410C"/>
+    </radialGradient>
+    <radialGradient id="bodyGrad" cx="55%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#FEF3C7"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </radialGradient>
+    <linearGradient id="nTentGrad1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FBBF24"/>
+      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="nTentGrad2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FDE68A"/>
+      <stop offset="100%" stop-color="#FBBF24" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="shellGlowGrad" cx="38%" cy="38%" r="40%">
+      <stop offset="0%" stop-color="#FEF3C7" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#FEF3C7" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="innerGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#7C2D12"/>
+      <stop offset="60%" stop-color="#9A3412"/>
+      <stop offset="100%" stop-color="#C2410C"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ============================================ -->
+  <!-- 1. NAUTILUS (behind jellyfish tentacles)     -->
+  <!-- Scaled down & positioned below the jellyfish -->
+  <!-- ============================================ -->
+  <g transform="translate(115, 310) scale(0.52)">
+    <!-- Nautilus tentacles -->
+    <path d="M 345,310 C 360,350 370,400 362,450 Q 358,470 365,485"
+          stroke="url(#nTentGrad1)" stroke-width="9" fill="none" stroke-linecap="round"/>
+    <path d="M 360,290 C 385,325 410,375 415,425 Q 418,450 408,468"
+          stroke="url(#nTentGrad2)" stroke-width="8" fill="none" stroke-linecap="round"/>
+    <path d="M 370,268 C 400,295 435,335 445,385 Q 450,415 440,440"
+          stroke="url(#nTentGrad1)" stroke-width="7" fill="none" stroke-linecap="round"/>
+    <path d="M 372,245 C 405,262 445,285 462,335 Q 470,365 462,392"
+          stroke="url(#nTentGrad2)" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <path d="M 368,225 C 398,232 438,240 460,278 Q 472,305 468,338"
+          stroke="url(#nTentGrad1)" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+
+    <!-- Nautilus body (round head) -->
+    <ellipse cx="345" cy="268" rx="48" ry="55" fill="url(#bodyGrad)"/>
+
+    <!-- Shell -->
+    <path d="M 310,260 C 310,140 260,65 180,65 C 100,65 50,140 50,230 C 50,320 100,380 180,380 C 240,380 290,350 310,310 Z"
+          fill="url(#shellGrad)"/>
+    <ellipse cx="170" cy="190" rx="100" ry="90" fill="url(#shellGlowGrad)"/>
+
+    <!-- Spiral stripes -->
+    <path d="M 290,280 C 285,170 245,95 180,95 C 115,95 80,165 80,235 C 80,305 115,355 180,355 C 225,355 262,335 280,300"
+          stroke="#FED7AA" stroke-width="14" fill="none" opacity="0.55" stroke-linecap="round"/>
+    <path d="M 265,270 C 262,190 235,130 185,130 C 135,130 112,185 112,235 C 112,285 135,325 185,325 C 220,325 248,308 258,280"
+          stroke="#FED7AA" stroke-width="12" fill="none" opacity="0.5" stroke-linecap="round"/>
+    <path d="M 242,262 C 240,210 222,168 188,168 C 155,168 140,200 140,238 C 140,275 158,300 188,300 C 212,300 232,285 238,268"
+          stroke="#FED7AA" stroke-width="10" fill="none" opacity="0.45" stroke-linecap="round"/>
+    <path d="M 220,255 C 219,225 210,202 192,202 C 174,202 166,220 166,240 C 166,260 175,275 192,275 C 206,275 216,265 218,255"
+          stroke="#FED7AA" stroke-width="8" fill="none" opacity="0.4" stroke-linecap="round"/>
+    <circle cx="194" cy="240" r="16" fill="url(#innerGrad)"/>
+    <circle cx="194" cy="240" r="8" fill="#7C2D12"/>
+    <ellipse cx="155" cy="155" rx="50" ry="30" fill="#FEF3C7" opacity="0.3" transform="rotate(-15 155 155)"/>
+
+    <!-- Body highlight -->
+    <ellipse cx="340" cy="250" rx="22" ry="28" fill="#FEF3C7" opacity="0.25"/>
+
+    <!-- Eye -->
+    <ellipse cx="348" cy="258" rx="19" ry="21" fill="white"/>
+    <circle cx="353" cy="262" r="12" fill="#422006"/>
+    <circle cx="357" cy="254" r="5.5" fill="white"/>
+    <circle cx="349" cy="268" r="2.5" fill="white" opacity="0.7"/>
+
+    <!-- Cheek blush -->
+    <ellipse cx="352" cy="288" rx="13" ry="7" fill="#FDBA74" opacity="0.5"/>
+
+    <!-- Smile -->
+    <path d="M 340,294 Q 352,306 365,296"
+          stroke="#92400E" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <!-- ============================================ -->
+  <!-- 2. JELLYFISH (on top, original apcore logo)  -->
+  <!-- ============================================ -->
+
+  <!-- Tentacles (behind bell, flowing down around nautilus) -->
+  <path d="M 175,300 C 160,350 145,400 155,450 Q 162,480 150,500"
+        stroke="url(#jTentGrad1)" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <path d="M 210,310 C 200,365 188,415 195,470 Q 200,500 190,520"
+        stroke="url(#jTentGrad2)" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M 245,310 C 240,370 235,425 242,480 Q 248,510 240,530"
+        stroke="url(#jTentGrad1)" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 267,310 C 272,370 277,425 270,480 Q 264,510 272,530"
+        stroke="url(#jTentGrad1)" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 302,310 C 312,365 324,415 317,470 Q 312,500 322,520"
+        stroke="url(#jTentGrad2)" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M 337,300 C 352,350 367,400 357,450 Q 350,480 362,500"
+        stroke="url(#jTentGrad1)" stroke-width="8" fill="none" stroke-linecap="round"/>
+
+  <!-- Bell (dome body) -->
+  <path d="M 130,290 C 130,150 190,80 256,80 C 322,80 382,150 382,290 Q 382,310 256,310 Q 130,310 130,290 Z"
+        fill="url(#bellGrad)"/>
+
+  <!-- Bell rim / ruffle -->
+  <path d="M 130,290 Q 150,318 175,298 Q 200,318 225,298 Q 250,318 268,298 Q 290,318 312,298 Q 335,318 355,298 Q 375,318 382,290"
+        fill="#4338CA" opacity="0.6"/>
+
+  <!-- Bioluminescence glow -->
+  <ellipse cx="256" cy="210" rx="100" ry="90" fill="url(#jellyGlowGrad)"/>
+
+  <!-- Bell highlight -->
+  <ellipse cx="230" cy="160" rx="55" ry="35" fill="#A5B4FC" opacity="0.3"/>
+
+  <!-- Eyes -->
+  <ellipse cx="222" cy="215" rx="22" ry="24" fill="white"/>
+  <ellipse cx="290" cy="215" rx="22" ry="24" fill="white"/>
+  <circle cx="228" cy="220" r="13" fill="#1E1B4B"/>
+  <circle cx="296" cy="220" r="13" fill="#1E1B4B"/>
+  <circle cx="233" cy="212" r="6" fill="white"/>
+  <circle cx="301" cy="212" r="6" fill="white"/>
+
+  <!-- Smile -->
+  <path d="M 240,252 Q 256,268 272,252"
+        stroke="#312E81" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Cheek blush -->
+  <ellipse cx="205" cy="242" rx="14" ry="9" fill="#C4B5FD" opacity="0.45"/>
+  <ellipse cx="307" cy="242" rx="14" ry="9" fill="#C4B5FD" opacity="0.45"/>
+</svg>

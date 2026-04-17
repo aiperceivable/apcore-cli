@@ -1,6 +1,8 @@
 # Features Overview: apcore-cli
 
-This directory contains the detailed feature specifications for `apcore-cli`. For the full feature list, implementation order, and dependency graph, see the [Project Manifest](../project-apcore-cli.md).
+`apcore-cli` exposes apcore modules as CLI subcommands through a layered architecture of 12 features. The core execution path runs: **Core Dispatcher** (FE-01) → **Schema Parser** (FE-02) → **Approval Gate** (FE-03) → **Security Manager** (FE-05). Module discovery is handled by **Discovery** (FE-04) with **Grouped Commands** (FE-09) for namespace organisation and **Exposure Filtering** (FE-12) for access control. Output is managed by **Output Formatter** (FE-08) and extended by **Usability Enhancements** (FE-11). Shell integration (FE-06), configuration (FE-07), and scaffolding (FE-10, Init Command) round out the feature set.
+
+For the full feature list, implementation order, and dependency graph, see the [Project Manifest](../project-apcore-cli.md).
 
 ---
 

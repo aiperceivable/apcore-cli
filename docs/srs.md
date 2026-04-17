@@ -7,10 +7,10 @@
 | Field | Value |
 |-------|-------|
 | **Document ID** | SRS-APCORE-CLI-001 |
-| **Version** | 0.1 |
+| **Version** | 0.7 |
 | **Author** | Spec Forge |
-| **Date** | 2026-03-14 |
-| **Status** | Draft |
+| **Date** | 2026-04-15 |
+| **Status** | Active |
 
 ---
 
@@ -18,6 +18,7 @@
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 0.7 | 2026-04-15 | Spec Forge | Add requirements for FE-10 Init Command (§5.7), FE-11 Usability Enhancements (§5.8), FE-12 Exposure Filtering (§5.9). Update status to Active. |
 | 0.1 | 2026-03-14 | Spec Forge | Initial draft |
 
 ---
@@ -1399,32 +1400,506 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 
 ### 5.7 Init Command (INIT)
 
-> **TODO (B-004):** Backfill requirements for FE-10 Init Command. See `docs/features/init-command.md` for the feature definition. Requirements IDs in the FR-INIT-001..00N range should mirror the feature spec's "Functional Requirements" table. Coverage: `init module <id>` subcommand, `--style {decorator,convention,binding}` flag, `--dir` path override, `--description` template, path-traversal rejection, collision detection against BUILTIN_COMMANDS.
+#### FR-INIT-001: Module Scaffolding via `init module` Subcommand
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-INIT-001 |
+| **Title** | Module Scaffolding via `init module` Subcommand |
+| **Priority** | P1 |
+| **Priority Rationale** | Accelerates developer onboarding and eliminates boilerplate. Not blocking for core execution features but significantly reduces time-to-first-module. |
+| **Source** | Feature Spec FE-10 FR-10-01; Tech Design v2.0 §8.12 |
+
+**Description:** The system shall provide an `apcore-cli init module <module_id>` subcommand that generates a boilerplate module file from a template. The `init` group is registered as a `click.Group` on the root CLI, with `module` as a subcommand. Generated files shall embed the provided `module_id` and `--description` value. The command shall exit with code 0 on success and code 1 if the output directory is not writable.
+
+**Actors:** Developer
+
+**Preconditions:**
+- `apcore-cli` is installed and available on the system PATH.
+- The output directory is writable (or defaults to the style-dependent directory).
+
+**Main Flow:**
+1. The user invokes `apcore-cli init module <module_id> [--style STYLE] [--dir DIR] [--description TEXT]`.
+2. The system shall split `module_id` on the last `.` to derive `(prefix, func_name)`. If no `.` is present, `func_name` equals `module_id` and no group constant is emitted.
+3. The system shall select the output directory based on `--style` if `--dir` is not specified: `extensions/` for `decorator`, `commands/` for `convention`, `bindings/` for `binding`.
+4. The system shall render the appropriate template for the chosen style and write the generated file(s) to the output directory.
+5. The system shall exit with code 0.
+
+**Alternative Flows:**
+
+- **AF-1: Output Directory Not Writable.** If the target directory cannot be written to, the system shall propagate the OS-level `PermissionError` via Click and exit with code 1.
+- **AF-2: Binding Style with Existing Companion File.** If the companion source file already exists under `commands/`, the system shall skip overwriting it and only create the `.binding.yaml` file.
+
+**Postconditions:**
+- One or more boilerplate files are written to the output directory.
+- Exit code is 0 on success.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `apcore-cli init module ops.deploy --style decorator`, then `extensions/ops_deploy.py` shall be created containing a `@module`-decorated function with `id="ops.deploy"`.
+- **AC-2:** Given `apcore-cli init module ops.deploy --style convention`, then `commands/ops.py` shall be created containing `CLI_GROUP = "ops"` and a `deploy()` function.
+- **AC-3:** Given `apcore-cli init module ops.deploy --style binding`, then `bindings/ops_deploy.binding.yaml` and `commands/ops.py` shall both be created.
+- **AC-4:** Given `apcore-cli init module standalone` (no dot in ID), then the generated file shall define `func_name = "standalone"` with no `CLI_GROUP` constant.
+- **AC-5:** Given `--dir /tmp/custom`, then the generated file shall be written under `/tmp/custom/` rather than the style default directory.
+
+---
+
+#### FR-INIT-002: Style Selection (`--style {decorator,convention,binding}`)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-INIT-002 |
+| **Title** | Style Selection Flag |
+| **Priority** | P1 |
+| **Priority Rationale** | The three styles map to the three apcore module authoring patterns. All are required for full feature parity. |
+| **Source** | Feature Spec FE-10 FR-10-02, FR-10-03, FR-10-04 |
+
+**Description:** The `init module` subcommand shall accept a `--style` flag with values `decorator`, `convention`, and `binding`. The default value is `convention`. Each style produces a distinct file structure and template: `decorator` generates a `@module`-decorated function in `extensions/`; `convention` generates a plain function with metadata constants in `commands/`; `binding` generates a `.binding.yaml` file in `bindings/` and a companion source file in `commands/`.
+
+**Actors:** Developer
+
+**Preconditions:**
+- `apcore-cli init module <module_id>` is invoked.
+
+**Main Flow:**
+1. The user provides `--style decorator`, `--style convention`, or `--style binding`.
+2. The system selects the appropriate template and default output directory for the chosen style.
+3. The system renders the template with the resolved `module_id`, `func_name`, `prefix`, and `--description` values.
+4. The system writes the output file(s) and exits with code 0.
+
+**Alternative Flows:**
+
+- **AF-1: Invalid Style Value.** If the user provides a `--style` value other than `decorator`, `convention`, or `binding`, Click shall reject the input and display a usage error. Exit code 2.
+
+**Postconditions:**
+- Generated file(s) use the correct template for the chosen style.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `--style decorator`, then the generated Python file shall contain `from apcore import module` and the `@module(id=..., description=...)` decorator.
+- **AC-2:** Given `--style convention`, then the generated Python file shall contain the `CLI_GROUP` constant (when `module_id` contains a `.`) and a function matching `func_name`.
+- **AC-3:** Given `--style binding`, then a `.binding.yaml` file shall be created containing `module_id`, `target`, `description`, and `auto_schema: true` fields.
+- **AC-4:** Given `--style invalid_value`, then Click shall output a usage error referencing the valid choices and exit with code 2.
+
+---
+
+#### FR-INIT-003: `--dir` Output Path Override
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-INIT-003 |
+| **Title** | Output Directory Override |
+| **Priority** | P1 |
+| **Priority Rationale** | Non-standard project layouts require flexible output path control. |
+| **Source** | Feature Spec FE-10 FR-10-05 |
+
+**Description:** The `init module` subcommand shall accept a `--dir` flag that overrides the style-dependent default output directory. When `--dir` is provided, the generated file(s) shall be written to the specified directory regardless of the `--style` value. The system shall not perform path-traversal validation beyond standard OS permissions — directory writes to absolute paths outside the project are permitted.
+
+**Actors:** Developer
+
+**Preconditions:**
+- `apcore-cli init module <module_id> --dir <path>` is invoked.
+
+**Main Flow:**
+1. The user provides `--dir <path>`.
+2. The system uses `<path>` as the output directory instead of the style default.
+3. The system writes the generated file to `<path>/<derived_filename>` and exits with code 0.
+
+**Postconditions:**
+- File is written to the user-specified directory.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `--dir /tmp/custom` with any style, then the generated file shall be created under `/tmp/custom/` instead of the style-default directory.
+- **AC-2:** Given `--dir` pointing to a non-writable path, then the command shall exit with code 1 and propagate the OS permission error.
+
+---
+
+#### FR-INIT-004: `--description` Template Injection
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-INIT-004 |
+| **Title** | Description Text Injection |
+| **Priority** | P1 |
+| **Priority Rationale** | Eliminates manual edit of the TODO placeholder, reducing time-to-working-module. |
+| **Source** | Feature Spec FE-10 FR-10-06 |
+
+**Description:** The `init module` subcommand shall accept a `--description` flag (short: `-d`) whose value is embedded in the generated file in place of the default `"TODO: add description"` placeholder. The description shall appear in the module decorator argument, the binding YAML `description` field, or the convention file's metadata constant, as appropriate for the chosen style.
+
+**Actors:** Developer
+
+**Preconditions:**
+- `apcore-cli init module <module_id> --description "My module"` is invoked.
+
+**Main Flow:**
+1. The user provides `--description "My description text"`.
+2. The system renders the template with the provided description in the appropriate location.
+3. The generated file is written and the command exits with code 0.
+
+**Postconditions:**
+- The generated file contains the user-supplied description string.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `--description "Processes payment transactions"`, then the generated file shall contain `"Processes payment transactions"` in the module decorator or YAML `description` field.
+- **AC-2:** Given no `--description` flag, then the generated file shall contain the placeholder `"TODO: add description"`.
+
+---
+
+#### FR-INIT-005: `--commands-dir` on `create_cli()` with ConventionScanner
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-INIT-005 |
+| **Title** | Convention Module Auto-Discovery via `--commands-dir` |
+| **Priority** | P1 |
+| **Priority Rationale** | Enables zero-configuration workflow: scaffold a module with `init`, then run the CLI immediately. |
+| **Source** | Feature Spec FE-10 FR-10-07, FR-10-08 |
+
+**Description:** The `create_cli()` function shall accept an optional `commands_dir` parameter. When provided, the system shall attempt to import `ConventionScanner` from `apcore_toolkit.convention_scanner` and scan the given directory for convention-style modules. Discovered modules shall be registered in the Registry via `RegistryWriter`. The `--commands-dir` value shall also be exposed as a CLI option so users can pass it at invocation time. If `apcore-toolkit` is not installed, the system shall log a WARNING and continue without convention module scanning.
+
+**Actors:** Developer
+
+**Preconditions:**
+- `create_cli(commands_dir=<path>)` is called, or `apcore-cli --commands-dir <path>` is invoked.
+
+**Main Flow:**
+1. `create_cli()` receives a non-None `commands_dir` value.
+2. The system imports `ConventionScanner` and `RegistryWriter` from `apcore_toolkit`.
+3. The system calls `ConventionScanner().scan(commands_dir)` to discover modules.
+4. If modules are found, the system writes them to the Registry via `RegistryWriter` and logs the count at INFO level.
+5. The CLI continues initialization with the additional modules available.
+
+**Alternative Flows:**
+
+- **AF-1: `apcore-toolkit` Not Installed.** The `ImportError` is caught, a WARNING is logged (`"apcore-toolkit not installed — convention module scanning unavailable"`), and the CLI continues without convention modules. No traceback is shown.
+- **AF-2: `commands_dir` Does Not Exist.** `ConventionScanner` returns an empty list; a WARNING is logged. The CLI starts normally with zero convention modules.
+
+**Postconditions:**
+- Convention modules from `commands_dir` are registered and available as CLI commands (when `apcore-toolkit` is installed).
+- Exit code is 0 on success.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `create_cli(commands_dir="commands/")` with `apcore-toolkit` installed and modules present, then convention modules from `commands/` shall appear in the `list` output.
+- **AC-2:** Given `create_cli(commands_dir="commands/")` without `apcore-toolkit` installed, then a WARNING shall be logged and the CLI shall start normally with zero convention modules.
+- **AC-3:** Given `apcore-cli --commands-dir ./cmds list`, then convention modules from `./cmds` shall appear in the module list.
 
 ### 5.8 Usability Enhancements (USB)
 
-> **TODO (B-004):** Backfill requirements for FE-11 Usability Enhancements. See `docs/features/usability-enhancements.md`. Coverage:
-> - `validate <module-id>` / `--dry-run` flag — preflight checks without execution (FR-USB-VALIDATE-*).
-> - `--trace` — emit execution pipeline trace (FR-USB-TRACE-*).
-> - `--stream` — stream results line-by-line for stream-capable modules (FR-USB-STREAM-*).
-> - `--strategy <name>` — override execution strategy (FR-USB-STRATEGY-*).
-> - System management commands: `health`, `usage`, `enable`, `disable`, `reload`, `config get/set` (FR-USB-SYSTEM-*).
-> - `describe-pipeline` — show execution pipeline steps (FR-USB-PIPELINE-*).
-> - Enhanced `list` flags: `--search`, `--status`, `--annotation`, `--sort`, `--reverse`, `--deprecated`, `--deps` (FR-USB-LIST-*).
-> - Extended `--format` values: `csv`, `yaml`, `jsonl` (in addition to json/table).
-> - `--fields <dotpath>` — select specific output fields (FR-USB-FIELDS-*).
-> - `CliApprovalHandler` async protocol methods (FR-USB-APPROVAL-*).
-> - `extra_commands` injection point on `create_cli` (FR-USB-EXTRA-*).
+#### FR-USB-001: Dry-Run / Validate Mode
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-USB-001 |
+| **Title** | Dry-Run Preflight Mode |
+| **Priority** | P0 |
+| **Priority Rationale** | Enables safe validation of module inputs without executing destructive operations. Critical for AI agents and CI pipelines. |
+| **Source** | Feature Spec FE-11 FR-11-01; Tech Design v2.0 |
+
+**Description:** The system shall provide a `--dry-run` flag on module execution commands and a standalone `validate <module_id>` subcommand. Both shall invoke `Executor.validate()` and display the resulting `PreflightResult` without executing the module. TTY output uses human-readable check symbols (`✓`, `✗`, `○`, `⚠`); non-TTY output uses JSON. Exit code reflects the first failed check (0 = all passed, 44 = module not found, 45 = schema invalid, 77 = ACL denied, 1 = other failure).
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `--dry-run` with valid inputs, then exit code shall be 0 and all checks shall show `✓` in TTY output; no module execution side effects shall occur.
+- **AC-2:** Given `--dry-run` with an invalid schema field, then exit code shall be 45 and the schema check shall show `✗` with the field error detail.
+
+---
+
+#### FR-USB-002: System Management Commands
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-USB-002 |
+| **Title** | System Management Commands (`health`, `usage`, `enable`, `disable`, `reload`, `config`) |
+| **Priority** | P0 |
+| **Priority Rationale** | Exposes apcore's built-in system modules via CLI. Required for runtime governance and operational visibility. |
+| **Source** | Feature Spec FE-11 FR-11-02 |
+
+**Description:** The system shall register six built-in system management commands (`health`, `usage`, `enable`, `disable`, `reload`, `config`) that delegate to corresponding `system.*` apcore modules via `Executor.call()`. Commands are registered only when system modules are available (detected via `executor.validate("system.health.summary", {})`). The `enable`, `disable`, `reload`, and `config set` commands require a `--reason` flag and trigger the standard approval gate.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given system modules are registered, when the user runs `apcore-cli health`, then a health summary table shall be displayed showing module statuses; when system modules are absent, the command shall not appear in `--help`.
+- **AC-2:** Given `apcore-cli disable <module_id>` without `--reason`, then Click shall reject the invocation with a missing required option error and exit with code 2.
+
+---
+
+#### FR-USB-003: Enhanced Error Output
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-USB-003 |
+| **Title** | Enhanced Error Output with `ai_guidance`, `suggestion`, `retryable` |
+| **Priority** | P0 |
+| **Priority Rationale** | Actionable error messages reduce developer friction and improve AI agent self-correction. |
+| **Source** | Feature Spec FE-11 FR-11-03 |
+
+**Description:** The system shall extract and display `ai_guidance`, `suggestion`, and `retryable` fields from apcore error responses when present. TTY output shall render these fields in a structured format below the error message. Non-TTY output shall include these fields in the JSON error object. The `retryable` field shall be indicated in TTY output with a retry hint.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given an apcore error response containing `ai_guidance` and `suggestion` fields, then TTY output shall display both fields below the primary error message.
+- **AC-2:** Given a non-TTY execution context, then the JSON error object shall include `ai_guidance`, `suggestion`, and `retryable` fields when present in the apcore error.
+
+---
+
+#### FR-USB-004: Pipeline Trace (`--trace`)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-USB-004 |
+| **Title** | Execution Pipeline Trace |
+| **Priority** | P1 |
+| **Priority Rationale** | Provides observability into the execution pipeline for debugging and performance analysis. |
+| **Source** | Feature Spec FE-11 FR-11-04 |
+
+**Description:** The system shall provide a `--trace` flag on module execution commands. When active, the system shall invoke `Executor.call_with_trace()` and display the execution pipeline steps with timing, middleware names, and status for each step. TTY output renders a timeline view; non-TTY output emits a JSON trace object alongside the module result.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `--trace` is provided, then the output shall include each pipeline step name, its execution duration in milliseconds, and pass/fail status.
+- **AC-2:** Given `--trace --format json`, then the output shall include a `"trace"` key in the JSON result containing an array of pipeline step objects.
+
+---
+
+#### FR-USB-005: Approval Handler Protocol
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-USB-005 |
+| **Title** | Standard `ApprovalHandler` Protocol Integration |
+| **Priority** | P1 |
+| **Priority Rationale** | Aligns apcore-cli's approval mechanism with the standard apcore `ApprovalHandler` protocol, enabling cross-language consistency. |
+| **Source** | Feature Spec FE-11 FR-11-05 |
+
+**Description:** The system shall implement a `CliApprovalHandler` class conforming to the apcore `ApprovalHandler` async protocol. The handler shall implement `request_approval(module_id, inputs, context)` and `on_approved(module_id, inputs, context)` / `on_denied(module_id, inputs, context)` methods. The `CliApprovalHandler` shall be passed to the `Executor` during `create_cli()` initialization, replacing any ad-hoc approval prompting logic.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given a module with `requires_approval=True` and an interactive TTY, when the user runs the module without `--yes`, then `CliApprovalHandler.request_approval()` shall be called and a confirmation prompt shall be displayed.
+- **AC-2:** Given `--yes` flag or `APCORE_CLI_AUTO_APPROVE=1`, then `CliApprovalHandler` shall skip the interactive prompt and proceed with execution.
+
+---
+
+#### FR-USB-006: Stream Output (`--stream`)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-USB-006 |
+| **Title** | Streaming Output via `Executor.stream()` |
+| **Priority** | P1 |
+| **Priority Rationale** | Required for long-running modules that emit incremental results (e.g., LLM inference, batch processors). |
+| **Source** | Feature Spec FE-11 FR-11-06 |
+
+**Description:** The system shall provide a `--stream` flag on module execution commands. When active, the system shall invoke `Executor.stream()` instead of `Executor.call()` and write each yielded chunk to stdout as a newline-delimited JSON record. Streaming is only available for modules that declare `annotations.supports_streaming = true`; for non-streaming modules, the system shall emit a warning and fall back to standard `call()`.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `--stream` on a streaming-capable module, then each result chunk shall be written to stdout as a newline-terminated JSON object as it is yielded.
+- **AC-2:** Given `--stream` on a non-streaming module, then a warning shall be emitted to stderr and the command shall fall back to standard `Executor.call()` behavior.
+
+---
+
+#### FR-USB-007: Enhanced List Filters
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-USB-007 |
+| **Title** | Enhanced `list` Command Filters |
+| **Priority** | P1 |
+| **Priority Rationale** | Large module registries (50+ modules) are not navigable without search and filter capabilities. |
+| **Source** | Feature Spec FE-11 FR-11-07 |
+
+**Description:** The `list` command shall be enhanced with additional filter and sort flags: `--search <text>` (substring match on ID and description), `--status {enabled,disabled,all}`, `--annotation <key>[=<value>]`, `--sort {id,name,status}`, `--reverse`, `--deprecated` (show only deprecated modules), and `--deps <module_id>` (show modules that depend on the given ID). All filters are composable.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `apcore-cli list --search "email"`, then only modules whose ID or description contains "email" (case-insensitive) shall be shown.
+- **AC-2:** Given `apcore-cli list --status disabled`, then only modules with `status: disabled` shall appear in the output.
+
+---
+
+#### FR-USB-008: Execution Strategy Selection (`--strategy`)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-USB-008 |
+| **Title** | Execution Strategy Override |
+| **Priority** | P2 |
+| **Priority Rationale** | Advanced feature for power users who need to control the execution pipeline. Not required for standard use cases. |
+| **Source** | Feature Spec FE-11 FR-11-08 |
+
+**Description:** The system shall provide a `--strategy <name>` flag on module execution commands. When provided, the system shall resolve the named `ExecutionStrategy` from the Executor's registered strategies and use it for the invocation instead of the default strategy. If the named strategy does not exist, the system shall exit with code 2 and display available strategy names.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `--strategy minimal` when a `minimal` strategy is registered, then the module shall be executed using the `minimal` strategy rather than the default pipeline.
+- **AC-2:** Given `--strategy nonexistent`, then the system shall exit with code 2 and list available strategy names in the error message.
+
+---
+
+#### FR-USB-009: Extended Output Format (`csv`/`yaml`/`jsonl`/`--fields`)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-USB-009 |
+| **Title** | Extended Output Format Options |
+| **Priority** | P2 |
+| **Priority Rationale** | Enables integration with downstream tools (spreadsheets, YAML configs, log aggregators). Low adoption risk — purely additive. |
+| **Source** | Feature Spec FE-11 FR-11-09 |
+
+**Description:** The `--format` flag shall be extended to support `csv`, `yaml`, and `jsonl` in addition to the existing `table` and `json` values. A `--fields <dotpath>[,<dotpath>...]` flag shall be added to select specific output fields from the module result or list output. `--fields` is composable with all `--format` values.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `--format jsonl`, then each output record shall be emitted as a single-line JSON object terminated by a newline, with one record per line.
+- **AC-2:** Given `--fields id,description --format csv`, then `list` output shall contain only the `id` and `description` columns in CSV format.
+
+---
+
+#### FR-USB-010: Multi-Level Grouping
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-USB-010 |
+| **Title** | Multi-Level Nested Command Grouping |
+| **Priority** | P2 |
+| **Priority Rationale** | Required for projects with deeply namespaced module IDs (e.g., `admin.users.create`). Improves `--help` legibility at scale. |
+| **Source** | Feature Spec FE-11 FR-11-10 |
+
+**Description:** The `GroupedModuleGroup` shall support multi-level nesting of Click groups for module IDs with two or more dot-separated namespace segments (e.g., `admin.users.create` maps to `admin > users > create`). Each intermediate namespace segment that contains sub-commands shall be rendered as a nested `click.Group`. Single-segment module IDs and the existing single-level grouping behavior shall be preserved unchanged.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given modules `admin.users.create` and `admin.users.delete`, then `apcore-cli admin --help` shall show a `users` subgroup, and `apcore-cli admin users --help` shall show `create` and `delete` commands.
+- **AC-2:** Given a mix of single-level (`math.add`) and multi-level (`admin.users.create`) module IDs, then both grouping styles shall coexist without conflict in the same CLI.
+
+---
+
+#### FR-USB-011: Extra Commands Extension Point
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-USB-011 |
+| **Title** | `extra_commands` Injection on `create_cli()` |
+| **Priority** | P2 |
+| **Priority Rationale** | Enables framework integrations (Django, FastAPI) to inject custom commands without forking the CLI entrypoint. |
+| **Source** | Feature Spec FE-11 FR-11-11 |
+
+**Description:** The `create_cli()` function shall accept an `extra_commands` parameter (type: `list[click.BaseCommand] | None`). When provided, each command in the list shall be added to the root CLI group after all built-in and module commands are registered. Commands in `extra_commands` shall not conflict with `BUILTIN_COMMANDS`; if a name collision is detected, the system shall raise a `ValueError` at CLI construction time with the conflicting command name.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `create_cli(extra_commands=[my_custom_cmd])`, then `my_custom_cmd` shall appear in `apcore-cli --help` output alongside the built-in commands.
+- **AC-2:** Given `extra_commands` containing a command whose name matches a `BUILTIN_COMMANDS` entry, then `create_cli()` shall raise `ValueError` with the conflicting name before the CLI is returned.
+
+---
 
 ### 5.9 Module Exposure Filtering (EXP)
 
-> **TODO (B-004):** Backfill requirements for FE-12 Exposure Filtering. See `docs/features/exposure-filtering.md`. Coverage:
-> - `ExposureFilter` class with `mode`, `include`, `exclude` fields (FR-EXP-FILTER-*).
-> - `ExposureFilter.from_config(dict)` classmethod (FR-EXP-LOADER-*).
-> - `is_exposed(module_id)` and `filter_modules(ids)` methods (FR-EXP-API-*).
-> - `expose=` parameter on `create_cli` accepting dict or ExposureFilter instance (FR-EXP-WIRE-*).
-> - Glob pattern matching semantics (`*` single segment, `**` cross-segment) (FR-EXP-GLOB-*).
-> - `list --exposure {exposed,hidden,all}` filter flag (FR-EXP-LIST-*).
+#### FR-EXP-001: `ExposureFilter` Class
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-EXP-001 |
+| **Title** | `ExposureFilter` Class |
+| **Priority** | P1 |
+| **Priority Rationale** | Foundation of the feature. All other EXP requirements depend on this class existing. Required for framework integrations where registry size makes full CLI exposure impractical. |
+| **Source** | Feature Spec FE-12 FR-12-01, FR-12-09, FR-12-10; Tech Design v2.0 §8.2 |
+
+**Description:** The system shall provide an `ExposureFilter` class in `apcore_cli/exposure.py` with three attributes: `mode` (one of `"all"`, `"include"`, `"exclude"`), `include` (list of glob-pattern strings), and `exclude` (list of glob-pattern strings). The class shall expose `is_exposed(module_id: str) -> bool` and `filter_modules(module_ids: list[str]) -> tuple[list[str], list[str]]` methods. When `mode="all"`, `is_exposed()` shall return `True` for all module IDs. When `mode="include"` and the include list is empty, `is_exposed()` shall return `False` for all modules. When `mode="exclude"` and the exclude list is empty, `is_exposed()` shall return `True` for all modules.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `ExposureFilter(mode="all")`, then `is_exposed("any.module")` shall return `True` for any module ID regardless of include/exclude lists.
+- **AC-2:** Given `ExposureFilter(mode="include", include=[])`, then `is_exposed("any.module")` shall return `False` (empty include list means zero modules exposed).
+- **AC-3:** Given `ExposureFilter(mode="exclude", exclude=[])`, then `is_exposed("any.module")` shall return `True` (empty exclude list means all modules exposed).
+- **AC-4:** Given `filter_modules(["a.x", "b.y"])` with `mode="all"`, then the method shall return `(["a.x", "b.y"], [])` — no hidden modules.
+
+---
+
+#### FR-EXP-002: Exposure Config Loading
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-EXP-002 |
+| **Title** | Exposure Config Loading from `apcore.yaml` |
+| **Priority** | P1 |
+| **Priority Rationale** | Declarative project-level config is the primary integration path for most users. |
+| **Source** | Feature Spec FE-12 FR-12-03, FR-12-08 |
+
+**Description:** The `ExposureFilter` class shall provide a `from_config(cls, config: dict) -> ExposureFilter` classmethod that reads the `expose` section from a parsed `apcore.yaml` config dict. It shall validate `mode` against the allowed values (`"all"`, `"include"`, `"exclude"`), raising `click.BadParameter` for invalid values (exit code 2). Invalid `include`/`exclude` types (non-list) shall trigger a WARNING log and default to an empty list. The config loading follows 4-tier precedence: `create_cli(expose=...)` > `APCORE_CLI_EXPOSE_MODE` env var > `apcore.yaml` > default `mode: all`.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given a valid `apcore.yaml` with `expose: {mode: include, include: [admin.*]}`, then `ExposureFilter.from_config(config)` shall return an `ExposureFilter` with `mode="include"` and `include_patterns=["admin.*"]`.
+- **AC-2:** Given `expose: {mode: whitelist}` (invalid mode), then `from_config()` shall raise `click.BadParameter` with a message identifying the invalid value and the allowed values, causing exit code 2.
+- **AC-3:** Given `expose: {mode: include, include: "not-a-list"}`, then `from_config()` shall log a WARNING and treat the include list as empty.
+
+---
+
+#### FR-EXP-003: Glob Pattern Matching
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-EXP-003 |
+| **Title** | Glob Pattern Matching Semantics |
+| **Priority** | P1 |
+| **Priority Rationale** | Namespace-level control (e.g., `admin.*`) is the primary use case. Without correct glob semantics, filtering is unusable for real-world registries. |
+| **Source** | Feature Spec FE-12 FR-12-04 |
+
+**Description:** Pattern matching on module IDs shall follow the semantics: `*` matches any characters within a single dot-separated segment (does not cross `.`); `**` matches any characters across any number of dot-separated segments. Patterns are anchored to the full module ID. Regex compilation shall occur once at `ExposureFilter.__init__` time and be cached. Empty patterns shall be skipped with a WARNING log. Duplicate patterns shall be deduplicated silently.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given pattern `admin.*`, then `is_exposed("admin.users")` shall return `True` and `is_exposed("admin.users.list")` shall return `False` (single-segment wildcard does not cross dots).
+- **AC-2:** Given pattern `admin.**`, then both `is_exposed("admin.users")` and `is_exposed("admin.users.list")` shall return `True` (multi-segment wildcard crosses dots).
+- **AC-3:** Given pattern `*.get`, then `is_exposed("product.get")` shall return `True` and `is_exposed("product.get.all")` shall return `False`.
+- **AC-4:** Given pattern `system.health` (exact), then `is_exposed("system.health")` shall return `True` and `is_exposed("system.health.check")` shall return `False`.
+
+---
+
+#### FR-EXP-004: `create_cli` `expose=` Parameter
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-EXP-004 |
+| **Title** | `expose=` Parameter on `create_cli()` |
+| **Priority** | P1 |
+| **Priority Rationale** | Programmatic integration path for framework adapters (Django, FastAPI). Highest-precedence tier in the 4-tier config chain. |
+| **Source** | Feature Spec FE-12 FR-12-07, FR-12-08 |
+
+**Description:** The `create_cli()` function shall accept an `expose` parameter of type `dict | ExposureFilter | None`. When an `ExposureFilter` instance is passed, it shall be used directly. When a `dict` is passed, it shall be interpreted as the `expose` section of an `apcore.yaml` config and passed to `ExposureFilter.from_config()`. When `None` is passed, the system shall fall through to lower-precedence tiers (`APCORE_CLI_EXPOSE_MODE` env var, then `apcore.yaml`, then default `mode: all`). The resulting `ExposureFilter` shall be passed to `GroupedModuleGroup` at CLI construction time and applied during `_build_group_map()`.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `create_cli(expose=ExposureFilter(mode="include", include=["admin.*"]))`, then only `admin.*` modules shall appear in `--help` and `apcore-cli admin --help`; all other module groups shall be hidden.
+- **AC-2:** Given `create_cli(expose={"mode": "exclude", "exclude": ["webhooks.*"]})`, then all modules except `webhooks.*` shall appear in `--help`.
+- **AC-3:** Given `create_cli(expose=None)` with no `apcore.yaml` and no env var, then all modules shall be exposed (default `mode: all` behavior is preserved).
+
+---
+
+#### FR-EXP-005: `list --exposure` Filter Flag
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-EXP-005 |
+| **Title** | `list --exposure` Filter Flag |
+| **Priority** | P1 |
+| **Priority Rationale** | Operators need visibility into which modules are hidden for debugging and auditing exposure configurations. |
+| **Source** | Feature Spec FE-12 FR-12-05, FR-12-06 |
+
+**Description:** The `list` command shall gain an `--exposure` option accepting `exposed` (default), `hidden`, or `all`. When `--exposure exposed` (default), only modules for which `ExposureFilter.is_exposed()` returns `True` shall be shown. When `--exposure hidden`, only hidden modules shall be shown. When `--exposure all`, all modules shall be shown with an additional "Exposure" column in table output indicating `✓` (exposed) or `—` (hidden). This filter is independent of and composable with existing `--status`, `--tag`, and `--search` filters.
+
+**Acceptance Criteria:**
+
+- **AC-1:** Given `mode: include, include: [admin.*]` and modules `admin.users`, `admin.config`, `webhooks.stripe`, then `apcore-cli list` (default `--exposure exposed`) shall show only `admin.users` and `admin.config`.
+- **AC-2:** Given the same config, `apcore-cli list --exposure hidden` shall show only `webhooks.stripe`.
+- **AC-3:** Given `apcore-cli list --exposure all`, then all modules shall appear and the output table shall include an "Exposure" column with `✓` for exposed modules and `—` for hidden modules.
+
+---
 
 ### 5.10 CRUD Matrix
 
