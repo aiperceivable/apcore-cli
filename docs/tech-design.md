@@ -999,6 +999,7 @@ create_cli(
     executor: Executor | None = None,
     expose: dict | ExposureFilter | None = None,
     extra_commands: list | None = None,
+    apcli: bool | dict | ApcliGroup | None = None,
 ) -> click.Group
 ```
 
@@ -1018,10 +1019,11 @@ create_cli(
 | `executor` | `Executor \| None` | `None` | Pre-built Executor instance. Auto-built from registry if omitted. | v0.5.1 |
 | `expose` | `dict \| ExposureFilter \| None` | `None` | Module exposure filter (see FE-12). Accepts a dict, an `ExposureFilter` instance, or None (fall through to config). | v0.6.0 |
 | `extra_commands` | `list \| None` | `None` | Additional custom Click commands/groups to register alongside built-in commands (see FE-11). | v0.6.0 |
+| `apcli` | `bool \| dict \| ApcliGroup \| None` | `None` | Built-in command group visibility and subcommand filtering (see FE-13). `True`/`False` shorthand toggles the whole group; dict form supports `mode`/`include`/`exclude`/`disable_env`; `None` falls through to `apcore.yaml` → auto-detect default (embedded → hidden, standalone → visible). | v0.8.0 |
 
 **Raises:** `ValueError("executor requires registry — pass both or neither")` if `executor` is passed without `registry`. Exits 47 on config-not-found (extensions directory missing or unreadable).
 
-**Feature references:** `extra_commands` is specified in FE-11 (Usability Enhancements §3.11); `expose` is specified in FE-12 (Module Exposure Filtering §4.8).
+**Feature references:** `extra_commands` is specified in FE-11 (Usability Enhancements §3.11); `expose` is specified in FE-12 (Module Exposure Filtering §4.8); `apcli` is specified in FE-13 (Built-in Command Group §4.8).
 
 **Validation:** Passing `executor` without `registry` raises `ValueError`. This is a usage error — the executor has no meaning without the registry it was built from.
 
@@ -1051,19 +1053,23 @@ Logic steps:
    g. Instantiate `Executor(registry, approval_handler=handler)`.
 6. Initialize `AuditLogger()`.
 7. **Build `click.Group` using `cls=GroupedModuleGroup`** (changed from `LazyModuleGroup` in v2.0).
-8. Add `click.version_option`, `--extensions-dir`, `--log-level` options.
-9. Register built-in commands via `register_discovery_commands()` and `register_shell_commands()`.
-10. Return the assembled group.
+8. Add root-level options:
+   a. `click.version_option`, `--log-level`, `--verbose`, `--man` — always registered.
+   b. `--extensions-dir`, `--commands-dir`, `--binding` — **only when `registry is None`** (standalone mode). Not registered in embedded mode per FE-13 FR-13-13.
+9. Construct `ApcliGroup` via `ApcliGroup.from_cli_config(apcli, ...)` when `apcli` is not None; otherwise via `ApcliGroup.from_yaml(ConfigResolver().resolve_object("apcli"), ...)`. The two paths differ in Tier precedence — see FE-13 §4.4.
+10. **Create the `apcli` Click group** with `hidden=not apcli_cfg.is_group_visible()`. Register its subcommands via `_register_apcli_subcommands()` per FE-13 §4.9 (per-subcommand filtering with `exec` always-registered). `register_discovery_commands()` / `register_shell_commands()` / `register_system_commands()` / etc. now attach to this `apcli` group, **not** the root.
+11. Return the assembled group.
 
 **Cross-language equivalents:**
 
 | Language | API | Pre-populated registry |
 |----------|-----|----------------------|
-| Python | `create_cli(registry=reg, executor=exec)` | `registry` + optional `executor` kwargs |
-| TypeScript | `createCli({ registry, executor, progName })` | `CreateCliOptions` interface |
-| Rust | `CliConfig { registry, executor, .. }` | `CliConfig` struct with `Default` impl |
+| Python | `create_cli(registry=reg, executor=exec, apcli=False)` | `registry` + optional `executor` kwargs |
+| TypeScript | `createCli({ registry, executor, progName, apcli: false })` | `CreateCliOptions` interface |
+| Rust | `CliConfig { registry, executor, apcli, .. }` | `CliConfig` struct with `Default` impl |
+| Go | `CreateCli(CliConfig{Registry, Executor, Apcli})` | `CliConfig` struct (planned v0.9 per FE-13 §12) |
 
-**Traces to:** FR-DISP-001, FR-DISP-003, FR-DISP-005, FR-DISP-006, FR-DISP-008.
+**Traces to:** FR-DISP-001, FR-DISP-003, FR-DISP-005, FR-DISP-006, FR-DISP-008, FR-DISP-009.
 
 ### 8.3 Schema Parser
 

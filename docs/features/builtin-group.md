@@ -4,7 +4,7 @@
 **Status**: Draft — Ready for Review
 **Priority**: P0
 **Parent**: [Tech Design v2.0](../tech-design.md) Section 8.2
-**SRS Requirements**: FR-DISP-001, FR-DISP-002, FR-DISC-001, NFR-USB-001
+**SRS Requirements**: FR-DISP-001, FR-DISP-002, FR-DISP-009, FR-DISC-001, NFR-USB-001
 **Related Features**: [Core Dispatcher (FE-01)](core-dispatcher.md), [Grouped Commands (FE-09)](grouped-commands.md), [Discovery (FE-04)](discovery.md), [Init Command (FE-10)](init-command.md), [Exposure Filtering (FE-12)](exposure-filtering.md)
 **Breaking Change**: Yes (see §11 Migration)
 
@@ -25,25 +25,38 @@ A secondary concern is **respecting integrator intent against user-environment o
 
 As a net simplification, the `BUILTIN_COMMANDS` reserved-names list and the per-command `builtins: {...}` override surface are **retired**. Because every apcore-cli-provided command now lives under the `apcli.*` namespace, business modules at the root level can never collide with built-ins — the collision problem is eliminated at the structural level rather than at config-validation time.
 
+### 1.1 Visibility at a Glance
+
+| Integrator intent | Config |
+|-------------------|--------|
+| Expose the entire built-in surface (typical for developer CLIs) | `apcli: true` |
+| **Hide the entire `apcli` group from root `--help`** (typical for branded CLIs) | `apcli: false` *or* `{mode: none}` |
+| Expose only select built-in subcommands | `{mode: include, include: [...]}` |
+| Hide only select built-in subcommands | `{mode: exclude, exclude: [...]}` |
+| Seal against end-user override via `APCORE_CLI_APCLI` env var | add `disable_env: true` |
+| **Total lockdown** (root hidden, env sealed, only `exec` reachable) | `{mode: include, include: [], disable_env: true}` |
+
+Hiding is an output filter; registered subcommands remain reachable via `<cli> apcli <subcommand>` under `mode: none` by design (FE-12 alignment). See §4.11 for the full reachability matrix.
+
 ---
 
 ## 2. Requirements Traceability
 
 | Req ID | SRS Ref | Description |
 |--------|---------|-------------|
-| FR-13-01 | FR-DISP-001 | All apcore-cli-provided commands (except `help` and the five meta-flags) register under the `apcli` group. |
-| FR-13-02 | FR-DISP-001 | Root `--help` shows only `help`, business modules/groups, and (conditionally) `apcli`. |
-| FR-13-03 | FR-DISP-002 | Hidden `apcli` group remains invocable: `<cli> apcli list` executes successfully even when `apcli` is not listed in `--help`. |
-| FR-13-04 | NFR-USB-001 | `apcli` config accepts: boolean shorthand (`true`/`false`), or object form with `mode`/`include`/`exclude`/`disableEnv` fields. |
-| FR-13-05 | NFR-USB-001 | Default: embedded mode (registry injected via `create_cli()`) → `apcli` hidden; standalone mode (registry discovered from filesystem) → `apcli` visible. |
+| FR-13-01 | FR-DISP-009 | All apcore-cli-provided commands (except `help` and the five meta-flags) register under the `apcli` group. |
+| FR-13-02 | FR-DISP-009 | Root `--help` shows only `help`, business modules/groups, and (conditionally) `apcli`. |
+| FR-13-03 | FR-DISP-009 (AC-2) | Hidden `apcli` group remains invocable: `<cli> apcli list` executes successfully even when `apcli` is not listed in `--help`. |
+| FR-13-04 | FR-DISP-009 | `apcli` config accepts: boolean shorthand (`true`/`false`), or object form with `mode`/`include`/`exclude`/`disableEnv` fields. |
+| FR-13-05 | FR-DISP-009 (AC-1) | Default: embedded mode (registry injected via `create_cli()`) → `apcli` hidden; standalone mode (registry discovered from filesystem) → `apcli` visible. |
 | FR-13-06 | FR-DISC-001 | `apcli list` / `apcli describe` preserve all behavior from pre-v0.8 `list` / `describe`. |
-| FR-13-07 | NFR-USB-001 | Env var `APCORE_CLI_APCLI=show\|hide\|1\|0\|true\|false` forces visibility when env-var reading is not disabled. |
-| FR-13-08 | FR-DISP-001 | Shell completion (bash/zsh/fish) respects `apcli` visibility: hidden group and its subcommands do not appear in completion when `apcli` is not visible. |
-| FR-13-09 | FR-DISP-002 | Business module whose CLI alias, top-level command name, or group name is `apcli` is rejected with exit code 2 and clear error (the name is reserved). |
-| FR-13-10 | NFR-USB-001 | 4-tier precedence for `apcli` visibility: `CliConfig.apcli` > `APCORE_CLI_APCLI` env var (when not disabled) > `apcore.yaml` > auto-detected default. |
-| FR-13-11 | NFR-USB-001 | `apcli.disableEnv: true` severs the env-var override, making `CliConfig.apcli` / `apcore.yaml` / auto-detect the only resolution sources. `disableEnv` is configured via CliConfig or apcore.yaml only — it is not exposed as its own env var. |
-| FR-13-12 | FR-DISP-002 | `exec` subcommand under `apcli` is always registered when the `apcli` group exists, regardless of `include`/`exclude` subcommand filtering — preserves FE-12's hidden-module-invocation guarantee. |
-| FR-13-13 | NFR-USB-001 | Discovery-related root flags (`--extensions-dir`, `--commands-dir`, `--binding`) are registered only in standalone mode; in embedded mode (registry injected) they are not registered at all. |
+| FR-13-07 | FR-DISP-009 | Env var `APCORE_CLI_APCLI=show\|hide\|1\|0\|true\|false` forces visibility when env-var reading is not disabled. |
+| FR-13-08 | FR-DISP-009 | Shell completion (bash/zsh/fish) respects `apcli` visibility: hidden group and its subcommands do not appear in completion when `apcli` is not visible. |
+| FR-13-09 | FR-DISP-009 (AC-7) | Business module whose CLI alias, top-level command name, or group name is `apcli` is rejected with exit code 2 and clear error (the name is reserved). |
+| FR-13-10 | FR-DISP-009 (AC-6) | 4-tier precedence for `apcli` visibility: `CliConfig.apcli` > `APCORE_CLI_APCLI` env var (when not disabled) > `apcore.yaml` > auto-detected default. |
+| FR-13-11 | FR-DISP-009 (AC-5) | `apcli.disableEnv: true` severs the env-var override, making `CliConfig.apcli` / `apcore.yaml` / auto-detect the only resolution sources. `disableEnv` is configured via CliConfig or apcore.yaml only — it is not exposed as its own env var. |
+| FR-13-12 | FR-DISP-009 (AC-4) | `exec` subcommand under `apcli` is always registered when the `apcli` group exists, regardless of `include`/`exclude` subcommand filtering — preserves FE-12's hidden-module-invocation guarantee. |
+| FR-13-13 | FR-DISP-009 (AC-8) | Discovery-related root flags (`--extensions-dir`, `--commands-dir`, `--binding`) are registered only in standalone mode; in embedded mode (registry injected) they are not registered at all. |
 | FR-13-14 | NFR-USB-001 | `--verbose` behavior is orthogonal to `apcli` visibility: `--verbose` continues to control per-command option density in help output and does not alter `apcli` group visibility. |
 
 ---
@@ -161,6 +174,7 @@ apcli:
 - `mode: exclude` with empty `exclude` list: all subcommands exposed (equivalent to `mode: all`). No error.
 - Unknown subcommand names in `include` / `exclude`: log WARNING, ignore. (Forward-compatible — allows config to reference subcommands added in future apcore-cli versions.)
 - `disable_env` must be a boolean; default `false`. Non-boolean value: log WARNING, treat as `false`.
+- `disable_env` may be set independently of `mode`. A config like `apcli: {disable_env: true}` with no `mode` key is valid and means "auto-detect visibility, but do not honor `APCORE_CLI_APCLI` env var" (internally treated as `mode: auto, disable_env: true`).
 - `include` and `exclude` lists match against the **first-level apcli subcommand name only** (e.g., `list`, `config`). Nested paths (`config.set`) are not supported in v0.8 — if `config` is in the list, its entire subtree is controlled.
 
 ### 4.3 Class: `ApcliGroup`
@@ -183,34 +197,52 @@ class ApcliGroup:
         exclude: list[str] | None = None,
         disable_env: bool = False,
         registry_injected: bool = False,
+        from_cli_config: bool = False,       # True when constructed from Tier 1 (CliConfig)
     ) -> None:
         ...
 
     @classmethod
-    def from_config(
+    def from_cli_config(
         cls,
-        config: dict | bool | None,
+        config: bool | dict | None,
         *,
         registry_injected: bool,
     ) -> "ApcliGroup":
-        """Construct from apcore.yaml 'apcli' value + context.
+        """Tier 1 constructor — value came from create_cli(apcli=...).
 
-        Args:
-            config: The raw 'apcli' value (None | bool | dict).
-            registry_injected: True if create_cli() received a pre-populated
-                registry (embedded mode).
+        Sets from_cli_config=True internally. A Tier 1 value wins over env var
+        and yaml: resolve_visibility() will NOT consult APCORE_CLI_APCLI.
+        """
+        ...
+
+    @classmethod
+    def from_yaml(
+        cls,
+        config: bool | dict | None,
+        *,
+        registry_injected: bool,
+    ) -> "ApcliGroup":
+        """Tier 3 constructor — value came from apcore.yaml.
+
+        Sets from_cli_config=False. Env var (Tier 2) may override.
         """
         ...
 
     def resolve_visibility(self) -> str:
-        """Return effective mode after applying env-var override and auto-detect.
+        """Return effective mode after applying tier precedence.
 
         Returns one of: "all", "none", "include", "exclude".
         """
         ...
 
-    def is_subcommand_visible(self, subcommand: str) -> bool:
-        """True if the named subcommand should appear in `apcli --help`."""
+    def is_subcommand_included(self, subcommand: str) -> bool:
+        """True if the subcommand passes the include/exclude filter.
+
+        Only meaningful when mode is "include" or "exclude". For "all" and
+        "none", the dispatcher bypasses this check — under "all" every
+        subcommand registers; under "none" every subcommand registers but the
+        group itself is marked hidden in root --help.
+        """
         ...
 
     def is_group_visible(self) -> bool:
@@ -223,18 +255,17 @@ class ApcliGroup:
 **Signature**: `resolve_visibility(self) -> str`
 
 Logic steps:
-1. If `self._mode != "auto"` and visibility was explicitly set by caller (via `CliConfig` / `from_config` receiving a non-null value): this is Tier 1. Skip env-var check and return `self._mode` directly.
-2. Check env var `APCORE_CLI_APCLI` (Tier 2):
-   - Skip this step entirely if `self._disable_env` is True.
-   - If value is `"show"` / `"1"` / `"true"` (case-insensitive): return `"all"`.
-   - If value is `"hide"` / `"0"` / `"false"` (case-insensitive): return `"none"`.
-   - Other non-empty values: log WARNING, ignore env var.
-3. If `self._mode == "auto"` (no yaml, no CliConfig override, Tier 3 absent):
-   - If `self._registry_injected` is True: return `"none"` (embedded default).
-   - Else: return `"all"` (standalone default).
-4. Return `self._mode` (Tier 3 — yaml value).
+1. **Tier 1 — CliConfig.** If `self._from_cli_config` is True and `self._mode != "auto"`: return `self._mode` directly. Env var and yaml are bypassed.
+2. **Tier 2 — env var.** Unless `self._disable_env` is True, check `APCORE_CLI_APCLI`:
+   - Value `"show"` / `"1"` / `"true"` (case-insensitive) → return `"all"`.
+   - Value `"hide"` / `"0"` / `"false"` (case-insensitive) → return `"none"`.
+   - Other non-empty values → log WARNING, ignore and continue.
+3. **Tier 3 — yaml.** If `self._mode != "auto"`: return `self._mode`.
+4. **Tier 4 — auto-detect.** If `self._registry_injected` is True, return `"none"`; else return `"all"`.
 
-**Precedence encoding:** the distinction between Tier 1 (CliConfig) and Tier 3 (yaml) is captured by having `from_config` respect explicit values while `create_cli(apcli=None)` defers to yaml via ConfigResolver. A CliConfig value set to `None` means "not programmatically overridden"; a CliConfig value set to `False`/`True`/`dict`/`ApcliGroup` instance means "programmatic override, env var should not override this."
+**Precedence encoding:** the Tier 1 / Tier 3 distinction lives in the `_from_cli_config` flag set at construction time by the class methods `from_cli_config()` (Tier 1) vs. `from_yaml()` (Tier 3). This is the only way the algorithm can correctly implement "env var overrides yaml but not programmatic config."
+
+**Interaction with `disable_env`:** `disable_env` is orthogonal to tier — it can be set alongside Tier 1 or Tier 3. When True, Tier 2 is always skipped. A Tier 1 value already wins over env var regardless of `disable_env`, so setting `disable_env: true` in CliConfig is defense-in-depth (harmless but unnecessary). The primary use case is setting it in Tier 3 (yaml) so that a committed yaml decision cannot be circumvented by end-user env vars.
 
 ### 4.5 Auto-Detect Default Logic
 
@@ -249,16 +280,19 @@ The `registry_injected` flag is captured by `create_cli()` at construction time.
 
 **Note:** `"auto"` is an internal sentinel only. Users writing `mode: auto` in `apcore.yaml` receive an exit-2 validation error per §4.2. The way to request auto-detect behavior is to omit the `apcli` key entirely or set `apcli: null`.
 
-### 4.6 Method: `is_subcommand_visible`
+### 4.6 Method: `is_subcommand_included`
 
-**Signature**: `is_subcommand_visible(self, subcommand: str) -> bool`
+**Signature**: `is_subcommand_included(self, subcommand: str) -> bool`
+
+**Purpose:** answers "does this subcommand pass the `include`/`exclude` filter?" Only meaningful in filtered modes. Callers MUST check `resolve_visibility()` first and only consult this method when the mode is `"include"` or `"exclude"`.
 
 Logic steps:
 1. Let `mode = self.resolve_visibility()`.
-2. If `mode == "none"`: return `False`.
-3. If `mode == "all"`: return `True`.
-4. If `mode == "include"`: return `subcommand in self._include`.
-5. If `mode == "exclude"`: return `subcommand not in self._exclude`.
+2. If `mode == "include"`: return `subcommand in self._include`.
+3. If `mode == "exclude"`: return `subcommand not in self._exclude`.
+4. For `mode in ("all", "none")`: this method should not be called; raise `AssertionError("is_subcommand_included called under mode='{mode}'; caller should bypass")`.
+
+**Why separate from "registered":** `mode == "none"` registers every subcommand (group-level output filter, not surface reduction). Conflating "visibility" and "registered" caused a bug in draft v1 where shell completion hid reachable commands. The dispatcher and completion generator both bypass this method for `"all"` and `"none"` and enumerate the actually-registered Click commands instead.
 
 ### 4.7 Method: `is_group_visible`
 
@@ -268,7 +302,7 @@ Logic steps:
 1. Let `mode = self.resolve_visibility()`.
 2. Return `mode != "none"`.
 
-Note: when `mode == "include"` with an empty list, `is_group_visible()` returns True (the group itself appears), but only `exec` is registered under it (via the always-registered rule, §4.9). The group's `--help` will show just `exec`. Rare edge case; logged at DEBUG level on startup.
+Note: when `mode == "include"` with an empty list, `is_group_visible()` returns True (the group itself appears), but only `exec` is registered under it (via the always-registered rule, §4.9). The group's `--help` will show just `exec`. This is the "total lockdown" shape — see §4.11 and §10.3. Logged at DEBUG level on startup.
 
 ### 4.8 Integration: `create_cli()` Update
 
@@ -288,16 +322,20 @@ Construction logic:
 ```python
 registry_injected = registry is not None
 
-# Build ApcliGroup from CliConfig + yaml + auto-detect
+# Build ApcliGroup — dispatch by source to preserve Tier 1 vs Tier 3 precedence
 if isinstance(apcli, ApcliGroup):
-    apcli_cfg = apcli
-elif isinstance(apcli, (bool, dict)) or apcli is None:
-    # Tier 1 (CliConfig) if apcli is not None; else fall through to yaml (Tier 3) via ConfigResolver
-    if apcli is None:
-        yaml_value = ConfigResolver().resolve("apcli")  # may return None, bool, or dict
-        apcli_cfg = ApcliGroup.from_config(yaml_value, registry_injected=registry_injected)
-    else:
-        apcli_cfg = ApcliGroup.from_config(apcli, registry_injected=registry_injected)
+    apcli_cfg = apcli                                            # Pre-built; assumed to carry its own tier flag
+elif apcli is not None and isinstance(apcli, (bool, dict)):
+    apcli_cfg = ApcliGroup.from_cli_config(                      # Tier 1 path
+        apcli, registry_injected=registry_injected,
+    )
+elif apcli is None:
+    # Tier 3 (yaml) path. ConfigResolver must return the raw object at the
+    # "apcli" key (non-leaf lookup). See M1 note below.
+    yaml_value = ConfigResolver().resolve_object("apcli")        # bool | dict | None
+    apcli_cfg = ApcliGroup.from_yaml(
+        yaml_value, registry_injected=registry_injected,
+    )
 else:
     raise TypeError(f"apcli: expected bool, dict, ApcliGroup, or None; got {type(apcli).__name__}")
 
@@ -324,6 +362,8 @@ root.add_command(apcli_click_group)
 return root
 ```
 
+**M1 note — ConfigResolver non-leaf lookup:** FE-07's current `ConfigResolver.resolve()` is designed for scalar paths (e.g., `apcli.mode`). Returning the whole object at a non-leaf key (`apcli` → `dict | bool`) requires a new `resolve_object()` method on ConfigResolver (or equivalent). This is an FE-07 impact not called out in §9 of the draft — implementer should extend ConfigResolver first.
+
 ### 4.9 Integration: Per-Subcommand Registration
 
 **File**: Multiple (`discovery.py`, `system_cmd.py`, `shell.py`, `strategy.py`, `init_cmd.py`)
@@ -347,6 +387,17 @@ def register_validate_command(apcli_group: click.Group, registry: Registry, exec
 
 Same pattern applies to `system_cmd.py` (split into 6 registrars: health, usage, enable, disable, reload, config) and `shell.py` (split into 1 registrar: completion).
 
+**Registration rules:**
+
+| Mode | Subcommand registration |
+|------|-------------------------|
+| `"all"` | Every subcommand registers. Group visible in root `--help`. |
+| `"none"` | Every subcommand registers. Group marked `hidden=True` so it does not appear in root `--help`, but `<cli> apcli <sub>` and `<cli> apcli --help` still work. |
+| `"include"` | Only subcommands listed in `include` register, **plus `exec`** (always — FE-12 guarantee). |
+| `"exclude"` | All subcommands except those listed in `exclude` register, **plus `exec`** (always). `exec` cannot be excluded. |
+
+Design rationale: group-level hide (`mode: none`) is an **output filter** — the integrator wants a clean `--help` but retains full debugging capability. Subcommand-level hide (`include` / `exclude`) is a **surface reduction** — the integrator is declaring which tools they want to expose at all, and unlisted tools become unreachable (except `exec`).
+
 Central dispatcher in `create_cli()`:
 
 ```python
@@ -361,62 +412,34 @@ def _register_apcli_subcommands(
 ) -> None:
     # (name, registrar_callable, requires_executor)
     registrars: list[tuple[str, Callable, bool]] = [
-        ("list",              lambda: register_list_command(apcli_group, registry),             False),
-        ("describe",          lambda: register_describe_command(apcli_group, registry),         False),
-        ("exec",              lambda: register_exec_command(apcli_group, registry, executor),   True),
+        ("list",              lambda: register_list_command(apcli_group, registry),               False),
+        ("describe",          lambda: register_describe_command(apcli_group, registry),           False),
+        ("exec",              lambda: register_exec_command(apcli_group, registry, executor),     True),
         ("validate",          lambda: register_validate_command(apcli_group, registry, executor), True),
-        ("init",              lambda: register_init_command(apcli_group),                       False),
-        ("health",            lambda: register_health_command(apcli_group, executor),           True),
-        ("usage",             lambda: register_usage_command(apcli_group, executor),            True),
-        ("enable",            lambda: register_enable_command(apcli_group, registry),           False),
-        ("disable",           lambda: register_disable_command(apcli_group, registry),          False),
-        ("reload",            lambda: register_reload_command(apcli_group, registry),           False),
-        ("config",            lambda: register_config_command(apcli_group, executor),           True),
-        ("completion",        lambda: register_completion_command(apcli_group),                 False),
-        ("describe-pipeline", lambda: register_pipeline_command(apcli_group, executor),         True),
+        ("init",              lambda: register_init_command(apcli_group),                         False),
+        ("health",            lambda: register_health_command(apcli_group, executor),             True),
+        ("usage",             lambda: register_usage_command(apcli_group, executor),              True),
+        ("enable",            lambda: register_enable_command(apcli_group, registry),             False),
+        ("disable",           lambda: register_disable_command(apcli_group, registry),            False),
+        ("reload",            lambda: register_reload_command(apcli_group, registry),             False),
+        ("config",            lambda: register_config_command(apcli_group, executor),             True),
+        ("completion",        lambda: register_completion_command(apcli_group),                   False),
+        ("describe-pipeline", lambda: register_pipeline_command(apcli_group, executor),           True),
     ]
 
-    for name, registrar, requires_exec in registrars:
-        if requires_exec and executor is None:
-            continue  # Skip commands that need an executor when none is available
-        is_always = name in _ALWAYS_REGISTERED
-        if is_always or apcli_cfg.is_subcommand_visible(name):
-            registrar()
-```
-
-**Key invariants:**
-
-1. **When `mode == "none"` (group hidden, but reachable):** all non-`exec` subcommands still register (because `is_subcommand_visible` returns False for `mode: none`, but `_ALWAYS_REGISTERED` ensures `exec` runs; the other subcommands are not registered at all). Wait — this creates an asymmetry: under `mode: none` the group is hidden but only `exec` is reachable. **Revised rule:** under `mode: none`, `is_subcommand_visible` is bypassed for ALL subcommands — they all register (hidden via the group's `hidden=True` attribute); only the group-level visibility flag is False. This matches the "output filter, not surface reduction" rule for group-level hiding.
-
-Let me restate more precisely:
-
-- **`mode == "none"` (group-level hide):** group is marked `hidden=True` but ALL subcommands register normally. `<cli> apcli list` works. `list` is listed in `<cli> apcli --help`. The group is only hidden from `<cli> --help`.
-- **`mode == "include"` / `"exclude"` (subcommand-level filter):** only visible subcommands register. `exec` is always registered as an escape-hatch exception.
-- **`mode == "all"`:** all subcommands register, group visible.
-
-Dispatcher logic corrected:
-
-```python
-def _register_apcli_subcommands(
-    apcli_group: click.Group,
-    apcli_cfg: ApcliGroup,
-    registry: Registry | None,
-    executor: Executor | None,
-) -> None:
     mode = apcli_cfg.resolve_visibility()
     for name, registrar, requires_exec in registrars:
         if requires_exec and executor is None:
-            continue
-        # Mode "all" and "none" → register every subcommand (group visibility handled separately)
+            continue                                  # Skip commands that need an executor when none is available
         if mode in ("all", "none"):
-            registrar()
+            registrar()                                # All subcommands register; group visibility handled separately
             continue
-        # Mode "include" / "exclude" → filter per subcommand, but always keep exec
-        if name in _ALWAYS_REGISTERED or apcli_cfg.is_subcommand_visible(name):
+        # mode in ("include", "exclude") — consult the filter, but always keep exec
+        if name in _ALWAYS_REGISTERED or apcli_cfg.is_subcommand_included(name):
             registrar()
 ```
 
-**Exception for `exec`:** `exec` is always registered when the `apcli` group exists, regardless of filtering mode. This preserves FE-12's hidden-module-invocation guarantee: hidden business modules remain reachable via `<cli> apcli exec <module_id>`.
+**Exception for `exec`:** `exec` is always registered whenever the `apcli` group exists, regardless of `include` / `exclude`. This preserves FE-12's hidden-module-invocation guarantee: hidden business modules remain reachable via `<cli> apcli exec <module_id>`. A user writing `include: []` to achieve total lockdown still leaves `exec` accessible — to truly block all module invocation, additional FE-12 / FE-05 mechanisms must be used, since FE-13 is a UX-layer feature.
 
 ### 4.10 Reserved Name Enforcement
 
@@ -451,17 +474,20 @@ This replaces the retired `BUILTIN_COMMANDS` collision check. Since all apcore-c
 
 ### 4.11 Hidden-but-Reachable Semantics
 
-| Mode | `apcli` in root `--help` | `<cli> apcli --help` subcommands | `<cli> apcli list` executes | `<cli> apcli init` executes |
-|------|--------------------------|----------------------------------|------------------------------|------------------------------|
-| `all` | ✅ visible | All subcommands | ✅ yes | ✅ yes |
-| `none` | ❌ hidden | All subcommands (group `--help` still works) | ✅ yes | ✅ yes |
-| `include: [list]` | ✅ visible | `list` + `exec` (always-registered) | ✅ yes | ❌ `No such command` |
-| `exclude: [init]` | ✅ visible | All except `init` | ✅ yes | ❌ `No such command` |
+| Mode | `apcli` in root `--help` | `<cli> apcli --help` subcommands | `<cli> apcli list` executes | `<cli> apcli init` executes | `<cli> apcli exec <id>` executes |
+|------|--------------------------|----------------------------------|------------------------------|------------------------------|-----------------------------------|
+| `all` | ✅ visible | All subcommands | ✅ yes | ✅ yes | ✅ yes |
+| `none` | ❌ hidden | All subcommands (group `--help` still works) | ✅ yes | ✅ yes | ✅ yes |
+| `include: [list]` | ✅ visible | `list` + `exec` (always-registered) | ✅ yes | ❌ `No such command` | ✅ yes |
+| `exclude: [init]` | ✅ visible | All except `init` | ✅ yes | ❌ `No such command` | ✅ yes |
+| `include: []` (**total lockdown**) | ✅ visible (but shows only `exec`) | Only `exec` | ❌ `No such command` | ❌ `No such command` | ✅ yes (FE-12 guarantee) |
 
 The asymmetry between **group-level hide** (`mode: none`, reachable) and **subcommand-level hide** (`include`/`exclude`, unreachable for filtered subcommands) is deliberate:
 
 - Group-level hide is an **output filter**: integrators with `apcli: false` want a clean `--help` but full debugging capability. This matches FE-12's "UX filter, not security boundary" rule.
 - Subcommand-level hide is a **surface reduction**: an integrator listing which subcommands they want implies the others should be gone. Failing loudly is better than silent success — except for `exec`, which is universally guaranteed.
+
+**"Total lockdown" is NOT achieved by `mode: none` alone.** Intuition might suggest `apcli: false` means "everything under apcli disappears", but per the reachability matrix, `<cli> apcli list` still works — `mode: none` is an output filter. To make all subcommands *except* `exec` truly unreachable, use `{mode: include, include: [], disable_env: true}`. `exec` remains reachable in every mode per the FE-12 contract; blocking arbitrary module invocation requires FE-05 (security) or FE-12 mechanisms, not FE-13.
 
 ### 4.12 `disableEnv` Semantics
 
@@ -483,13 +509,17 @@ The asymmetry between **group-level hide** (`mode: none`, reachable) and **subco
 
 ### 4.13 Integration: Shell Completion
 
-Shell completion scripts (bash/zsh/fish) must respect both layers of visibility:
+Shell completion scripts (bash/zsh/fish) must reflect **what is actually reachable**, not a separate visibility notion:
 
-- `<cli> <TAB>` (root): does not suggest `apcli` when `mode: none`.
-- `<cli> apcli <TAB>` (group): suggests only subcommands that `is_subcommand_visible()` returns True for (plus `exec`, always).
-- `<cli> apcli list <TAB>` (subcommand): works identically to pre-v0.8 `<cli> list <TAB>`.
+- `<cli> <TAB>` (root): suggest `apcli` iff `is_group_visible()` returns True.
+- `<cli> apcli <TAB>` (group): suggest **all subcommands actually registered** on the `apcli` Click group. This correctly covers all four modes:
+  - `mode: all` / `mode: none` → all subcommands registered → all shown in completion
+  - `mode: include` / `mode: exclude` → only passing subcommands registered → only those shown (plus `exec`, always-registered)
+- `<cli> apcli list <TAB>` (subcommand): identical to pre-v0.8 `<cli> list <TAB>`.
 
-Completion generators consult `ApcliGroup` state baked into the generated script at `<cli> apcli completion <shell>` time. Runtime re-resolution is not supported (scripts are static); regenerating the script is the fix when config changes.
+Completion generators MUST enumerate the `apcli` group's registered subcommands at generation time (via Click/Commander introspection) — **not** consult `is_subcommand_included()`, which has narrower semantics. This avoids the draft-v1 bug where `mode: none` completions hid subcommands that were actually reachable.
+
+Generated scripts are static. When apcli config changes, regenerate via `<cli> apcli completion <shell>`.
 
 ### 4.14 Cross-Language Normative Reference
 
@@ -497,23 +527,34 @@ Completion generators consult `ApcliGroup` state baked into the generated script
 |----------|-----|-------------|---------------------|
 | Python | `create_cli(apcli=False)` or `create_cli(apcli={"mode": "include", "include": ["list"], "disable_env": True})` | `bool \| dict \| ApcliGroup \| None` | `registry` is present |
 | TypeScript | `createCli({ apcli: false })` or `createCli({ apcli: { mode: "include", include: ["list"], disableEnv: true } })` | `boolean \| ApcliConfig \| ApcliGroup \| undefined` | `registry` is present |
-| Rust | `CliConfig { apcli: Some(ApcliVisibility::None { disable_env: true }), .. }` or `CliConfig { apcli: Some(ApcliVisibility::Include { subcommands: vec!["list".into()], disable_env: false }), .. }` | `Option<ApcliVisibility>` enum | `cli_config.registry.is_some()` |
+| Rust | `CliConfig { apcli: Some(ApcliConfig { mode: ApcliMode::None, disable_env: true, ..Default::default() }), .. }` | `Option<ApcliConfig>` struct (orthogonal `mode` + `disable_env` fields) | `cli_config.registry.is_some()` |
 | Go | `CliConfig{Apcli: &ApcliConfig{Mode: ApcliModeNone, DisableEnv: true}}` or `CliConfig{Apcli: &ApcliConfig{Mode: ApcliModeInclude, Include: []string{"list"}}}` | `*ApcliConfig` struct, pointer for nullability | `cfg.Registry != nil` |
 
-**Rust enum (normative):**
+**Rust struct + enum (normative):**
+
+Design: `mode` (visibility) and `disable_env` are orthogonal concerns. Separating them into a struct with a mode enum keeps every combination representable and aligns with the Go layout.
 
 ```rust
-pub enum ApcliVisibility {
-    All { disable_env: bool },
-    None { disable_env: bool },
-    Include { subcommands: Vec<String>, disable_env: bool },
-    Exclude { subcommands: Vec<String>, disable_env: bool },
+#[derive(Clone, Debug, Default)]
+pub struct ApcliConfig {
+    pub mode: ApcliMode,
+    pub disable_env: bool,
+}
+
+#[derive(Clone, Debug, Default)]
+pub enum ApcliMode {
+    #[default]
+    Auto,                          // internal sentinel (not user-facing)
+    All,
+    None,
+    Include(Vec<String>),
+    Exclude(Vec<String>),
 }
 
 pub struct CliConfig {
     pub registry: Option<Registry>,
     pub executor: Option<Executor>,
-    pub apcli: Option<ApcliVisibility>,
+    pub apcli: Option<ApcliConfig>,
     // ... other fields
 }
 ```
@@ -663,6 +704,12 @@ The env var controls **group-level visibility only** (all-or-nothing). It cannot
 | T-APCLI-33 | `createCli({ apcli: new ApcliGroup({...}) })` | Programmatic `ApcliGroup` instance accepted. |
 | T-APCLI-34 | `<cli> --verbose --help` with `apcli: false` | Per-command options shown for business commands; `apcli` group remains hidden (orthogonal behaviors, FR-13-14). |
 | T-APCLI-35 | `env -u APCORE_CLI_APCLI <cli> --help` with `disable_env: true` set | Standard unset behavior; works regardless of disable_env. |
+| T-APCLI-36 | CliConfig form equivalence: `createCli({apcli: false})`, `createCli({apcli: {mode: "none"}})`, and `createCli({apcli: new ApcliGroup({mode: "none"})})` | All three produce byte-identical `--help` output. |
+| T-APCLI-37 | yaml `apcli: {disable_env: true}` with no `mode` key | Treated as `mode: auto, disable_env: true`. Visibility follows auto-detect; env var ignored. |
+| T-APCLI-38 | yaml sets `apcli: false`, CliConfig passes `apcli: true` | CliConfig wins (Tier 1 > Tier 3); group visible. |
+| T-APCLI-39 | CliConfig passes `apcli: {mode: "include", include: ["list"]}`, `APCORE_CLI_APCLI=show` in env | CliConfig wins regardless of disable_env (Tier 1 > Tier 2); only `list` + `exec` visible. |
+| T-APCLI-40 | `mode: none` + `<cli> apcli <TAB>` shell completion | All subcommands suggested (not empty — reachable ≠ visible). Regression guard for draft-v1 bug. |
+| T-APCLI-41 | Total lockdown `{mode: include, include: [], disable_env: true}` + `APCORE_CLI_APCLI=show` | Only `exec` under apcli; env var sealed. `<cli> apcli list` → No such command; `<cli> apcli exec X` → executes. |
 
 ---
 
@@ -675,8 +722,8 @@ The env var controls **group-level visibility only** (all-or-nothing). It cannot
 | **Approval Gate (FE-03)** | No impact | None |
 | **Discovery (FE-04)** | `list`/`describe`/`exec`/`validate` move under `apcli` group; registrars split per-subcommand | Split `register_discovery_commands` into four functions |
 | **Security (FE-05)** | No impact | None |
-| **Shell Integration (FE-06)** | `completion` subcommand moves under `apcli`; completion generators consume `ApcliGroup` visibility | Update generators; respect `is_subcommand_visible` |
-| **Config Resolver (FE-07)** | New config key `apcli:` | Add to DEFAULTS schema, document |
+| **Shell Integration (FE-06)** | `completion` subcommand moves under `apcli`; completion generators enumerate actually-registered subcommands on the apcli group (not `is_subcommand_included`) | Update generators per §4.13 |
+| **Config Resolver (FE-07)** | New config key `apcli:` (non-leaf — returns bool or dict). Requires adding `resolve_object()` method alongside the existing scalar `resolve()`. | Add `resolve_object()` API; add `apcli` to DEFAULTS schema; document |
 | **Output Formatter (FE-08)** | No impact (apcli group renders through existing man/help pipeline) | None |
 | **Grouped Commands (FE-09)** | Reserves `apcli` as a protected name; retires `BUILTIN_COMMANDS` collision check | Replace constant with `RESERVED_GROUP_NAMES = {"apcli"}`; check top-level command names too |
 | **Init Command (FE-10)** | `init` moves under `apcli` group | Update `register_init_command` signature |
@@ -802,22 +849,30 @@ Commands:
 
 ### 10.5 Runtime Override for Unlocked Branded CLI
 
+The env-var override works only when **all three conditions** hold:
+
+1. The branded CLI did not pass `apcli` programmatically to `create_cli()` (Tier 1 absent).
+2. `apcore.yaml` does not set `disable_env: true`.
+3. `apcore.yaml` does not pin a Tier-3 value that the user's intent (`show` / `hide`) conflicts with in a way the user cannot tolerate (env beats yaml, so this is usually fine).
+
 ```bash
-# Works when the branded CLI did NOT set disable_env:
+# Works for the common case (integrator only relied on auto-detect default):
 $ APCORE_CLI_APCLI=show aisee --help
 # apcli group now visible; can run `aisee apcli list` etc.
 ```
 
+If the integrator locked down with `disable_env: true` or passed programmatic config, env vars are ignored. Alternative: read the integrator's `apcore.yaml` locally, or use `env -u APCORE_CLI_APCLI aisee ...` for clean invocation.
+
 ### 10.6 Rust
 
 ```rust
-use apcore_cli::{create_cli, CliConfig, ApcliVisibility};
+use apcore_cli::{create_cli, CliConfig, ApcliConfig, ApcliMode};
 
 let cli = create_cli(CliConfig {
     registry: Some(app.registry),
     executor: Some(app.executor),
-    apcli: Some(ApcliVisibility::Include {
-        subcommands: vec!["list".into(), "describe".into()],
+    apcli: Some(ApcliConfig {
+        mode: ApcliMode::Include(vec!["list".into(), "describe".into()]),
         disable_env: false,
     }),
     ..Default::default()
@@ -902,4 +957,3 @@ External code that imported `BUILTIN_COMMANDS` will break at import time. Impact
 1. **Should `help` also move under `apcli`?** Current design keeps `help` at root because it is the most universally recognized meta-command. Resolution: **root `help` preferred** — the English verb `help` has decades of meta-command consensus across `man`, `git`, `docker`, etc.
 2. **Should `config get/set` stay nested under `apcli config <subcmd>` or flatten to `apcli config-get` / `apcli config-set`?** Current design preserves the pre-v0.8 nested structure (`apcli config get <key>`). Rationale: the config surface has distinct read vs. write semantics that subcommand grouping expresses well.
 3. **Go SDK timing.** `apcore-cli-go` does not exist as of v0.7. The normative Go signature in §4.14 is a forward-looking contract; it becomes binding when the Go SDK is bootstrapped (currently planned for v0.9 per roadmap). Conformance tests for Go are deferred until then.
-4. **Should `APCORE_CLI_APCLI=lock` force `disable_env: true` dynamically?** Rejected — creates circular semantics (an env var that disables env vars) and undermines the lockdown purpose. Standard Unix `env -u` / `unset` are the debugging escape hatches instead.

@@ -523,6 +523,65 @@ The system provides eight feature groups:
 
 ---
 
+#### FR-DISP-009: Built-in Command Group (`apcli`)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FR-DISP-009 |
+| **Title** | Built-in Command Group (`apcli`) |
+| **Priority** | P0 |
+| **Priority Rationale** | Required for every branded/embedded CLI. Without this, built-in commands pollute the root namespace, colliding with business-command verbs (`list`, `init`, `describe`) and exposing developer-only tooling to end users. Also required for the retirement of the brittle `BUILTIN_COMMANDS` collision-check mechanism. |
+| **Source** | Feature Spec FE-13; v0.8.0 |
+
+**Description:** The system shall relocate all apcore-cli-provided commands (`list`, `describe`, `exec`, `init`, `validate`, `health`, `usage`, `enable`, `disable`, `reload`, `config`, `completion`, `describe-pipeline`) under a single reserved group named `apcli`. The root level shall retain only universally recognized meta-commands and flags (`help`, `--help`, `--version`, `--verbose`, `--man`, `--log-level`), plus user business modules/groups. The system shall accept an `apcli` configuration (via `CliConfig` parameter or `apcore.yaml` key) that controls group-level visibility (`all`/`none`/`include`/`exclude`) and supports a `disable_env` opt-out to sever the `APCORE_CLI_APCLI` environment-variable override.
+
+**Actors:** Framework Developer, End User
+
+**Preconditions:**
+- The system is being invoked via the apcore-cli library (embedded or standalone).
+
+**Main Flow:**
+1. During `create_cli()`, the system constructs an `ApcliGroup` configuration, resolving tier precedence: `CliConfig.apcli` > `APCORE_CLI_APCLI` env var (when not disabled) > `apcore.yaml` `apcli:` key > auto-detected default.
+2. The system creates a Click/Commander group named `apcli` under the root.
+3. The system registers subcommands under `apcli` per the visibility mode: under `all`/`none` every subcommand registers; under `include`/`exclude` only the filtered subset registers (plus `exec`, always).
+4. The system marks the `apcli` group `hidden=True` when `is_group_visible()` returns False.
+5. The system registers `--extensions-dir`, `--commands-dir`, `--binding` root flags only in standalone mode (when `registry` is not injected).
+6. The system rejects business modules whose CLI group name, auto-grouped prefix, or top-level command name equals `apcli` with exit code 2 (reserved name).
+
+**Alternative Flows:**
+- **AF-1: `apcli: false` + `APCORE_CLI_APCLI=show`.** Env var override succeeds (Tier 2 > Tier 3) — group becomes visible.
+- **AF-2: `apcli: {disable_env: true}` + env var set.** Env var ignored; visibility from yaml/default only.
+- **AF-3: `create_cli(apcli=False)` + env var set.** CliConfig wins (Tier 1 > Tier 2) — env var ignored regardless of `disable_env`.
+- **AF-4: `mode: none`, user runs `<cli> apcli list`.** Succeeds — group-level hide is an output filter, not a surface reduction.
+- **AF-5: `mode: include, include: []`, user runs `<cli> apcli exec X`.** Succeeds — `exec` is always registered per FE-12 guarantee.
+- **AF-6: Embedded mode, user passes `--extensions-dir`.** Click-standard "No such option" error (flag not registered in embedded mode).
+
+**Postconditions:**
+- Root `--help` output is clean of developer-tooling commands unless the integrator explicitly opts in via `apcli: true`.
+- All apcore-cli built-in commands remain reachable via the `apcli` group path for debugging, CI, and scripting.
+- Business modules cannot collide with built-in command names at the root level.
+
+**Acceptance Criteria:**
+- **AC-1:** Given `create_cli(registry=reg)` is called with no `apcli` config, when the user runs `<cli> --help`, then the `apcli` group shall NOT appear.
+- **AC-2:** Given `<cli> apcli list` is invoked with `apcli: false`, then the command shall execute successfully.
+- **AC-3:** Given `apcli: {mode: include, include: [list]}`, when the user runs `<cli> apcli init`, then the system shall respond with "No such command 'init'".
+- **AC-4:** Given `apcli: {mode: include, include: [list]}`, when the user runs `<cli> apcli exec some.module`, then the command shall execute successfully (FE-12 preservation).
+- **AC-5:** Given `apcli: {mode: none, disable_env: true}` and `APCORE_CLI_APCLI=show`, when the user runs `<cli> --help`, then the `apcli` group shall remain hidden.
+- **AC-6:** Given `create_cli(apcli=False)` and `APCORE_CLI_APCLI=show`, when the user runs `<cli> --help`, then the `apcli` group shall remain hidden (Tier 1 precedence).
+- **AC-7:** Given a business module whose CLI top-level name or group name is `apcli`, when the CLI is built, then the system shall exit with code 2 and a reserved-name error.
+- **AC-8:** Given `registry` is injected (embedded mode), when `<cli> --help --verbose` is run, then `--extensions-dir`, `--commands-dir`, `--binding` shall NOT appear.
+
+**Cross-language equivalents:**
+
+| Language | API |
+|----------|-----|
+| Python | `create_cli(apcli=False)` or `create_cli(apcli={"mode": "include", "include": ["list"], "disable_env": True})` |
+| TypeScript | `createCli({ apcli: false })` or `createCli({ apcli: { mode: "include", include: ["list"], disableEnv: true } })` |
+| Rust | `CliConfig { apcli: Some(ApcliConfig { mode: ApcliMode::None, disable_env: true }), .. }` |
+| Go | `CliConfig{Apcli: &ApcliConfig{Mode: ApcliModeNone, DisableEnv: true}}` (planned v0.9) |
+
+---
+
 ### 5.2 Schema Parser (SCHEMA)
 
 #### FR-SCHEMA-001: Property-to-Flag Mapping
