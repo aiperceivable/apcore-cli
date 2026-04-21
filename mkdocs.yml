@@ -72,6 +72,7 @@ nav:
       - Init Command: features/init-command.md
       - Usability Enhancements: features/usability-enhancements.md
       - Exposure Filtering: features/exposure-filtering.md
+      - Built-in Command Group: features/builtin-group.md
 
 extra:
   social:
