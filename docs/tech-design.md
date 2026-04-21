@@ -1019,7 +1019,7 @@ create_cli(
 | `executor` | `Executor \| None` | `None` | Pre-built Executor instance. Auto-built from registry if omitted. | v0.5.1 |
 | `expose` | `dict \| ExposureFilter \| None` | `None` | Module exposure filter (see FE-12). Accepts a dict, an `ExposureFilter` instance, or None (fall through to config). | v0.6.0 |
 | `extra_commands` | `list \| None` | `None` | Additional custom Click commands/groups to register alongside built-in commands (see FE-11). | v0.6.0 |
-| `apcli` | `bool \| dict \| ApcliGroup \| None` | `None` | Built-in command group visibility and subcommand filtering (see FE-13). `True`/`False` shorthand toggles the whole group; dict form supports `mode`/`include`/`exclude`/`disable_env`; `None` falls through to `apcore.yaml` → auto-detect default (embedded → hidden, standalone → visible). | v0.8.0 |
+| `apcli` | `bool \| dict \| ApcliGroup \| None` | `None` | Built-in command group visibility and subcommand filtering (see FE-13). `True`/`False` shorthand toggles the whole group; dict form supports `mode`/`include`/`exclude`/`disable_env`; `None` falls through to `apcore.yaml` → auto-detect default (embedded → hidden, standalone → visible). | v0.7.0 |
 
 **Raises:** `ValueError("executor requires registry — pass both or neither")` if `executor` is passed without `registry`. Exits 47 on config-not-found (extensions directory missing or unreadable).
 
@@ -1067,7 +1067,7 @@ Logic steps:
 | Python | `create_cli(registry=reg, executor=exec, apcli=False)` | `registry` + optional `executor` kwargs |
 | TypeScript | `createCli({ registry, executor, progName, apcli: false })` | `CreateCliOptions` interface |
 | Rust | `CliConfig { registry, executor, apcli, .. }` | `CliConfig` struct with `Default` impl |
-| Go | `CreateCli(CliConfig{Registry, Executor, Apcli})` | `CliConfig` struct (planned v0.9 per FE-13 §12) |
+| Go | `CreateCli(CliConfig{Registry, Executor, Apcli})` | `CliConfig` struct (Go SDK planned for a later minor release per FE-13 §12) |
 
 **Traces to:** FR-DISP-001, FR-DISP-003, FR-DISP-005, FR-DISP-006, FR-DISP-008, FR-DISP-009.
 

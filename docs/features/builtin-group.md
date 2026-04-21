@@ -14,7 +14,7 @@
 
 The Built-in Command Group feature restructures the apcore-cli command surface by moving **all apcore-cli-provided commands** (`list`, `describe`, `exec`, `init`, `validate`, `health`, `usage`, `enable`, `disable`, `reload`, `config`, `completion`, `describe-pipeline`, etc.) under a single reserved group named **`apcli`**. The root level retains only universally recognized meta-commands and flags (`help`, `--help`, `--version`, `--verbose`, `--man`, `--log-level`), plus user business modules/groups discovered from the registry.
 
-This addresses two problems with the pre-v0.8 design:
+This addresses two problems with the pre-v0.7 design:
 
 1. **Namespace pollution in branded CLIs.** When apcore-cli is embedded into a framework integration (e.g., `aisee`, a vision-domain CLI built on `createCli({ registry, executor })`), the built-in commands `list`, `init`, `describe` are common English verbs that collide with real business commands. A terminal user running `aisee list` may reasonably expect to list vision tasks, not apcore modules.
 2. **Help-output noise.** Without filtering, `aisee --help` exposes developer-tooling commands (`init module`, `describe-pipeline`, `config set`) to end users who should never see them.
@@ -49,7 +49,7 @@ Hiding is an output filter; registered subcommands remain reachable via `<cli> a
 | FR-13-03 | FR-DISP-009 (AC-2) | Hidden `apcli` group remains invocable: `<cli> apcli list` executes successfully even when `apcli` is not listed in `--help`. |
 | FR-13-04 | FR-DISP-009 | `apcli` config accepts: boolean shorthand (`true`/`false`), or object form with `mode`/`include`/`exclude`/`disableEnv` fields. |
 | FR-13-05 | FR-DISP-009 (AC-1) | Default: embedded mode (registry injected via `create_cli()`) → `apcli` hidden; standalone mode (registry discovered from filesystem) → `apcli` visible. |
-| FR-13-06 | FR-DISC-001 | `apcli list` / `apcli describe` preserve all behavior from pre-v0.8 `list` / `describe`. |
+| FR-13-06 | FR-DISC-001 | `apcli list` / `apcli describe` preserve all behavior from pre-v0.7 `list` / `describe`. |
 | FR-13-07 | FR-DISP-009 | Env var `APCORE_CLI_APCLI=show\|hide\|1\|0\|true\|false` forces visibility when env-var reading is not disabled. |
 | FR-13-08 | FR-DISP-009 | Shell completion (bash/zsh/fish) respects `apcli` visibility: hidden group and its subcommands do not appear in completion when `apcli` is not visible. |
 | FR-13-09 | FR-DISP-009 (AC-7) | Business module whose CLI alias, top-level command name, or group name is `apcli` is rejected with exit code 2 and clear error (the name is reserved). |
@@ -175,7 +175,7 @@ apcli:
 - Unknown subcommand names in `include` / `exclude`: log WARNING, ignore. (Forward-compatible — allows config to reference subcommands added in future apcore-cli versions.)
 - `disable_env` must be a boolean; default `false`. Non-boolean value: log WARNING, treat as `false`.
 - `disable_env` may be set independently of `mode`. A config like `apcli: {disable_env: true}` with no `mode` key is valid and means "auto-detect visibility, but do not honor `APCORE_CLI_APCLI` env var" (internally treated as `mode: auto, disable_env: true`).
-- `include` and `exclude` lists match against the **first-level apcli subcommand name only** (e.g., `list`, `config`). Nested paths (`config.set`) are not supported in v0.8 — if `config` is in the list, its entire subtree is controlled.
+- `include` and `exclude` lists match against the **first-level apcli subcommand name only** (e.g., `list`, `config`). Nested paths (`config.set`) are not supported in v0.7 — if `config` is in the list, its entire subtree is controlled.
 
 ### 4.3 Class: `ApcliGroup`
 
@@ -371,14 +371,14 @@ return root
 Pre-v0.8, registration was batched (`register_discovery_commands` registered four subcommands in one call). This is incompatible with per-subcommand `include`/`exclude` filtering. The registrar functions are split 1-to-1 with subcommands:
 
 ```python
-# Before (pre-v0.8)
+# Before (pre-v0.7)
 def register_discovery_commands(cli: click.Group, registry: Registry) -> None:
     cli.add_command(list_cmd)
     cli.add_command(describe_cmd)
     cli.add_command(exec_cmd)
     cli.add_command(validate_cmd)
 
-# After (v0.8) — one function per subcommand
+# After (v0.7) — one function per subcommand
 def register_list_command(apcli_group: click.Group, registry: Registry) -> None: ...
 def register_describe_command(apcli_group: click.Group, registry: Registry) -> None: ...
 def register_exec_command(apcli_group: click.Group, registry: Registry, executor: Executor) -> None: ...
@@ -515,7 +515,7 @@ Shell completion scripts (bash/zsh/fish) must reflect **what is actually reachab
 - `<cli> apcli <TAB>` (group): suggest **all subcommands actually registered** on the `apcli` Click group. This correctly covers all four modes:
   - `mode: all` / `mode: none` → all subcommands registered → all shown in completion
   - `mode: include` / `mode: exclude` → only passing subcommands registered → only those shown (plus `exec`, always-registered)
-- `<cli> apcli list <TAB>` (subcommand): identical to pre-v0.8 `<cli> list <TAB>`.
+- `<cli> apcli list <TAB>` (subcommand): identical to pre-v0.7 `<cli> list <TAB>`.
 
 Completion generators MUST enumerate the `apcli` group's registered subcommands at generation time (via Click/Commander introspection) — **not** consult `is_subcommand_included()`, which has narrower semantics. This avoids the draft-v1 bug where `mode: none` completions hid subcommands that were actually reachable.
 
@@ -687,7 +687,7 @@ The env var controls **group-level visibility only** (all-or-nothing). It cannot
 | T-APCLI-16 | Business module registered with CLI group `apcli` | Exit 2 with reserved-name error. |
 | T-APCLI-17 | Business module registered with top-level CLI name `apcli` | Exit 2 with reserved-name error. |
 | T-APCLI-18 | Root `--help` output | Shows `help`, `--help`, `--version`, `--verbose`, `--man`, `--log-level`, business modules/groups, `apcli` (if visible). No stray built-in commands. |
-| T-APCLI-19 | `<cli> apcli list --help` | Identical output to pre-v0.8 `<cli> list --help` (behavioral parity). |
+| T-APCLI-19 | `<cli> apcli list --help` | Identical output to pre-v0.7 `<cli> list --help` (behavioral parity). |
 | T-APCLI-20 | `apcli: { mode: include, include: [] }` | Group visible; `<cli> apcli --help` shows only `exec` (always-registered). |
 | T-APCLI-21 | `apcli: { mode: exclude, exclude: [] }` | Equivalent to `mode: all`. |
 | T-APCLI-22 | Invalid `mode: whitelist` in apcore.yaml | Exit 2 with error. |
@@ -700,7 +700,7 @@ The env var controls **group-level visibility only** (all-or-nothing). It cannot
 | T-APCLI-29 | Shell completion `<cli> <TAB>` with `apcli: false` | `apcli` absent from completion candidates. |
 | T-APCLI-30 | Shell completion `<cli> apcli <TAB>` with `include: [list]` | `list` and `exec` in completion candidates. |
 | T-APCLI-31 | Cross-language parity: Python/TS/Rust/Go, same `apcli: false` | Identical `--help` outputs. |
-| T-APCLI-32 | Startup time with `apcli` group | Within 5% of pre-v0.8 baseline (no regression). |
+| T-APCLI-32 | Startup time with `apcli` group | Within 5% of pre-v0.7 baseline (no regression). |
 | T-APCLI-33 | `createCli({ apcli: new ApcliGroup({...}) })` | Programmatic `ApcliGroup` instance accepted. |
 | T-APCLI-34 | `<cli> --verbose --help` with `apcli: false` | Per-command options shown for business commands; `apcli` group remains hidden (orthogonal behaviors, FR-13-14). |
 | T-APCLI-35 | `env -u APCORE_CLI_APCLI <cli> --help` with `disable_env: true` set | Standard unset behavior; works regardless of disable_env. |
@@ -905,7 +905,7 @@ This feature is a **breaking change** for standalone `apcore-cli` users who have
 
 ### 11.1 What Breaks
 
-| Pre-v0.8 invocation | v0.8+ invocation |
+| Pre-v0.7 invocation | v0.7+ invocation |
 |---------------------|------------------|
 | `apcore-cli list` | `apcore-cli apcli list` |
 | `apcore-cli describe <id>` | `apcore-cli apcli describe <id>` |
@@ -921,15 +921,15 @@ This feature is a **breaking change** for standalone `apcore-cli` users who have
 
 ### 11.2 Deprecation Window
 
-For **v0.8.x**, apcore-cli emits a deprecation warning when a root-level built-in command is invoked (standalone mode only):
+For **v0.7.x**, apcore-cli emits a deprecation warning when a root-level built-in command is invoked (standalone mode only):
 
 ```
 $ apcore-cli list
 WARNING: 'list' as a root-level command is deprecated. Use 'apcore-cli apcli list' instead.
-         Will be removed in v0.9. See: https://aiperceivable.github.io/apcore-cli/features/builtin-group/#11-migration
+         Will be removed in v0.8. See: https://aiperceivable.github.io/apcore-cli/features/builtin-group/#11-migration
 ```
 
-The command still executes. In **v0.9.0**, root-level aliases are removed entirely.
+The command still executes. In **v0.8.0**, root-level aliases are removed entirely.
 
 The deprecation wrapper is implemented by registering thin shim commands at the root for each former built-in, each of which prints the warning and invokes the corresponding `apcli` subcommand. The shim is active **only in standalone mode** (never in embedded mode — embedded integrators' end users should not see deprecation warnings for commands they were never meant to know about).
 
@@ -937,13 +937,13 @@ The deprecation wrapper is implemented by registering thin shim commands at the 
 
 | Version | Behavior |
 |---------|----------|
-| v0.7.x | Pre-existing flat surface (all built-ins at root) |
-| v0.8.0 | `apcli` group introduced; standalone mode emits deprecation warnings on old flat invocations; embedded mode defaults to hidden (no deprecation shown); discovery flags gated on standalone mode |
-| v0.9.0 | Flat-surface deprecation shims removed; `apcli` group is the only path |
+| pre-v0.7 | Flat surface (all built-ins at root) |
+| v0.7.0 | `apcli` group introduced; standalone mode emits deprecation warnings on old flat invocations; embedded mode defaults to hidden (no deprecation shown); discovery flags gated on standalone mode |
+| v0.8.0 | Flat-surface deprecation shims removed; `apcli` group is the only path |
 
 ### 11.4 Retiring `BUILTIN_COMMANDS`
 
-The `BUILTIN_COMMANDS` constant in `apcore_cli/cli.py` (and equivalents in the other-language implementations) is **retired** in v0.8.0. It is replaced by:
+The `BUILTIN_COMMANDS` constant in `apcore_cli/cli.py` (and equivalents in the other-language implementations) is **retired** in v0.7.0. It is replaced by:
 
 - `RESERVED_GROUP_NAMES = frozenset({"apcli"})` — one-element set covering group names, auto-grouped prefixes, and top-level command names
 - Removal of the per-command collision check in `GroupedModuleGroup._build_group_map()` (was: warn + drop module on collision)
@@ -955,5 +955,5 @@ External code that imported `BUILTIN_COMMANDS` will break at import time. Impact
 ## 12. Open Questions
 
 1. **Should `help` also move under `apcli`?** Current design keeps `help` at root because it is the most universally recognized meta-command. Resolution: **root `help` preferred** — the English verb `help` has decades of meta-command consensus across `man`, `git`, `docker`, etc.
-2. **Should `config get/set` stay nested under `apcli config <subcmd>` or flatten to `apcli config-get` / `apcli config-set`?** Current design preserves the pre-v0.8 nested structure (`apcli config get <key>`). Rationale: the config surface has distinct read vs. write semantics that subcommand grouping expresses well.
-3. **Go SDK timing.** `apcore-cli-go` does not exist as of v0.7. The normative Go signature in §4.14 is a forward-looking contract; it becomes binding when the Go SDK is bootstrapped (currently planned for v0.9 per roadmap). Conformance tests for Go are deferred until then.
+2. **Should `config get/set` stay nested under `apcli config <subcmd>` or flatten to `apcli config-get` / `apcli config-set`?** Current design preserves the pre-v0.7 nested structure (`apcli config get <key>`). Rationale: the config surface has distinct read vs. write semantics that subcommand grouping expresses well.
+3. **Go SDK timing.** `apcore-cli-go` does not exist as of v0.7.0. The normative Go signature in §4.14 is a forward-looking contract; it becomes binding when the Go SDK is bootstrapped (planned for a later minor release per roadmap). Conformance tests for Go are deferred until then.

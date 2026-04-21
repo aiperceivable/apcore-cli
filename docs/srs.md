@@ -531,7 +531,7 @@ The system provides eight feature groups:
 | **Title** | Built-in Command Group (`apcli`) |
 | **Priority** | P0 |
 | **Priority Rationale** | Required for every branded/embedded CLI. Without this, built-in commands pollute the root namespace, colliding with business-command verbs (`list`, `init`, `describe`) and exposing developer-only tooling to end users. Also required for the retirement of the brittle `BUILTIN_COMMANDS` collision-check mechanism. |
-| **Source** | Feature Spec FE-13; v0.8.0 |
+| **Source** | Feature Spec FE-13; v0.7.0 |
 
 **Description:** The system shall relocate all apcore-cli-provided commands (`list`, `describe`, `exec`, `init`, `validate`, `health`, `usage`, `enable`, `disable`, `reload`, `config`, `completion`, `describe-pipeline`) under a single reserved group named `apcli`. The root level shall retain only universally recognized meta-commands and flags (`help`, `--help`, `--version`, `--verbose`, `--man`, `--log-level`), plus user business modules/groups. The system shall accept an `apcli` configuration (via `CliConfig` parameter or `apcore.yaml` key) that controls group-level visibility (`all`/`none`/`include`/`exclude`) and supports a `disable_env` opt-out to sever the `APCORE_CLI_APCLI` environment-variable override.
 
@@ -578,7 +578,7 @@ The system provides eight feature groups:
 | Python | `create_cli(apcli=False)` or `create_cli(apcli={"mode": "include", "include": ["list"], "disable_env": True})` |
 | TypeScript | `createCli({ apcli: false })` or `createCli({ apcli: { mode: "include", include: ["list"], disableEnv: true } })` |
 | Rust | `CliConfig { apcli: Some(ApcliConfig { mode: ApcliMode::None, disable_env: true }), .. }` |
-| Go | `CliConfig{Apcli: &ApcliConfig{Mode: ApcliModeNone, DisableEnv: true}}` (planned v0.9) |
+| Go | `CliConfig{Apcli: &ApcliConfig{Mode: ApcliModeNone, DisableEnv: true}}` (Go SDK planned for a later minor release) |
 
 ---
 

@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [0.7.0] - 2026-04-12
+## [0.7.0] - 2026-04-21
 
 ### Added
 
@@ -18,19 +18,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `list --exposure {exposed,hidden,all}` filter flag.
   - 4-tier config precedence: `CliConfig.expose` > `--expose-mode` CLI flag > env var > `apcore.yaml`.
   - Hidden modules remain invocable via `exec <module_id>` (UX filter, not a security boundary).
+- **FE-13: Built-in Command Group (`apcli`)** — All apcore-cli-provided built-in commands (`list`, `describe`, `exec`, `init`, `validate`, `health`, `usage`, `enable`, `disable`, `reload`, `config`, `completion`, `describe-pipeline`) relocate under a single reserved group named `apcli`. Feature spec: `docs/features/builtin-group.md`. New SRS requirement: FR-DISP-009.
+  - Root level retains only `help` + `--help`/`--version`/`--verbose`/`--man`/`--log-level` + user business modules/groups.
+  - `apcli` config accepts boolean shorthand (`true`/`false`) or object form (`mode`/`include`/`exclude`/`disable_env`). Mode ∈ {`all`, `none`, `include`, `exclude`}.
+  - Auto-detected default: embedded mode (registry injected) → `none` (hidden); standalone mode → `all` (visible).
+  - 4-tier precedence: `CliConfig.apcli` > `APCORE_CLI_APCLI` env var (when not disabled) > `apcore.yaml` > auto-detect.
+  - `disable_env: true` opt-out severs the env-var override (config-only field; not exposed as a separate env var).
+  - "Hidden ≠ unreachable": `mode: none` keeps `<cli> apcli <sub>` reachable for debugging / CI, only hides the group from root `--help`. For true lockdown use `{mode: include, include: [], disable_env: true}`.
+  - `exec` subcommand always registered when the `apcli` group exists, preserving FE-12's hidden-module-invocation guarantee.
+  - Discovery flags (`--extensions-dir`, `--commands-dir`, `--binding`) register only in standalone mode; embedded-mode CLIs produce "unknown option" if they are passed.
+  - `RESERVED_GROUP_NAMES = {"apcli"}` rejects business modules whose group name, auto-grouped prefix, or top-level command name is `apcli`.
+  - Normative cross-language contracts for Python / TypeScript / Rust / Go (Go SDK deferred, contract forward-looking).
 - **Apache 2.0 license** added (`LICENSE` file).
-- SRS: added requirement sections for FE-10 (Init Command), FE-11 (Usability Enhancements), FE-12 (Exposure Filtering) as TODO backfill items (B-004).
+- SRS: added requirement sections for FE-10 (Init Command), FE-11 (Usability Enhancements), FE-12 (Exposure Filtering) as TODO backfill items (B-004); added FR-DISP-009 (Built-in Command Group) for FE-13.
 
 ### Changed
 
 - **Tech Design v2.0** — Major revision:
-  - `BUILTIN_COMMANDS` canonicalized as a 14-entry alphabetically sorted constant, referenced throughout.
+  - `BUILTIN_COMMANDS` canonicalized as a 14-entry alphabetically sorted constant (later retired by FE-13, see Removed).
   - `create_cli()` consolidated signature (§8.2.7) is now the authoritative reference; feature specs reference it incrementally.
   - `create_cli()` gains `expose` parameter for programmatic exposure filtering.
+  - `create_cli()` gains `apcli` parameter (FE-13) for built-in command group visibility control.
+- Root-level built-in commands are deprecated in standalone mode: `apcore-cli list`, `apcore-cli describe`, `apcore-cli exec`, `apcore-cli init`, `apcore-cli health`, `apcore-cli usage`, etc. emit a deprecation WARNING and delegate to the new `apcli` subcommand. Shims removed in v0.8.0.
+- Embedded integrations (`create_cli(registry=...)`) now default to `apcli: none` — built-in commands hidden from end-user `--help`. Integrators who want the previous behavior pass `apcli: true` explicitly.
+- `register_discovery_commands()` / `register_system_commands()` / `register_shell_commands()` registrars split into per-subcommand functions (`register_list_command`, `register_health_command`, etc.) to enable per-subcommand include/exclude filtering.
 - SRS references updated from "Tech Design v1.0" to "Tech Design v2.0" throughout.
 - SRS AC-1 for FR-DISP-001 updated: help output must list all 14 built-in commands from `BUILTIN_COMMANDS`.
 - Conformance fixture `cli_parity.json` updated: `run` → `exec`, `--json` → `--format json`, `--inputs` → `--input`, exit code `127` → `44`, removed `is_perceivable` key.
 - FE-11 version label corrected from "v0.7.0" to "v0.6.0" in feature overview.
+
+### Removed
+
+- **`BUILTIN_COMMANDS` constant retired** (FE-13). The 14-entry list in `apcore_cli/cli.py` and equivalents in other-language SDKs is replaced by `RESERVED_GROUP_NAMES = {"apcli"}`. External code that imported the constant will break at import time; impact assessed as low (internal constant, not public API per semver).
+- Per-command collision check in `GroupedModuleGroup._build_group_map()` (was: warn + drop module on collision). Collision surface reduced to the single reserved group name `apcli` — checks are centralized in `RESERVED_GROUP_NAMES` enforcement.
+
+### Migration
+
+- Pre-v0.7 users invoking root-level built-ins see a deprecation warning pointing to the new `apcli`-prefixed path. Full migration table in `docs/features/builtin-group.md` §11. Shims removed in v0.8.0.
 
 ---
 

@@ -23,6 +23,7 @@
 | **FE-10** | **Init Command** | Scaffolding subcommand (`apcore-cli init module <id>`) for decorator/convention/binding styles. | P1 | [init-command.md](features/init-command.md) |
 | **FE-11** | **Usability Enhancements** | Dry-run, system commands, error guidance, trace, streaming, enhanced discovery, strategy selection, output formats, multi-level grouping, custom commands. | P0–P2 | [usability-enhancements.md](features/usability-enhancements.md) |
 | **FE-12** | **Module Exposure Filtering** | Declarative `expose` config (all/include/exclude) with glob patterns to filter which modules surface as CLI commands. | P1 | [exposure-filtering.md](features/exposure-filtering.md) |
+| **FE-13** | **Built-in Command Group (`apcli`)** | Relocates all apcore-cli-provided built-in commands under a reserved `apcli` group. Root keeps only meta-commands + business modules. Supports visibility modes (`all`/`none`/`include`/`exclude`) and `disable_env` opt-out for env-var override. Embedded-mode auto-hide. | P0 | [builtin-group.md](features/builtin-group.md) |
 
 ---
 
@@ -70,7 +71,8 @@ Maps high-level requirements (from [ideas/draft.md](../ideas/draft.md)) to featu
 9. **Grouped Commands** (FE-09): Auto-grouping layer over Core Dispatcher (v0.3.0).
 10. **Init Command** (FE-10): Scaffolding subcommand (v0.4.0).
 11. **Usability Enhancements** (FE-11): Dry-run, system commands, trace, strategy, multi-level grouping, custom commands (v0.6.0).
-12. **Module Exposure Filtering** (FE-12): Declarative exposure filter over discovered modules (v0.6.0).
+12. **Module Exposure Filtering** (FE-12): Declarative exposure filter over discovered modules (v0.7.0).
+13. **Built-in Command Group** (FE-13): Relocate apcore-cli built-ins under `apcli` group with visibility controls; retire `BUILTIN_COMMANDS` (v0.7.0).
 
 ---
 
@@ -86,7 +88,8 @@ FE-07 Config Resolver (foundation)
         ├── FE-05 Security Manager (depends on FE-07)
         ├── FE-06 Shell Integration (depends on FE-01, FE-02)
         ├── FE-09 Grouped Commands (depends on FE-01)
-        │     └── FE-12 Exposure Filtering (depends on FE-09, FE-07)
+        │     ├── FE-12 Exposure Filtering (depends on FE-09, FE-07)
+        │     └── FE-13 Built-in Command Group (depends on FE-09, FE-07, retires BUILTIN_COMMANDS)
         ├── FE-10 Init Command (depends on FE-01)
         └── FE-11 Usability Enhancements (depends on FE-01, FE-03, FE-07)
 ```
