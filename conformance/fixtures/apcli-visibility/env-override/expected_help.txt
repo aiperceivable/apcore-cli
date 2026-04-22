@@ -1,0 +1,13 @@
+apcore CLI — execute apcore modules from the command line
+
+Usage: apcore-cli [OPTIONS] [COMMAND]
+
+Commands:
+  apcli  apcore-cli built-in commands
+  help   Print this message or the help of the given subcommand(s)
+
+Options:
+      --log-level <LEVEL>  Logging level (DEBUG|INFO|WARNING|ERROR) [default: WARNING]
+      --verbose            Show all options in help output (including built-in apcore options)
+  -h, --help               Print help
+  -V, --version            Print version

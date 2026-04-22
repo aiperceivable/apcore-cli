@@ -1,0 +1,20 @@
+apcore CLI — execute apcore modules from the command line
+
+Usage: apcore-cli [OPTIONS] [COMMAND]
+
+Commands:
+  apcli       apcore-cli built-in commands
+  list        [DEPRECATED] Use 'apcore-cli apcli list' instead.
+  describe    [DEPRECATED] Use 'apcore-cli apcli describe' instead.
+  init        [DEPRECATED] Use 'apcore-cli apcli init' instead.
+  completion  [DEPRECATED] Use 'apcore-cli apcli completion' instead.
+  help        Print this message or the help of the given subcommand(s)
+
+Options:
+      --log-level <LEVEL>      Logging level (DEBUG|INFO|WARNING|ERROR) [default: WARNING]
+      --verbose                Show all options in help output (including built-in apcore options)
+      --extensions-dir <PATH>  Path to extensions directory
+      --commands-dir <PATH>    Path to convention-based commands directory
+      --binding <PATH>         Path to binding.yaml for display overlay
+  -h, --help                   Print help
+  -V, --version                Print version

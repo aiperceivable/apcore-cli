@@ -4,7 +4,6 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
 
 ## [0.7.0] - 2026-04-21
 
@@ -31,6 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Normative cross-language contracts for Python / TypeScript / Rust / Go (Go SDK deferred, contract forward-looking).
 - **Apache 2.0 license** added (`LICENSE` file).
 - SRS: added requirement sections for FE-10 (Init Command), FE-11 (Usability Enhancements), FE-12 (Exposure Filtering) as TODO backfill items (B-004); added FR-DISP-009 (Built-in Command Group) for FE-13.
+- **FE-13 conformance fixtures** (`conformance/fixtures/apcli-visibility/`) — cross-language fixture set covering the 4-tier apcli visibility decision chain (`CliConfig` > `APCORE_CLI_APCLI` > `apcore.yaml` > auto-detect). Five scenarios: `standalone-default`, `embedded-default`, `cli-override`, `env-override`, `yaml-include`. Each ships `create_cli.json` (snake_case caller options), `env.json` (env overlay), optional `input.yaml` (materialized as `apcore.yaml`), and a byte-match `expected_help.txt` golden.
+- **Canonical help format** (normative, see `conformance/fixtures/apcli-visibility/README.md`) — SDKs must configure their underlying help renderer (Commander.js, Click, clap) to produce clap v4 / GNU-style output: description first, `Usage: <prog> [OPTIONS] [COMMAND]`, `Commands:` before `Options:`, uppercase `<PLACEHOLDER>`, `[default: VALUE]`, `-h, --help` → "Print help", `-V, --version` → "Print version" (short flag required), `-h`/`-V` rendered last, long-only options aligned under short+long rows (4-space slot), and no line wrapping. Reference implementation: `apcore-cli-typescript/src/canonical-help.ts` (Commander `configureHelp({ formatHelp })` override).
 
 ### Changed
 
