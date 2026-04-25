@@ -177,6 +177,130 @@ apcli:
 - `disable_env` may be set independently of `mode`. A config like `apcli: {disable_env: true}` with no `mode` key is valid and means "auto-detect visibility, but do not honor `APCORE_CLI_APCLI` env var" (internally treated as `mode: auto, disable_env: true`).
 - `include` and `exclude` lists match against the **first-level apcli subcommand name only** (e.g., `list`, `config`). Nested paths (`config.set`) are not supported in v0.7 — if `config` is in the list, its entire subtree is controlled.
 
+## Contract: ApcliGroup.__init__
+
+### Inputs
+- mode: str, optional — Internal visibility mode. One of `"auto"`, `"all"`, `"none"`, `"include"`, `"exclude"`. Default: `"auto"` (internal sentinel; never accepted from user config).
+  validates: `"auto"` is only valid when constructed internally; user-facing constructors reject it
+- include: list[str] | None, optional — Subcommand names to include. Used when `mode="include"`. Default: `None` (treated as `[]`).
+- exclude: list[str] | None, optional — Subcommand names to exclude. Used when `mode="exclude"`. Default: `None` (treated as `[]`).
+- disable_env: bool, optional — When True, severs `APCORE_CLI_APCLI` env-var override (Tier 2 skipped in `resolve_visibility`). Default: `False`.
+- registry_injected: bool, optional — Whether the registry was provided programmatically (embedded mode). Used by Tier 4 auto-detect. Default: `False`.
+- from_cli_config: bool, optional — True when constructed via `from_cli_config()` (Tier 1). A non-auto mode from Tier 1 wins outright over env var and yaml. Default: `False`.
+
+### Errors
+- (none raised by constructor itself — validation errors are raised by `_build` / `from_cli_config` callers)
+
+### Returns
+- On success: ApcliGroup instance
+
+### Properties
+- async: false
+- thread_safe: false (immutable after construction; `resolve_visibility` reads env at call time)
+- pure: false (`resolve_visibility` reads `os.environ`)
+
+---
+
+## Contract: ApcliGroup.from_cli_config
+
+### Inputs
+- config: bool | dict | None, required — Tier 1 config value passed to `create_cli(apcli=...)`. `True` → `mode=all`; `False` → `mode=none`; `None` → `mode=auto`; `dict` → parsed per §4.2.
+  reject_with: TypeError — when `config` is not bool, dict, or None; exit code 2 in create_cli()
+- registry_injected: bool, required (keyword-only) — Whether registry was injected programmatically.
+
+### Errors
+- TypeError — when `config` is not bool, dict, or None (caught and converted to exit 2 by `create_cli()`)
+- SystemExit(2) — when `config` is a dict with an invalid `mode` value (including `"auto"`)
+
+### Returns
+- On success: ApcliGroup with `_from_cli_config=True` (Tier 1 precedence)
+
+### Properties
+- async: false
+- thread_safe: true (creates a new instance; no shared state)
+- pure: false (may call sys.exit on invalid mode)
+
+---
+
+## Contract: ApcliGroup.from_yaml
+
+### Inputs
+- config: Any, required — Raw value from `apcore.yaml` at the `apcli:` key. Expected: bool, dict, or None. Unexpected types are coerced to `None` with a WARNING log (lenient shim).
+- registry_injected: bool, required (keyword-only) — Whether registry was injected programmatically.
+
+### Errors
+- SystemExit(2) — when `config` is a dict with an invalid `mode` value
+
+### Returns
+- On success: ApcliGroup with `_from_cli_config=False` (Tier 3 precedence; env var may override)
+- On unexpected `config` type: returns `ApcliGroup(mode="auto")` after logging WARNING
+
+### Properties
+- async: false
+- thread_safe: true (creates a new instance)
+- pure: false (logs WARNING on invalid input; may call sys.exit)
+
+---
+
+## Contract: ApcliGroup.resolve_visibility
+
+### Inputs
+- (no parameters — uses instance state and reads env at call time)
+
+### Errors
+- (none raised — always returns one of the four resolved modes)
+
+### Returns
+- On success: str — one of `"all"`, `"none"`, `"include"`, `"exclude"` (never `"auto"`)
+  - Tier 1 (CliConfig, `_from_cli_config=True`, non-auto mode): returns `_mode` directly
+  - Tier 2 (env var `APCORE_CLI_APCLI`, when `_disable_env=False`): `show/1/true` → `"all"`, `hide/0/false` → `"none"`
+  - Tier 3 (yaml, non-auto mode): returns `_mode`
+  - Tier 4 (auto-detect): `"none"` if `_registry_injected`, else `"all"`
+
+### Properties
+- async: false
+- thread_safe: true (reads env; no mutation)
+- pure: false (reads `os.environ`)
+
+---
+
+## Contract: ApcliGroup.is_subcommand_included
+
+### Inputs
+- subcommand: str, required — First-level apcli subcommand name (e.g., `"list"`, `"init"`).
+
+### Errors
+- AssertionError — when called under `mode="all"` or `mode="none"` (callers must bypass this method for those modes)
+
+### Returns
+- On success (`mode="include"`): `True` iff `subcommand in self._include`
+- On success (`mode="exclude"`): `True` iff `subcommand not in self._exclude`
+
+### Properties
+- async: false
+- thread_safe: true (read-only after construction)
+- pure: false (calls `resolve_visibility` which reads env)
+
+---
+
+## Contract: ApcliGroup.is_group_visible
+
+### Inputs
+- (no parameters — uses instance state)
+
+### Errors
+- (none raised)
+
+### Returns
+- On success: bool — `True` if `resolve_visibility() != "none"`; `False` when mode resolves to `"none"`
+
+### Properties
+- async: false
+- thread_safe: true
+- pure: false (calls `resolve_visibility` which reads env)
+
+---
+
 ### 4.3 Class: `ApcliGroup`
 
 **File**: `apcore_cli/builtin_group.py` (new)
