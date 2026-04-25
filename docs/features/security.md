@@ -356,7 +356,7 @@ Logic steps:
    - Allow: `PATH`, `LANG`, `LC_ALL` (locale / executable lookup).
    - Allow prefix: all `APCORE_*` variables from host.
    - Deny prefix: `APCORE_AUTH_*` (auth credentials must not cross trust boundary).
-   - Python SDK additionally allows `PYTHONPATH` (required for module imports in Python envs).
+   - **`PYTHONPATH` (and any other `*PATH` variable that influences module / package resolution — e.g., `NODE_PATH`, `RUBYLIB`, `GOPATH`, `LD_LIBRARY_PATH`) MUST NOT cross the sandbox boundary, regardless of language.** Rationale: an attacker-controlled module-resolution path can inject a sibling import path the host did not authorize, defeating the trust boundary. The hardened reference impl (`apcore-cli-python/src/apcore_cli/security/sandbox.py`) defines `_SANDBOX_ALLOW_KEYS = ("PATH", "LANG", "LC_ALL")` and explicitly omits `PYTHONPATH`; future SDKs MUST follow this convention.
    - Omit all other environment variables.
 2. Create temporary directory (platform temp location; prefix `apcore_sandbox_`).
 3. Set `HOME` and `TMPDIR` to temporary directory.
@@ -382,12 +382,13 @@ Each language port ships a runner entry point that reads `module_id` from argv, 
 | Variable | Source | Purpose |
 |----------|--------|---------|
 | `PATH` | Host | Locate runtime executable |
-| `PYTHONPATH` | Host (Python only) | Module imports in Python envs |
 | `LANG` | Host | Locale |
 | `LC_ALL` | Host | Locale |
 | `APCORE_*` | Host (excluding `APCORE_AUTH_*`) | apcore configuration |
 | `HOME` | Temp dir | Prevent access to real home |
 | `TMPDIR` | Temp dir | Isolate temp files |
+
+**Explicitly excluded** (security-gated; MUST NOT cross the sandbox boundary): `PYTHONPATH`, `NODE_PATH`, `RUBYLIB`, `GOPATH`, `LD_LIBRARY_PATH`, and any other `*PATH` variable that influences module / package / shared-library resolution. Allowing such variables would let a module inject a sibling import path the host did not authorize. The canonical allow-list lives in `apcore-cli-python/src/apcore_cli/security/sandbox.py` as `_SANDBOX_ALLOW_KEYS` and is the reference all language ports must match.
 
 ---
 

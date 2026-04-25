@@ -5,6 +5,13 @@ All notable changes to the apcore-cli specification will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
+## [Unreleased]
+
+### Fixed
+
+- Align `security.md` with hardened sandbox env whitelist (PYTHONPATH explicitly excluded) (D10-001). Spec previously stated "Python SDK additionally allows `PYTHONPATH`"; the hardened reference impl in `apcore-cli-python/src/apcore_cli/security/sandbox.py` defines `_SANDBOX_ALLOW_KEYS = ("PATH", "LANG", "LC_ALL")` and explicitly omits `PYTHONPATH` to prevent module imports from crossing the sandbox boundary. Spec now matches impl and adds a normative note that `PYTHONPATH` (and any `*PATH` variable that influences module / package / shared-library resolution — `NODE_PATH`, `RUBYLIB`, `GOPATH`, `LD_LIBRARY_PATH`, etc.) MUST NOT cross the sandbox boundary regardless of language.
+
+
 ## [0.7.0] - 2026-04-25
 
 ### Added
