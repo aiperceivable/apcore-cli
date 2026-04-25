@@ -36,6 +36,51 @@ The Schema Parser converts a module's JSON Schema `input_schema` into Click CLI 
 
 ## 4. Implementation Details
 
+## Contract: schema_to_click_options
+
+### Inputs
+- schema: dict, required — JSON Schema dict with `properties` and optional `required` array.
+  validates: flag names must not collide after underscore-to-hyphen conversion
+  reject_with: SystemExit(48) — on flag name collision
+- max_help_length: int, optional — Maximum help text length before truncation. Default: `1000`.
+
+### Errors
+- SystemExit(48) — two properties map to the same `--flag` name after underscore-to-hyphen conversion
+
+### Returns
+- On success: list[click.Option] — one Click option per schema property, in iteration order of `properties`
+
+### Properties
+- async: false
+- thread_safe: true
+- pure: false (may call sys.exit on flag collision)
+
+---
+
+## Contract: resolve_refs
+
+### Inputs
+- schema: dict, required — JSON Schema dict potentially containing `$ref` and `$defs`/`definitions`.
+- max_depth: int, optional — Maximum `$ref` resolution recursion depth. Default: `32`.
+  validates: depth must not exceed `max_depth`; `$ref` targets must exist in `$defs`
+  reject_with: SystemExit(48) — on circular ref or depth exceeded; SystemExit(45) — on unresolvable ref
+- module_id: str, optional — Used in error messages only.
+
+### Errors
+- SystemExit(48) — circular `$ref` detected
+- SystemExit(48) — `$ref` resolution depth exceeds `max_depth`
+- SystemExit(45) — `$ref` target not found in `$defs`/`definitions`
+
+### Returns
+- On success: dict — fully inlined schema with all `$ref` references replaced by their targets; `$defs` key removed
+
+### Properties
+- async: false
+- thread_safe: true (operates on a deep copy)
+- pure: false (may call sys.exit)
+
+---
+
 ### 4.1 Function: `schema_to_click_options`
 
 **File**: `apcore_cli/schema_parser.py`

@@ -34,6 +34,71 @@ The Approval Gate is a TTY-aware Human-in-the-Loop (HITL) middleware that interc
 
 ## 4. Implementation Details
 
+## Contract: check_approval
+
+### Inputs
+- module_def: Any, required — Module definition object. Must carry `annotations.requires_approval` (bool) to trigger the gate. If absent or not a boolean `True`, approval is skipped.
+- auto_approve: bool, required — When `True`, bypasses the prompt (corresponds to `--yes` flag).
+  validates: must be bool; always bool from Click
+- timeout: int, optional — Seconds before the TTY prompt times out. Default: `60`. Range: `1..3600` (clamped to bounds).
+  validates: must be int in valid range
+
+### Errors
+- SystemExit(46) — when approval is denied (user types n/Enter), times out, or non-TTY with no bypass
+- (no Python exception raised — always calls sys.exit or returns None)
+
+### Returns
+- On success (approved or not required): `None`
+- On denial/timeout/non-TTY: raises `SystemExit(46)` (never returns)
+
+### Properties
+- async: false
+- thread_safe: false (uses signal.alarm on Unix — not safe to call from multiple threads)
+- pure: false (prompts terminal, reads env vars, may call sys.exit)
+
+---
+
+## Contract: CliApprovalHandler.check_approval
+
+### Inputs
+- module_def: Any, required — Module definition object; same semantics as `check_approval`.
+- auto_approve: bool, required — Bypass flag from `--yes` or programmatic override.
+- timeout: int, optional — Prompt timeout in seconds. Default: `60`.
+
+### Errors
+- SystemExit(46) — approval denied, timed out, or no TTY
+
+### Returns
+- On success: `None`
+- On denial: raises `SystemExit(46)`
+
+### Properties
+- async: false
+- thread_safe: false
+- pure: false
+
+---
+
+## Contract: CliApprovalHandler.request_approval
+
+### Inputs
+- module_def: Any, required — Module definition to request approval for.
+- context: Any, optional — Execution context (unused in v0.7, reserved for future async approval flows).
+
+### Errors
+- SystemExit(46) — approval denied or timed out
+
+### Returns
+- On approval granted: `None`
+- On denial: raises `SystemExit(46)`
+
+### Properties
+- async: false
+- thread_safe: false
+- pure: false (prompts terminal, may call sys.exit)
+
+---
+
 ### 4.1 Function: `check_approval`
 
 **Signature**: `check_approval(module_def: Any, auto_approve: bool, timeout: int = 60) -> None`

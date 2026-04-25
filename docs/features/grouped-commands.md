@@ -39,6 +39,63 @@ The Grouped CLI Commands feature extends the Core Dispatcher to organize modules
 
 ## 4. Implementation Details
 
+## Contract: GroupedModuleGroup.__init__
+
+### Inputs
+- **kwargs: Any — forwarded to `LazyModuleGroup.__init__`; additionally consumes `exposure_filter` keyword.
+  - exposure_filter: ExposureFilter | None, optional — Module visibility filter (FE-12). Default: `ExposureFilter()` (mode=all).
+
+### Errors
+- (none raised by constructor)
+
+### Returns
+- On success: GroupedModuleGroup instance
+
+### Properties
+- async: false
+- thread_safe: false
+- pure: false (reads module-level exposure filter)
+
+---
+
+## Contract: GroupedModuleGroup._resolve_group
+
+### Inputs
+- module_id: str, required — Canonical module identifier.
+- descriptor: Any, required — Module descriptor with optional `display.cli.group` and `display.cli.alias` overlay.
+
+### Errors
+- (none raised — logs WARNING for empty module_id)
+
+### Returns
+- On success: tuple[str | None, str] — `(group_name, command_name)` where `group_name` is `None` for top-level modules
+
+### Properties
+- async: false
+- thread_safe: true (read-only)
+- pure: true (no I/O, no side effects, no logging except on empty module_id edge case)
+
+---
+
+## Contract: GroupedModuleGroup._build_group_map
+
+### Inputs
+- (no parameters — uses instance state)
+
+### Errors
+- click.UsageError — when a module's resolved group name or top-level CLI name is in `RESERVED_GROUP_NAMES` (e.g., `"apcli"`); exit code 2
+
+### Returns
+- On success: None — populates `_group_map` and `_top_level_modules` as side effects; sets `_group_map_built = True`
+- On transient registry error: logs WARNING, does NOT set `_group_map_built` (allows retry)
+
+### Properties
+- async: false
+- thread_safe: false (mutates instance state)
+- pure: false (reads registry, mutates instance)
+
+---
+
 ### 4.1 Class: `GroupedModuleGroup`
 
 **File**: `apcore_cli/cli.py`

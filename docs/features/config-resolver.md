@@ -32,6 +32,45 @@ The Config Resolver implements the 4-tier configuration precedence hierarchy use
 
 ## 4. Implementation Details
 
+## Contract: ConfigResolver.__init__
+
+### Inputs
+- cli_flags: dict[str, Any], optional — Parsed CLI flag values keyed by flag name. Default: `{}`.
+- config_path: str, optional — Path to `apcore.yaml`. Default: `"apcore.yaml"`.
+
+### Errors
+- (none raised — missing or malformed config file is handled silently/with WARNING)
+
+### Returns
+- On success: ConfigResolver instance with loaded (or empty) config
+
+### Properties
+- async: false
+- thread_safe: false
+- pure: false (reads filesystem)
+
+---
+
+## Contract: ConfigResolver.resolve
+
+### Inputs
+- key: str, required — Dot-notation config key (e.g., `"extensions.root"`).
+- cli_flag: str, optional — Corresponding CLI flag name for Tier 1 lookup.
+- env_var: str, optional — Environment variable name for Tier 2 lookup.
+
+### Errors
+- (none raised — returns None for unknown keys)
+
+### Returns
+- On success: Any — resolved value from the highest-priority tier that provides a non-None/non-empty value; or `None` if no tier has a value.
+
+### Properties
+- async: false
+- thread_safe: true (read-only after construction)
+- pure: false (reads os.environ)
+
+---
+
 ### 4.1 Class: `ConfigResolver`
 
 **Constructor**: `__init__(self, cli_flags: dict[str, Any] = None, config_path: str = "apcore.yaml")`

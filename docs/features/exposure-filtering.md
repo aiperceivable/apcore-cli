@@ -76,6 +76,91 @@ expose:
 - Each pattern must be a non-empty string. Empty string in list: log WARNING, skip.
 - Duplicate patterns: deduplicated silently.
 
+## Contract: ExposureFilter.__init__
+
+### Inputs
+- mode: str, optional — Filtering mode. One of `"all"`, `"include"`, `"exclude"`. Default: `"all"`.
+  validates: must be one of the three accepted values; validated lazily in `from_config`, not in `__init__`
+- include: list[str] | None, optional — Glob patterns for include mode. Default: `None` (treated as `[]`).
+  validates: empty strings are skipped with WARNING (only when constructed via `from_config`)
+- exclude: list[str] | None, optional — Glob patterns for exclude mode. Default: `None` (treated as `[]`).
+  validates: same as include
+
+### Errors
+- (none raised by `__init__` itself — validation errors are raised by `from_config`)
+
+### Returns
+- On success: ExposureFilter instance with pre-compiled regex patterns
+
+### Properties
+- async: false
+- thread_safe: false (shared state in compiled pattern lists; do not mutate after construction)
+- pure: false (pre-compiles regexes as side effect)
+
+---
+
+## Contract: ExposureFilter.is_exposed
+
+### Inputs
+- module_id: str, required — The module identifier to check against the current filter mode.
+
+### Errors
+- (none raised — always returns bool)
+
+### Returns
+- On success: `True` if the module should be visible as a CLI command, `False` if hidden.
+  - Mode `"all"`: always `True`
+  - Mode `"include"`: `True` iff at least one include pattern matches `module_id`
+  - Mode `"exclude"`: `True` iff no exclude pattern matches `module_id`
+  - Any other mode (or `"none"`): `True` (fail-open in Python; fail-closed in Rust)
+
+### Properties
+- async: false
+- thread_safe: true (read-only after construction)
+- pure: true (no I/O, no side effects)
+
+---
+
+## Contract: ExposureFilter.filter_modules
+
+### Inputs
+- module_ids: list[str], required — List of module identifiers to partition.
+
+### Errors
+- (none raised — always returns tuple)
+
+### Returns
+- On success: `tuple[list[str], list[str]]` — `(exposed, hidden)` where each original ID appears in exactly one list, preserving input order within each partition.
+
+### Properties
+- async: false
+- thread_safe: true (read-only after construction)
+- pure: true (no I/O, no side effects)
+
+---
+
+## Contract: ExposureFilter.from_config
+
+### Inputs
+- config: dict, required — Parsed config dict. Expected shape: `{"expose": {"mode": ..., "include": [...], "exclude": [...]}}`.
+  validates: `expose` must be a dict; `mode` must be one of `"all"`, `"include"`, `"exclude"`; `include`/`exclude` must be lists
+  reject_with: click.BadParameter — when `mode` is not one of the valid values
+
+### Errors
+- click.BadParameter(f"Invalid expose mode: '{mode}'. Must be one of: all, include, exclude.") — when `mode` value is invalid
+
+### Returns
+- On success: ExposureFilter instance
+- On non-dict `expose` value: returns `ExposureFilter()` (mode=all) after logging WARNING
+- On non-list include/exclude: returns with empty list after logging WARNING
+
+### Properties
+- async: false
+- thread_safe: true (no shared state; creates a new instance each call)
+- pure: false (logs warnings as side effect)
+
+---
+
 ### 4.2 Class: `ExposureFilter`
 
 **File**: `apcore_cli/exposure.py`

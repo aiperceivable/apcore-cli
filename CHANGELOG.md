@@ -5,7 +5,7 @@ All notable changes to the apcore-cli specification will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
-## [0.7.0] - 2026-04-21
+## [0.7.0] - 2026-04-25
 
 ### Added
 

@@ -32,6 +32,47 @@ Shell Integration provides two subcommands: `apcore-cli completion <shell>` for 
 
 ## 4. Implementation Details
 
+## Contract: register_shell_commands
+
+### Inputs
+- cli: click.Group, required — Root CLI group to register `completion` and `man` commands on.
+- prog_name: str, optional — Program name captured in command closures. Default: `"apcore-cli"`.
+
+### Errors
+- (none raised)
+
+### Returns
+- On success: None — commands registered on `cli` as side effect
+
+### Properties
+- async: false
+- thread_safe: false
+- pure: false (mutates `cli` by adding commands)
+
+---
+
+## Contract: build_program_man_page
+
+### Inputs
+- cli: click.Group, required — Root CLI group to generate man page from.
+- prog_name: str, required — Program name for `.TH` header and command references.
+- version: str, required — Program version string.
+- description: str | None, optional — Override program description. Defaults to program help text.
+- docs_url: str | None, optional — Base URL for online docs link in SEE ALSO section.
+
+### Errors
+- (none raised)
+
+### Returns
+- On success: str — complete roff-formatted man page text
+
+### Properties
+- async: false
+- thread_safe: true (read-only access to cli object)
+- pure: false (reads cli command metadata)
+
+---
+
 ### 4.1 Command: `completion`
 
 **Registration**: `@cli.command("completion")`

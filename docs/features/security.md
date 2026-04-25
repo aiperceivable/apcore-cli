@@ -40,6 +40,129 @@ apcore_cli/security/
 
 ## 4. Implementation Details
 
+## Contract: Sandbox._sandboxed_execute
+
+### Inputs
+- module_id: str, required — Canonical module identifier to execute in the sandbox.
+- input_data: dict, required — JSON-serializable input dict passed to the module via stdin.
+
+### Errors
+- ModuleExecutionError(stderr_content) — when the subprocess exits non-zero
+- ModuleExecutionError("sandbox output exceeds size limit") — when stdout exceeds 64 MiB
+- ModuleExecutionError("Module '{id}' timed out in sandbox.") — when subprocess exceeds 300 s timeout
+
+### Returns
+- On success: Any — parsed JSON from subprocess stdout
+- On failure: raises ModuleExecutionError (never returns None)
+
+### Properties
+- async: false
+- thread_safe: false (spawns subprocess; each call creates a temp dir)
+- pure: false (spawns subprocess, creates temporary directory, may read filesystem)
+
+---
+
+## Contract: Sandbox.execute
+
+### Inputs
+- module_id: str, required — Canonical module identifier.
+- input_data: dict, required — Input dict for the module.
+- executor: Executor, required — Executor instance used in non-sandbox path.
+
+### Errors
+- ModuleExecutionError — from `_sandboxed_execute` when sandbox is enabled and subprocess fails
+- (any error from `executor.call` when sandbox is disabled)
+
+### Returns
+- On success: Any — module result (passed through from executor or sandboxed subprocess)
+- On failure: raises ModuleExecutionError or executor-specific error
+
+### Properties
+- async: false
+- thread_safe: false (sandbox path spawns subprocess; non-sandbox path inherits executor thread-safety)
+- pure: false (I/O: calls executor or spawns subprocess)
+
+---
+
+## Contract: AuthProvider.authenticate_request
+
+### Inputs
+- headers: dict, required — HTTP headers dict to augment with the Authorization header.
+
+### Errors
+- AuthenticationError("Remote registry requires authentication. Set --api-key, APCORE_AUTH_API_KEY, or auth.api_key in config.") — when no API key is available (exit code 77)
+
+### Returns
+- On success: dict — the input headers dict with `"Authorization": "Bearer {key}"` added
+- On no key: raises AuthenticationError
+
+### Properties
+- async: false
+- thread_safe: true (reads config and env; no mutable shared state)
+- pure: false (reads env vars and config file)
+
+---
+
+## Contract: ConfigEncryptor.aes_encrypt (internal: `_aes_encrypt`)
+
+### Inputs
+- plaintext: str, required — UTF-8 string to encrypt.
+
+### Errors
+- (cryptography library errors propagate — unexpected; input is always valid UTF-8 str)
+
+### Returns
+- On success: bytes — `16-byte salt || 12-byte nonce || 16-byte GCM tag || ciphertext` (enc:v2 wire format)
+
+### Properties
+- async: false
+- thread_safe: false (uses OS random bytes; safe to call from single thread)
+- pure: false (reads OS entropy for salt and nonce)
+
+---
+
+## Contract: ConfigEncryptor.store
+
+### Inputs
+- key: str, required — Config key name used as the keyring label (e.g., `"auth.api_key"`).
+- value: str, required — Plaintext secret value to store.
+
+### Errors
+- keyring errors propagate if keyring.set_password fails unexpectedly
+
+### Returns
+- On success with keyring: str — `"keyring:{key}"` reference string
+- On success without keyring: str — `"enc:v2:{base64}"` ciphertext reference string
+
+### Properties
+- async: false
+- thread_safe: false (keyring calls are not guaranteed thread-safe)
+- pure: false (writes to OS keyring or derives encryption key using hostname/username)
+
+---
+
+## Contract: ConfigEncryptor.retrieve
+
+### Inputs
+- config_value: str, required — The stored reference value (prefixed with `keyring:`, `enc:v2:`, or `enc:`).
+- key: str, required — Config key name for error messages.
+  validates: must start with `keyring:`, `enc:v2:`, or `enc:` to trigger decryption; otherwise returned as-is
+
+### Errors
+- ConfigDecryptionError(f"Keyring entry not found for '{ref_key}'.") — when keyring lookup returns None
+- ConfigDecryptionError(f"Failed to decrypt configuration value '{key}'. Re-configure with 'apcore-cli config set {key}'.") — on decryption failure (wrong key, corrupted ciphertext, or `InvalidTag`)
+
+### Returns
+- On success: str — plaintext value
+- On failure: raises ConfigDecryptionError (exit code 47)
+
+### Properties
+- async: false
+- thread_safe: false (keyring and PBKDF2 calls are not thread-safe across instances)
+- pure: false (reads OS keyring or derives key from hostname/username/PBKDF2)
+
+---
+
 ### 4.1 AuthProvider (`auth.py`)
 
 **Class**: `AuthProvider`

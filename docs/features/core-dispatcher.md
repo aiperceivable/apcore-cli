@@ -40,6 +40,154 @@ The Core Dispatcher is the primary entry point for `apcore-cli`. It provides the
 
 ## 4. Implementation Details
 
+## Contract: LazyModuleGroup.__init__
+
+### Inputs
+- registry: Registry, required — apcore Registry instance for module discovery.
+- executor: Executor, required — apcore Executor instance for module invocation.
+- help_text_max_length: int, optional — Maximum characters before help text is truncated. Default: `1000`.
+- extensions_root: str | None, optional — Path to extensions directory, forwarded to sandbox runner.
+- **kwargs: Any — passed through to `click.Group.__init__`.
+
+### Errors
+- (none raised by constructor itself)
+
+### Returns
+- On success: LazyModuleGroup instance
+
+### Properties
+- async: false
+- thread_safe: false (builds alias map lazily; not safe for concurrent use)
+- pure: false (may read from registry on first list_commands call)
+
+---
+
+## Contract: LazyModuleGroup.list_commands
+
+### Inputs
+- ctx: click.Context, required — Click context (unused internally, required by Click interface).
+
+### Errors
+- (none raised — catches registry exceptions internally and logs WARNING)
+
+### Returns
+- On success: list[str] — sorted, deduplicated list of command names (registered commands + module aliases)
+
+### Properties
+- async: false
+- thread_safe: false
+- pure: false (may call registry.list() on first invocation)
+
+---
+
+## Contract: build_module_command
+
+### Inputs
+- module_def: ModuleDescriptor, required — apcore module descriptor with `input_schema`, `description`, and display overlay.
+- executor: Executor, required — Executor used in the command callback.
+- help_text_max_length: int, optional — Maximum help text length. Default: `1000`.
+- cmd_name: str | None, optional — CLI command name override. Defaults to display alias or module_id.
+- extensions_root: str | None, optional — Passed to Sandbox for subprocess isolation.
+  validates: schema properties must not collide with reserved option names
+  reject_with: SystemExit(2) — on reserved option name collision
+
+### Errors
+- SystemExit(2) — schema property name collides with reserved CLI option (`input`, `yes`, `large_input`, etc.)
+
+### Returns
+- On success: click.Command — fully configured Click command with schema-generated options and built-in options
+
+### Properties
+- async: false
+- thread_safe: false (uses module-level globals `_verbose_help` and `_docs_url`)
+- pure: false (reads module-level globals)
+
+---
+
+## Contract: collect_input
+
+### Inputs
+- stdin_flag: str | None, required — Input source: `None` or `""` = CLI only; `"-"` = stdin; any other string = file path.
+  validates: STDIN must be ≤10 MB unless `large_input=True`; STDIN/file content must be valid JSON object
+  reject_with: SystemExit(2) — on oversized input, invalid JSON, or non-object JSON
+- cli_kwargs: dict[str, Any], required — Parsed CLI keyword arguments; None values are stripped before merge.
+- large_input: bool, optional — When True, bypasses the 10 MB size guard. Default: `False`.
+
+### Errors
+- SystemExit(2) — STDIN/file exceeds 10 MB and `large_input` is False
+- SystemExit(2) — STDIN/file contains invalid JSON
+- SystemExit(2) — STDIN/file JSON is not an object (dict)
+- SystemExit(2) — file path does not exist or cannot be read
+
+### Returns
+- On success: dict[str, Any] — merged input where CLI flag values override STDIN/file values for duplicate keys
+
+### Properties
+- async: false
+- thread_safe: false (reads sys.stdin)
+- pure: false (may read stdin or filesystem)
+
+---
+
+## Contract: validate_module_id
+
+### Inputs
+- module_id: str, required — Module ID string to validate.
+  validates: length ≤192 chars; matches regex `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`
+  reject_with: SystemExit(2)
+
+### Errors
+- SystemExit(2) — length exceeds 192 characters
+- SystemExit(2) — does not match the canonical ID regex
+
+### Returns
+- On success: None (returns silently)
+- On failure: raises SystemExit(2)
+
+### Properties
+- async: false
+- thread_safe: true
+- pure: false (calls sys.exit on failure)
+
+---
+
+## Contract: create_cli
+
+### Inputs
+- extensions_dir: str | None, optional — Override extensions directory path.
+- prog_name: str | None, optional — Override program name shown in help. Defaults to `os.path.basename(sys.argv[0])`.
+- commands_dir: str | None, optional — Convention-based commands directory (requires apcore-toolkit).
+- binding_path: str | None, optional — Path to binding.yaml for display overlay.
+- registry: Registry | None, optional — Pre-populated registry; skips filesystem discovery when provided.
+- executor: Executor | None, optional — Pre-built executor; requires `registry` to also be set.
+  validates: `executor` without `registry` is rejected
+  reject_with: ValueError("executor requires registry — pass both or neither")
+- extra_commands: list | None, optional — Additional Click commands to add to root.
+  validates: names must not be in `RESERVED_GROUP_NAMES`
+  reject_with: ValueError
+- app: APCore | None, optional — Unified APCore client; mutually exclusive with `registry`/`executor`.
+  reject_with: ValueError("app is mutually exclusive with registry/executor")
+- expose: dict | ExposureFilter | None, optional — Exposure filter config (FE-12).
+- apcli: bool | dict | ApcliGroup | None, optional — Built-in apcli group config (FE-13).
+- allowed_prefixes: list[str] | None, optional — Allowlist for binding/convention target resolution.
+
+### Errors
+- ValueError — `executor` provided without `registry`
+- ValueError — `app` provided alongside `registry` or `executor`
+- ValueError — extra command name collides with reserved name or existing non-shim command
+- SystemExit(47) — extensions directory not found or unreadable
+- SystemExit(2) — invalid `apcli` type
+
+### Returns
+- On success: click.Group — fully assembled CLI group ready for invocation
+
+### Properties
+- async: false
+- thread_safe: false (initialises module-level globals)
+- pure: false (reads filesystem, env vars, config files, initializes logging)
+
+---
+
 ### 4.1 Class: `LazyModuleGroup`
 
 **File**: `apcore_cli/cli.py`

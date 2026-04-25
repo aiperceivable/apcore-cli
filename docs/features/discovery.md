@@ -34,6 +34,47 @@ The Discovery component provides `apcore-cli list` and `apcore-cli describe` sub
 
 ## 4. Implementation Details
 
+## Contract: list_cmd
+
+### Inputs
+- tag: tuple[str, ...], optional — Zero or more tag strings for AND-filtering. Passed via `--tag` (repeatable).
+- output_format: str | None, optional — `"table"` or `"json"`. Default: auto-detect from TTY.
+
+### Errors
+- SystemExit(2) — Click rejects invalid `--format` value
+
+### Returns
+- On success: None — output written to stdout; exit code 0
+
+### Properties
+- async: false
+- thread_safe: false (calls registry.list() and writes to stdout)
+- pure: false (reads registry, writes stdout)
+
+---
+
+## Contract: describe_cmd
+
+### Inputs
+- module_id: str, required — Canonical module ID argument.
+  validates: format and length via `validate_module_id`; module must exist in registry
+  reject_with: SystemExit(2) — invalid format; SystemExit(44) — not found
+- output_format: str | None, optional — `"table"` or `"json"`. Default: auto-detect from TTY.
+
+### Errors
+- SystemExit(2) — invalid module_id format or length
+- SystemExit(44) — module not found in registry
+
+### Returns
+- On success: None — full module metadata written to stdout; exit code 0
+
+### Properties
+- async: false
+- thread_safe: false
+- pure: false (reads registry, writes stdout)
+
+---
+
 ### 4.1 Command: `list_cmd`
 
 **Registration**: `@cli.command("list")`

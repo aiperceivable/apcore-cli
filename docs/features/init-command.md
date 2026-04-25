@@ -39,6 +39,24 @@ The Init Command feature provides a scaffolding subcommand (`apcore-cli init mod
 
 ## 4. Implementation Details
 
+## Contract: register_init_command
+
+### Inputs
+- cli: click.Group, required — Group to register the `init` command on.
+
+### Errors
+- (none raised)
+
+### Returns
+- On success: None — `init` group with `module` subcommand registered on `cli`
+
+### Properties
+- async: false
+- thread_safe: false (mutates cli)
+- pure: false (mutates cli group)
+
+---
+
 ### 4.1 Command Structure
 
 ```

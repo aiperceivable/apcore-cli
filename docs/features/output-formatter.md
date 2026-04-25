@@ -32,6 +32,83 @@ The Output Formatter provides TTY-adaptive output rendering for `apcore-cli`. It
 
 ## 4. Implementation Details
 
+## Contract: resolve_format
+
+### Inputs
+- explicit_format: str | None, required — Explicit format override. `None` triggers TTY detection.
+  validates: expected values are `"table"` or `"json"`; invalid values should be rejected upstream by Click
+
+### Errors
+- (none raised)
+
+### Returns
+- On success: str — `"table"` when TTY and no explicit format; `"json"` when non-TTY and no explicit format; explicit_format when provided
+
+### Properties
+- async: false
+- thread_safe: true
+- pure: false (reads sys.stdout.isatty())
+
+---
+
+## Contract: format_module_list
+
+### Inputs
+- modules: list[ModuleDefinition], required — List of module definitions to render. Empty list shows "No modules found."
+- format: str, required — `"table"` or `"json"`.
+- filter_tags: tuple[str, ...], optional — Tags used to customize the empty-list message. Default: `()`.
+
+### Errors
+- (none raised)
+
+### Returns
+- On success: None — output written to stdout
+
+### Properties
+- async: false
+- thread_safe: false (writes to stdout)
+- pure: false (I/O side effect)
+
+---
+
+## Contract: format_module_detail
+
+### Inputs
+- module_def: ModuleDefinition, required — Module definition to render in full detail.
+- format: str, required — `"table"` or `"json"`.
+
+### Errors
+- (none raised)
+
+### Returns
+- On success: None — output written to stdout
+
+### Properties
+- async: false
+- thread_safe: false (writes to stdout)
+- pure: false
+
+---
+
+## Contract: format_exec_result
+
+### Inputs
+- result: Any, required — Module execution result. Supports dict, list, str, None, or any str-convertible type.
+- format: str | None, optional — Output format hint. Default: `None` (auto).
+
+### Errors
+- (none raised — non-serializable types use `default=str` fallback)
+
+### Returns
+- On success: None — output written to stdout; empty stdout when result is None
+
+### Properties
+- async: false
+- thread_safe: false (writes to stdout)
+- pure: false
+
+---
+
 ### 4.1 Function: `resolve_format`
 
 **Signature**: `resolve_format(explicit_format: str | None) -> str`
