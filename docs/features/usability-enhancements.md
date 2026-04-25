@@ -316,6 +316,26 @@ executor.default_timeout = 30000
 
 #### 3.2.7 Registration
 
+## Contract: register_system_commands
+
+### Inputs
+- cli: click.Group, required — Root CLI group (or `apcli` sub-group) to register system commands on.
+- executor: Executor, required — Executor used to probe for system module availability and to invoke system modules at runtime.
+
+### Errors
+- (none raised — silently no-ops when system modules are unavailable)
+
+### Returns
+- On success (system modules available): None — `health`, `usage`, `enable`, `disable`, `reload`, `config` commands registered on `cli`
+- On system modules unavailable: None — returns without registering any commands
+
+### Properties
+- async: false
+- thread_safe: false (mutates `cli` by adding commands)
+- pure: false (calls `executor.validate` to probe availability; mutates `cli`)
+
+---
+
 All system commands are registered in `create_cli()` after built-in commands, gated on system module availability:
 
 ```python
