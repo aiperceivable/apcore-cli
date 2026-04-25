@@ -93,7 +93,7 @@ Logic steps:
 3. If `False`:
    a. Log WARNING: "OS keyring unavailable. Using file-based encryption."
    b. Call `ciphertext = self._aes_encrypt(value)`.
-   c. Return `f"enc:{base64.b64encode(ciphertext).decode()}"`.
+   c. Return `f"enc:v2:{base64.b64encode(ciphertext).decode()}"`.
 
 **Method: `retrieve(config_value: str, key: str) -> str`**
 
@@ -103,11 +103,16 @@ Logic steps:
    b. Call `result = keyring.get_password(self.SERVICE_NAME, ref_key)`.
    c. If `result is None`: raise `ConfigDecryptionError(f"Keyring entry not found for '{ref_key}'.")`.
    d. Return `result`.
-2. If `config_value.startswith("enc:")`:
-   a. `ciphertext = base64.b64decode(config_value[len("enc:"):])`
-   b. Try `return self._aes_decrypt(ciphertext)`.
+2. If `config_value.startswith("enc:v2:")`:
+   a. `data = base64.b64decode(config_value[len("enc:v2:"):])`
+   b. Try `return self._aes_decrypt(data)` (v2: salt embedded in data).
    c. On `InvalidTag` or `ValueError`: raise `ConfigDecryptionError(f"Failed to decrypt configuration value '{key}'. Re-configure with 'apcore-cli config set {key}'.")`.
-3. Otherwise: return `config_value` (plaintext, legacy or non-sensitive).
+3. If `config_value.startswith("enc:")`:
+   a. `ciphertext = base64.b64decode(config_value[len("enc:"):])`
+   b. Try decryption using static salt `b"apcore-cli-config-v1"` + 600k iterations.
+   c. If decryption fails, retry with 100k iterations (values written by SDK v0.6 and earlier).
+   d. On both failures: raise `ConfigDecryptionError(f"Failed to decrypt configuration value '{key}'. Re-configure with 'apcore-cli config set {key}'.")`.
+4. Otherwise: return `config_value` (plaintext, legacy or non-sensitive).
 
 **Method: `_keyring_available() -> bool`**
 
@@ -120,37 +125,46 @@ Logic steps:
 **Method: `_derive_key() -> bytes`**
 
 Logic steps:
-1. `hostname = socket.gethostname()`.
-2. `username = os.getenv("USER", os.getenv("USERNAME", "unknown"))`.
-3. `salt = b"apcore-cli-config-v1"`.
+1. `hostname = socket.gethostname()` (or OS equivalent).
+2. `username = os.getenv("USER", os.getenv("USERNAME", "unknown"))` (or OS equivalent).
+3. `salt = random 16-byte value` — generated per encryption and embedded in the ciphertext.
 4. `material = f"{hostname}:{username}".encode()`.
-5. Return `hashlib.pbkdf2_hmac("sha256", material, salt, iterations=100_000)`.
+5. Return PBKDF2-HMAC-SHA256(`material`, `salt`, iterations=**600_000**).
 
 Output: 32-byte AES-256 key.
+
+> **Security note**: 600,000 iterations follows OWASP 2024+ recommendations for PBKDF2-HMAC-SHA256. The salt is per-encryption and random (not static), removing the v1 machine-binding limitation.
 
 **Method: `_aes_encrypt(plaintext: str) -> bytes`**
 
 Logic steps:
-1. `key = self._derive_key()`.
-2. `nonce = os.urandom(12)` — 96-bit nonce for GCM.
-3. Create `Cipher(algorithms.AES(key), modes.GCM(nonce))`.
-4. `encryptor = cipher.encryptor()`.
-5. `ct = encryptor.update(plaintext.encode("utf-8")) + encryptor.finalize()`.
-6. Return `nonce (12 bytes) + encryptor.tag (16 bytes) + ct`.
+1. `salt = random 16-byte value` — random per encryption.
+2. `key = self._derive_key(salt)` — PBKDF2 with the per-encryption salt.
+3. `nonce = random 12-byte value` — 96-bit nonce for GCM.
+4. AES-256-GCM encrypt `plaintext.encode("utf-8")`.
+5. Return `salt (16 bytes) + nonce (12 bytes) + GCM tag (16 bytes) + ciphertext`.
 
 **Method: `_aes_decrypt(data: bytes) -> str`**
 
 Logic steps:
-1. `key = self._derive_key()`.
-2. `nonce = data[:12]`, `tag = data[12:28]`, `ct = data[28:]`.
-3. Create `Cipher(algorithms.AES(key), modes.GCM(nonce, tag))`.
-4. `decryptor = cipher.decryptor()`.
-5. Return `(decryptor.update(ct) + decryptor.finalize()).decode("utf-8")`.
+1. `salt = data[:16]`, `nonce = data[16:28]`, `tag = data[28:44]`, `ct = data[44:]`.
+2. `key = self._derive_key(salt)`.
+3. AES-256-GCM decrypt with `(nonce, tag, ct)`.
+4. Return decoded UTF-8 string.
 
-**Wire format for encrypted values:**
+**Wire formats:**
+
+```
+enc:v2:<base64 of (16-byte salt || 12-byte nonce || 16-byte GCM tag || ciphertext)>
+```
+
+The `enc:v2:` prefix identifies the per-encryption-salt format (written by all three SDKs).
+
+Legacy format (read-only, written by SDK v0.6 and earlier):
 ```
 enc:<base64 of (12-byte nonce || 16-byte GCM tag || ciphertext)>
 ```
+When reading `enc:` (v1), implementations MUST try decryption with 600k iterations + static salt `b"apcore-cli-config-v1"` first; if decryption fails they MUST re-try with 100k iterations + same static salt (for values encrypted by very early SDK versions). On re-encrypt (e.g., `config set`), the implementation MUST write the v2 format.
 
 **Dependencies**: `keyring >= 24.0`, `cryptography >= 41.0`.
 
@@ -215,58 +229,40 @@ Logic steps:
 **Method: `_sandboxed_execute(module_id: str, input_data: dict) -> Any`**
 
 Logic steps:
-1. Build restricted environment dict:
-   a. Copy `PATH` from host (required for Python executable).
-   b. Copy `PYTHONPATH` from host (required for module imports).
-   c. Copy `LANG`, `LC_ALL` from host (locale).
-   d. Copy all `APCORE_*` variables from host.
-   e. Omit all other environment variables.
-2. Create temporary directory: `tempfile.TemporaryDirectory(prefix="apcore_sandbox_")`.
+1. Build restricted environment dict using prefix-allow + deny strategy:
+   - Allow: `PATH`, `LANG`, `LC_ALL` (locale / executable lookup).
+   - Allow prefix: all `APCORE_*` variables from host.
+   - Deny prefix: `APCORE_AUTH_*` (auth credentials must not cross trust boundary).
+   - Python SDK additionally allows `PYTHONPATH` (required for module imports in Python envs).
+   - Omit all other environment variables.
+2. Create temporary directory (platform temp location; prefix `apcore_sandbox_`).
 3. Set `HOME` and `TMPDIR` to temporary directory.
 4. Serialize `input_data` to JSON string.
-5. Call `subprocess.run()`:
-   - `cmd`: `[sys.executable, "-m", "apcore_cli._sandbox_runner", module_id]`
-   - `input`: serialized JSON.
-   - `capture_output`: `True`.
-   - `text`: `True`.
-   - `env`: restricted environment.
-   - `cwd`: temporary directory.
-   - `timeout`: 300 seconds (5 minutes).
-6. If `result.returncode != 0`: raise `ModuleExecutionError(result.stderr)`.
-7. Parse `result.stdout` as JSON and return.
-8. Cleanup: temporary directory is auto-deleted by context manager.
+5. Spawn the **language-specific sandbox runner entry point** as a child process:
+   - Python: `[sys.executable, "-m", "apcore_cli._sandbox_runner", module_id]`
+   - TypeScript/Node: `[process.execPath, "<pkg_runner_script>", "--internal-sandbox-runner", module_id]`
+   - Rust: `[std::env::current_exe(), "--internal-sandbox-runner", module_id]`
+   - Pass serialized JSON to stdin.
+   - Capture stdout (result) and stderr (error messages).
+   - Timeout: **300 seconds** (5 minutes).
+6. If process exits non-zero: raise `ModuleExecutionError(stderr_content)`.
+7. If output exceeds 64 MiB: raise `ModuleExecutionError("sandbox output exceeds size limit")`.
+8. Parse stdout as JSON and return.
+9. Cleanup: temporary directory is auto-deleted.
 
-**Sandbox Runner Module**: `apcore_cli/_sandbox_runner.py`
+**Language-specific sandbox runner** (invoked as child process):
 
-```python
-"""Entry point for sandboxed module execution."""
-import json
-import sys
-from apcore import Registry, Executor
-
-def main():
-    module_id = sys.argv[1]
-    input_data = json.loads(sys.stdin.read())
-    extensions_root = os.environ.get("APCORE_EXTENSIONS_ROOT", "./extensions")
-    registry = Registry(extensions_root)
-    registry.discover()
-    executor = Executor(registry)
-    result = executor.call(module_id, input_data)
-    json.dump(result, sys.stdout)
-
-if __name__ == "__main__":
-    main()
-```
+Each language port ships a runner entry point that reads `module_id` from argv, deserializes JSON input from stdin, instantiates a fresh `Registry` + `Executor` in the restricted environment, calls the module, and writes JSON result to stdout. The runner MUST NOT read from the host filesystem beyond the extensions directory.
 
 **Restricted environment contents:**
 
 | Variable | Source | Purpose |
 |----------|--------|---------|
-| `PATH` | Host | Locate Python executable |
-| `PYTHONPATH` | Host | Module imports |
+| `PATH` | Host | Locate runtime executable |
+| `PYTHONPATH` | Host (Python only) | Module imports in Python envs |
 | `LANG` | Host | Locale |
 | `LC_ALL` | Host | Locale |
-| `APCORE_*` | Host | apcore configuration |
+| `APCORE_*` | Host (excluding `APCORE_AUTH_*`) | apcore configuration |
 | `HOME` | Temp dir | Prevent access to real home |
 | `TMPDIR` | Temp dir | Isolate temp files |
 
@@ -293,7 +289,7 @@ if __name__ == "__main__":
 | T-SEC-02 | No API key, remote registry configured | Exit 77. stderr: "requires authentication". |
 | T-SEC-03 | Remote registry returns 401 | Exit 77. stderr: "Authentication failed". |
 | T-SEC-04 | Store API key with keyring available | `apcore.yaml` contains `keyring:auth.api_key`. |
-| T-SEC-05 | Store API key without keyring | `apcore.yaml` contains `enc:base64...`. |
+| T-SEC-05 | Store API key without keyring | `apcore.yaml` contains `enc:v2:base64...`. |
 | T-SEC-06 | Retrieve keyring-stored value | Correct value returned from OS keyring. |
 | T-SEC-07 | Retrieve AES-encrypted value | Correct value decrypted and returned. |
 | T-SEC-08 | Corrupted ciphertext | Exit 47. stderr: "Failed to decrypt". |
