@@ -963,7 +963,7 @@ Logic steps:
 | `.math` | No | 2 |
 | `math.` | No | 2 |
 | `123.add` | No | 2 |
-| `a` * 129 | No (> 128 chars) | 2 |
+| `a` * 193 | No (> 192 chars) | 2 |
 | Empty string | No | 2 |
 
 **Traces to:** FR-DISP-002 AF-2.
@@ -1245,7 +1245,7 @@ Standard flat table as in v1.0:
 
 | Column | Source | Max Width | Truncation |
 |--------|--------|-----------|------------|
-| ID | CLI alias (or module_id) | 128 chars | No |
+| ID | CLI alias (or module_id) | 192 chars | No |
 | Description | display.cli.description or module.description | 80 chars | Append `...` if > 80 |
 | Tags | `", ".join(module.tags)` | Unlimited | No |
 

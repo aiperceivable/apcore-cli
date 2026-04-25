@@ -254,8 +254,8 @@ bindings:
 
 | Parameter | Minimum | Maximum | Default | Reference |
 |-----------|---------|---------|---------|-----------|
-| Group name length | 1 char | 64 chars | — | Derived from module_id max 128 chars split on `.` |
-| Command name length | 1 char | 127 chars | — | Module_id max 128 minus group prefix and `.` |
+| Group name length | 1 char | 96 chars | — | Derived from module_id max 192 chars split on `.` |
+| Command name length | 1 char | 191 chars | — | Module_id max 192 minus group prefix and `.` |
 | Groups per CLI instance | 0 | 500 (design target) | — | 1000 modules / ~2 commands per group |
 | Commands per group | 1 | 1000 | — | No artificial limit |
 | Nesting depth | 1 level | 1 level | 1 | Only single-level grouping (split on first `.`) |

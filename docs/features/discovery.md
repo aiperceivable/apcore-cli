@@ -154,7 +154,7 @@ def _truncate(text: str, max_length: int = 80) -> str:
 |-----------|------|-------------|------------------|---------------|
 | `--tag` | `str` (multiple) | Each: `^[a-z][a-z0-9_-]*$` | Invalid format: exit 2. Non-existent tag: empty result (not error). | FR-DISC-002 |
 | `--format` | `click.Choice` | `"table"`, `"json"` | Other values: Click rejects, exit 2. | FR-DISC-004 |
-| `module_id` (describe) | `str` | Canonical ID regex, max 128 chars. | Invalid format: exit 2. Not found: exit 44. | FR-DISC-003 |
+| `module_id` (describe) | `str` | Canonical ID regex, max 192 chars (PROTOCOL_SPEC §2.7). | Invalid format: exit 2. Not found: exit 44. | FR-DISC-003 |
 
 ---
 

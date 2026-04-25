@@ -147,7 +147,7 @@ Logic steps:
 **Signature**: `validate_module_id(module_id: str) -> None`
 
 Logic steps:
-1. Check `len(module_id) > 128`: exit code 2, message "Invalid module ID format: '{module_id}'. Maximum length is 128 characters."
+1. Check `len(module_id) > 192`: exit code 2, message "Invalid module ID format: '{module_id}'. Maximum length is 192 characters."
 2. Check `re.fullmatch(r'^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$', module_id)`: if None, exit code 2, message "Invalid module ID format: '{module_id}'."
 
 ### 4.5 Function: `create_cli`
@@ -248,7 +248,7 @@ Logic steps:
 
 | Parameter | Minimum | Maximum | Default | SRS Reference |
 |-----------|---------|---------|---------|---------------|
-| Module ID length | 1 char | 128 chars | — | FR-DISP-002 |
+| Module ID length | 1 char | 192 chars | — | FR-DISP-002 (PROTOCOL_SPEC §2.7) |
 | STDIN buffer | 0 bytes | 10 MB (configurable) | 10 MB | FR-DISP-004 |
 | Registry module count | 0 | 1,000 (design target) | — | NFR-PERF-003 |
 | Startup time | — | 100 ms | — | NFR-PERF-001 |

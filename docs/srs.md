@@ -52,7 +52,7 @@ The system shall NOT provide remote execution via apcore-a2a (deferred to Phase 
 | **HITL** | Human-in-the-Loop. A safety pattern requiring explicit human confirmation before executing sensitive or destructive operations. |
 | **Registry** | An apcore component that discovers and indexes module definitions from an extensions directory. Provides `list()`, `get_definition()`, and `get_schema()` APIs. |
 | **Module** | An apcore module. A self-describing unit of business logic with metadata (description, input_schema, output_schema, annotations). |
-| **Canonical ID** | A dot-separated, lowercase identifier for a module (e.g., `math.add`). Format: `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`. Maximum 128 characters. |
+| **Canonical ID** | A dot-separated, lowercase identifier for a module (e.g., `math.add`). Format: `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`. Maximum 192 characters (see PROTOCOL_SPEC §2.7). |
 | **TTY** | Teletypewriter. In this context, refers to an interactive terminal session where `sys.stdin.isatty()` returns `True`. |
 | **STDIN** | Standard Input. The default input stream for a process, used for piped JSON input. |
 | **JSON Schema** | A vocabulary for annotating and validating JSON documents (RFC draft-bhutton-json-schema-01). Used by apcore modules to define `input_schema` and `output_schema`. |
@@ -229,7 +229,7 @@ The system provides eight feature groups:
 
 **Main Flow:**
 1. The user invokes `apcore-cli <module_id> [--flags...]`.
-2. The system shall validate that `<module_id>` conforms to the Canonical ID format: `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`, with a maximum length of 128 characters.
+2. The system shall validate that `<module_id>` conforms to the Canonical ID format: `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`, with a maximum length of 192 characters (PROTOCOL_SPEC §2.7).
 3. The system shall look up `<module_id>` in the Registry via `Registry.get_definition()`.
 4. The system shall parse the module's `input_schema` and generate CLI flags (delegated to Schema Parser, see section 5.2).
 5. The system shall collect input values from CLI flags and/or STDIN (see FR-DISP-004).
@@ -242,7 +242,7 @@ The system provides eight feature groups:
 **Alternative Flows:**
 
 - **AF-1: Module Not Found.** If the Registry does not contain `<module_id>`, the system shall write to stderr: `Error: Module '<module_id>' not found in registry.` and exit with code 44 (`MODULE_NOT_FOUND`).
-- **AF-2: Invalid Module ID Format.** If `<module_id>` does not match the Canonical ID regex or exceeds 128 characters, the system shall write to stderr: `Error: Invalid module ID format: '<module_id>'.` and exit with code 2 (`GENERAL_INVALID_INPUT`).
+- **AF-2: Invalid Module ID Format.** If `<module_id>` does not match the Canonical ID regex or exceeds 192 characters, the system shall write to stderr: `Error: Invalid module ID format: '<module_id>'.` and exit with code 2 (`GENERAL_INVALID_INPUT`).
 - **AF-3: Schema Validation Failure.** If the provided input fails JSON Schema validation, the system shall write to stderr a validation error message identifying the failing property and constraint, and exit with code 45 (`SCHEMA_VALIDATION_ERROR`).
 - **AF-4: Module Execution Error.** If the Executor returns an error from the module, the system shall write the error message to stderr and exit with code 1 (`MODULE_EXECUTE_ERROR`).
 - **AF-5: Module Disabled.** If the module exists but is marked as disabled, the system shall write to stderr: `Error: Module '<module_id>' is disabled.` and exit with code 44 (`MODULE_DISABLED`).
@@ -2191,7 +2191,7 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
-| `canonical_id` | String | Pattern: `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`. Max 128 chars. | Unique dot-separated identifier for a module. |
+| `canonical_id` | String | Pattern: `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`. Max 192 chars (PROTOCOL_SPEC §2.7). | Unique dot-separated identifier for a module. |
 | `description` | String | Max 4,096 characters. | Human-readable description of the module's purpose. |
 | `tags` | Array of String | Each tag: `^[a-z][a-z0-9_-]*$`. Max 32 tags per module. | Categorization labels for discovery filtering. |
 | `requires_approval` | Boolean | Default: `false`. | Whether the module requires HITL approval before execution. |
