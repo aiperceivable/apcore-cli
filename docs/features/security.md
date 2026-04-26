@@ -90,11 +90,12 @@ apcore_cli/security/
 - headers: dict, required — HTTP headers dict to augment with the Authorization header.
 
 ### Errors
-- AuthenticationError("Remote registry requires authentication. Set --api-key, APCORE_AUTH_API_KEY, or auth.api_key in config.") — when no API key is available (exit code 77)
+- `AuthenticationError("Remote registry requires authentication. Set --api-key, APCORE_AUTH_API_KEY, or auth.api_key in config.")` — when no API key is available (exit code 77).
+- `AuthenticationError("Malformed API key: contains invalid characters (CR or LF). Re-export the variable or update the config without trailing newlines.")` — when the resolved API key contains a carriage return (`\r`) or line feed (`\n`) character. This is a defensive guard against header-injection / smuggling vectors that occur when shells append a stray newline (e.g., `export APCORE_AUTH_API_KEY="$(...)"` where the inner command emits a trailing newline). Maps to exit code 77. Rust surfaces this as `AuthenticationError::MalformedApiKey`.
 
 ### Returns
-- On success: dict — the input headers dict with `"Authorization": "Bearer {key}"` added
-- On no key: raises AuthenticationError
+- On success: dict — the input headers dict with `"Authorization": "Bearer {key}"` added (in-place mutation; the same reference is returned).
+- On no key or malformed key: raises AuthenticationError
 
 ### Properties
 - async: false
@@ -181,8 +182,9 @@ Logic steps:
 Logic steps:
 1. Call `key = self.get_api_key()`.
 2. If `key is None`: raise `AuthenticationError("Remote registry requires authentication. Set --api-key, APCORE_AUTH_API_KEY, or auth.api_key in config.")`.
-3. Set `headers["Authorization"] = f"Bearer {key}"`.
-4. Return `headers`.
+3. If `"\r" in key` or `"\n" in key`: raise `AuthenticationError("Malformed API key: contains invalid characters (CR or LF). Re-export the variable or update the config without trailing newlines.")`. This is a defensive guard against header injection / shell-newline-bleed (a stray `\n` from `export VAR="$(...)"` would otherwise produce a multi-line `Authorization` header).
+4. Mutate `headers` in place: `headers["Authorization"] = f"Bearer {key.strip()}"`.
+5. Return `headers` — the same reference as the input. Callers that share the headers dict observe the new `Authorization` entry without re-reading the return value.
 
 **Method: `handle_response(status_code: int) -> None`**
 
