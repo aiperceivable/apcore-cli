@@ -44,17 +44,21 @@ The Approval Gate is a TTY-aware Human-in-the-Loop (HITL) middleware that interc
   validates: must be int in valid range
 
 ### Errors
-- SystemExit(46) — when approval is denied (user types n/Enter), times out, or non-TTY with no bypass
-- (no Python exception raised — always calls sys.exit or returns None)
+- `ApprovalDeniedError` — when approval is denied (user types n/Enter) or stdin is non-TTY with no bypass available. Maps to **exit code 46** when bubbled to the CLI top-level.
+- `ApprovalTimeoutError` — when the TTY prompt does not receive a response within `timeout` seconds. Maps to **exit code 46**.
+- (Rust: the same conditions surface as `ApprovalError::Denied`, `ApprovalError::Timeout`, and `ApprovalError::NonInteractive` enum variants. Python/TS fold the non-TTY case into `ApprovalDeniedError`.)
+
+> **Migration note (post D11-001):** Earlier revisions of this spec declared `SystemExit(46)` directly. Implementations now raise typed errors so callers (e.g., the CLI dispatcher) can flush the audit log before mapping to the process exit code. Callers MUST translate `ApprovalDeniedError` and `ApprovalTimeoutError` to exit 46 at the top-level entry point.
 
 ### Returns
 - On success (approved or not required): `None`
-- On denial/timeout/non-TTY: raises `SystemExit(46)` (never returns)
+- On denial / non-TTY: raises `ApprovalDeniedError` (caller maps to exit 46)
+- On timeout: raises `ApprovalTimeoutError` (caller maps to exit 46)
 
 ### Properties
 - async: false
 - thread_safe: false (uses signal.alarm on Unix — not safe to call from multiple threads)
-- pure: false (prompts terminal, reads env vars, may call sys.exit)
+- pure: false (prompts terminal, reads env vars, may raise typed errors that callers translate to process exit)
 
 ---
 
@@ -66,11 +70,14 @@ The Approval Gate is a TTY-aware Human-in-the-Loop (HITL) middleware that interc
 - timeout: int, optional — Prompt timeout in seconds. Default: `60`.
 
 ### Errors
-- SystemExit(46) — approval denied, timed out, or no TTY
+- `ApprovalDeniedError` — approval denied (user input) or stdin non-TTY without bypass. Maps to exit code 46.
+- `ApprovalTimeoutError` — prompt timed out. Maps to exit code 46.
+- (Rust: surfaces as `ApprovalError::{Denied, Timeout, NonInteractive}`.)
 
 ### Returns
 - On success: `None`
-- On denial: raises `SystemExit(46)`
+- On denial / non-TTY: raises `ApprovalDeniedError`
+- On timeout: raises `ApprovalTimeoutError`
 
 ### Properties
 - async: false
@@ -86,11 +93,14 @@ The Approval Gate is a TTY-aware Human-in-the-Loop (HITL) middleware that interc
 - context: Any, optional — Execution context (unused in v0.7, reserved for future async approval flows).
 
 ### Errors
-- SystemExit(46) — approval denied or timed out
+- `ApprovalDeniedError` — approval denied or stdin non-TTY without bypass. Maps to exit code 46.
+- `ApprovalTimeoutError` — prompt timed out. Maps to exit code 46.
+- (Rust: surfaces as `ApprovalError::{Denied, Timeout, NonInteractive}`.)
 
 ### Returns
 - On approval granted: `None`
-- On denial: raises `SystemExit(46)`
+- On denial / non-TTY: raises `ApprovalDeniedError`
+- On timeout: raises `ApprovalTimeoutError`
 
 ### Properties
 - async: false
@@ -122,9 +132,8 @@ Logic steps:
         - Log WARNING: "APCORE_CLI_AUTO_APPROVE is set to '{env_val}', expected '1'. Ignoring."
 6. Check TTY status: `is_tty = sys.stdin.isatty()`.
 7. If `not is_tty`:
-   - Write to stderr: "Error: Module '{module_id}' requires approval but no interactive terminal is available. Use --yes or set APCORE_CLI_AUTO_APPROVE=1 to bypass."
    - Log ERROR: "Non-interactive environment, no bypass provided for module '{module_id}'."
-   - Exit code 46.
+   - Raise `ApprovalDeniedError("Module '{module_id}' requires approval but no interactive terminal is available. Use --yes or set APCORE_CLI_AUTO_APPROVE=1 to bypass.")`. The CLI top-level catches this, flushes any pending audit records, writes the message to stderr, and exits with code 46. (Rust surfaces this case as `ApprovalError::NonInteractive` instead of `ApprovalError::Denied`.)
 8. If `is_tty`:
    - Call `_prompt_with_timeout(module_def)`.
 
@@ -147,12 +156,10 @@ Logic steps:
       - Return.
    d. If not `approved`:
       - Log WARNING: "Approval rejected by user for module '{module_id}'."
-      - Write to stderr: "Error: Approval denied."
-      - Exit code 46.
+      - Raise `ApprovalDeniedError("Approval denied.")`. The CLI top-level catches it, flushes pending audit records, writes the message to stderr, and exits with code 46.
 6. On timeout (SIGALRM or timer fires):
    - Log WARNING: "Approval timed out after {timeout}s for module '{module_id}'."
-   - Write to stderr: "Error: Approval prompt timed out after {timeout} seconds."
-   - Exit code 46.
+   - Raise `ApprovalTimeoutError(f"Approval prompt timed out after {timeout} seconds.")`. The CLI top-level catches it, flushes pending audit records, writes the message to stderr, and exits with code 46.
 
 ### 4.3 Timeout Handler
 
@@ -172,13 +179,20 @@ def _timeout_interrupt():
     )
 ```
 
-### 4.4 Custom Exception
+### 4.4 Custom Exceptions
 
 ```python
+class ApprovalDeniedError(Exception):
+    """Raised when approval is denied — user input, or non-TTY with no bypass."""
+    pass
+
+
 class ApprovalTimeoutError(Exception):
     """Raised when the approval prompt times out."""
     pass
 ```
+
+In Rust, the equivalent set is encoded as variants of a single `ApprovalError` enum (`Denied`, `Timeout`, `NonInteractive`). The Python/TS `ApprovalDeniedError` covers both Rust's `Denied` and `NonInteractive` cases.
 
 ---
 
