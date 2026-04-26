@@ -98,7 +98,7 @@ apcore_cli/security/
 - On no key or malformed key: raises AuthenticationError
 
 ### Properties
-- async: false
+- async: depends_on_language — Python and Rust expose `authenticate_request` as synchronous (the underlying keyring APIs on those platforms are blocking). TypeScript exposes it as `async` because Node.js `keytar` is asynchronous. Callers MUST treat the return as awaitable in TypeScript and as a direct return in Python/Rust. A sync façade in TypeScript (e.g., a `warm()` method that pre-loads the cached API key into a private field, after which `authenticate_request` is synchronous) is acceptable as an alternative implementation strategy if cross-language sync parity is desired by an embedder.
 - thread_safe: true (reads config and env; no mutable shared state)
 - pure: false (reads env vars and config file)
 
