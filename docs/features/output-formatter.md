@@ -10,7 +10,11 @@
 
 ## 1. Description
 
-The Output Formatter provides TTY-adaptive output rendering for `apcore-cli`. It detects whether stdout is connected to a terminal or a pipe, and defaults to rich table formatting for TTY sessions or JSON for non-TTY contexts. It is used by Discovery (`list`, `describe`) and can be used by `exec` output formatting.
+The Output Formatter provides TTY-adaptive output rendering for `apcore-cli`. It detects whether stdout is connected to a terminal or a pipe, and defaults to rich table formatting for TTY sessions or JSON for non-TTY contexts. It is used by Discovery (`list`, `describe`), the `apcli system *` and `apcli strategy *` subcommands, and `exec` output formatting.
+
+The canonical choice set differs by data shape: `list` and `describe` (which render `ScannedModule` metadata) accept `[table, json, csv, yaml, jsonl, markdown, skill]`; `exec`, `apcli system *`, and `apcli strategy *` (which render arbitrary business / health / strategy payloads) accept `[table, json, csv, yaml, jsonl]`. `markdown` and `skill` are deliberately excluded from the latter set — the surface-aware toolkit formatters target `ScannedModule` and are not meaningful for free-form payloads.
+
+For `markdown` and `skill` styles (added v0.9.0, this feature spec), the formatter delegates to `apcore_toolkit.format_module(s)` so the rendering is byte-identical across the Python / TypeScript / Rust SDKs (see apcore-toolkit `formatting.md` § "Annotations Rendering"). `markdown` produces an LLM-ready prose block; `skill` produces the same body wrapped in vendor-neutral YAML frontmatter (`name`, `description`) directly loadable by Claude Code (`.claude/skills/<id>/SKILL.md`) and Gemini CLI (`.gemini/skills/<id>/SKILL.md`).
 
 ---
 
@@ -21,6 +25,8 @@ The Output Formatter provides TTY-adaptive output rendering for `apcore-cli`. It
 | FR-08-01 | FR-DISC-004 | TTY-adaptive output format selection with `--format` override. |
 | FR-08-02 | FR-DISC-001 | Table rendering for module lists using `rich.table.Table`. |
 | FR-08-03 | FR-DISC-003 | Syntax-highlighted JSON rendering using `rich.syntax.Syntax`. |
+| FR-08-04 | FR-DISC-004 AC-4 | `--format markdown` delegates to `apcore_toolkit.format_module(s)(..., style="markdown")` byte-identically across SDKs. (added v0.9.0) |
+| FR-08-05 | FR-DISC-004 AC-5 | `--format skill` delegates to `apcore_toolkit.format_module(s)(..., style="skill")` and produces vendor-neutral Claude / Gemini SKILL.md content. (added v0.9.0) |
 
 ---
 
@@ -36,7 +42,7 @@ The Output Formatter provides TTY-adaptive output rendering for `apcore-cli`. It
 
 ### Inputs
 - explicit_format: str | None, required — Explicit format override. `None` triggers TTY detection.
-  validates: expected values are `"table"` or `"json"`; invalid values should be rejected upstream by Click
+  validates: expected values are members of the canonical choice set (see `format_module_list` / `format_module_detail`); invalid values should be rejected upstream by Click / the SDK's CLI parser.
 
 ### Errors
 - (none raised)
@@ -55,7 +61,7 @@ The Output Formatter provides TTY-adaptive output rendering for `apcore-cli`. It
 
 ### Inputs
 - modules: list[ModuleDefinition], required — List of module definitions to render. Empty list shows "No modules found."
-- format: str, required — `"table"`, `"json"`, `"csv"`, `"yaml"`, or `"jsonl"` (csv/yaml/jsonl added v0.6.0 per FE-11 §3.9).
+- format: str, required — one of `"table"`, `"json"`, `"csv"`, `"yaml"`, `"jsonl"`, `"markdown"`, `"skill"`. csv/yaml/jsonl added v0.6.0 per FE-11 §3.9; markdown/skill added v0.9.0 (this spec) and delegate to `apcore_toolkit.format_modules(..., style=...)`.
 - filter_tags: tuple[str, ...], optional — Tags used to customize the empty-list message. Default: `()`.
 
 ### Errors
@@ -75,7 +81,7 @@ The Output Formatter provides TTY-adaptive output rendering for `apcore-cli`. It
 
 ### Inputs
 - module_def: ModuleDefinition, required — Module definition to render in full detail.
-- format: str, required — `"table"`, `"json"`, `"csv"`, `"yaml"`, or `"jsonl"` (csv/yaml/jsonl added v0.6.0 per FE-11 §3.9).
+- format: str, required — one of `"table"`, `"json"`, `"csv"`, `"yaml"`, `"jsonl"`, `"markdown"`, `"skill"`. csv/yaml/jsonl added v0.6.0 per FE-11 §3.9; markdown/skill added v0.9.0 (this spec) and delegate to `apcore_toolkit.format_module(..., style=...)`.
 
 ### Errors
 - (none raised)
@@ -94,7 +100,7 @@ The Output Formatter provides TTY-adaptive output rendering for `apcore-cli`. It
 
 ### Inputs
 - result: Any, required — Module execution result. Supports dict, list, str, None, or any str-convertible type.
-- format: str | None, optional — Output format hint. Allowed values: `"json"` (default for non-TTY), `"table"` (default for TTY), `"csv"`, `"yaml"`, `"jsonl"`. Default: `None` (auto via `resolve_format`). csv/yaml/jsonl added v0.6.0 per FE-11 §3.9.
+- format: str | None, optional — Output format hint. Allowed values: `"json"` (default for non-TTY), `"table"` (default for TTY), `"csv"`, `"yaml"`, `"jsonl"`. Default: `None` (auto via `resolve_format`). csv/yaml/jsonl added v0.6.0 per FE-11 §3.9. **Note:** `"markdown"` and `"skill"` are NOT accepted here — `exec` returns arbitrary business results (not `ScannedModule` metadata) so the surface-aware toolkit formatters do not apply.
 - fields: tuple[str, ...] | str | None, optional — Dot-path field selector for `--fields`. When set, the formatter projects only the named fields from each result row before rendering. Added v0.6.0 per FE-11 §3.9.
 
 ### Errors
@@ -102,6 +108,7 @@ The Output Formatter provides TTY-adaptive output rendering for `apcore-cli`. It
 
 ### Returns
 - On success: None — output written to stdout; empty stdout when result is None
+- **Rust language note**: returns `String` instead of writing to stdout directly; the dispatcher caller (`cli.rs`) is responsible for `println!`. Net observable behavior matches Python (`click.echo`) and TypeScript (`process.stdout.write`); the return-string form is for testability and composability per Rust convention.
 
 ### Properties
 - async: false
@@ -146,6 +153,11 @@ Logic steps:
       - `tags = _disp.get("tags") or module.tags`
       - Append `{"id": mid, "description": desc, "tags": tags}` to result list.
    b. Print `json.dumps(result, indent=2)` via `click.echo`.
+3. Elif `format in ("markdown", "skill")` (added v0.9.0):
+   a. Adapt each `ModuleDefinition` / `ModuleDescriptor` to the toolkit's `ScannedModule` shape (or pass through if compatible). The adapter MUST preserve `module_id`, `description`, `input_schema`, `output_schema`, `annotations`, `tags`, `examples`, and `display`.
+   b. Call `apcore_toolkit.format_modules(scanned, style=format, display=True)`.
+   c. Print the returned string via `click.echo` (or the SDK's stdout primitive).
+   d. Empty input: still print empty string (no "No modules found." chrome — markdown/skill outputs are file-shaped and chrome would corrupt downstream pipelines).
 
 ### 4.3 Function: `format_module_detail`
 
@@ -173,6 +185,9 @@ Logic steps:
 2. If `format == "json"`:
    a. Build dict with all non-None fields.
    b. Print `json.dumps(result, indent=2)`.
+3. If `format in ("markdown", "skill")` (added v0.9.0):
+   a. Adapt `module_def` to `ScannedModule` shape.
+   b. Print `apcore_toolkit.format_module(scanned, style=format, display=True)` via `click.echo`.
 
 ### 4.4 Function: `format_exec_result`
 
@@ -221,7 +236,7 @@ def _truncate(text: str, max_length: int = 80) -> str:
 
 | Parameter | Type | Valid Values | Invalid Handling | SRS Reference |
 |-----------|------|-------------|------------------|---------------|
-| `explicit_format` | `str \| None` | `"table"`, `"json"`, `None` | `None` triggers TTY detection. Invalid values should be caught by Click upstream. | FR-DISC-004 |
+| `explicit_format` | `str \| None` | `"table"`, `"json"`, `"csv"`, `"yaml"`, `"jsonl"`, `"markdown"`, `"skill"`, `None` | `None` triggers TTY detection. Invalid values should be caught by Click upstream. `"markdown"` / `"skill"` are accepted only for `list` / `describe` / `system *` / `strategy *` (not `exec`). | FR-DISC-004 |
 | `modules` | `list` | List of `ModuleDefinition` objects. | Empty list: display "No modules found." message. | FR-DISC-001 |
 | `result` (exec) | `Any` | Any JSON-serializable type, string, or None. | Non-serializable: use `default=str` fallback. | — |
 
@@ -256,3 +271,6 @@ def _truncate(text: str, max_length: int = 80) -> str:
 | T-OUT-13 | `format_exec_result(rows, format="yaml")` | YAML stream emitted via `yaml.safe_dump(..., sort_keys=False)`. (added v0.6.0) |
 | T-OUT-14 | `format_exec_result(rows, format="jsonl")` | One `json.dumps(row)` per line, newline-terminated. (added v0.6.0) |
 | T-OUT-15 | `format_exec_result(rows, format="json", fields="id,metadata.author")` | Output rows projected to only the two named dot-paths; missing keys produce `null`. (added v0.6.0) |
+| T-OUT-16 | `format_module_list(modules, format="markdown")` | stdout matches `apcore_toolkit.format_modules(modules, style="markdown")` byte-for-byte. (added v0.9.0) |
+| T-OUT-17 | `format_module_detail(module, format="skill")` | stdout starts with `---\nname: …\ndescription: …\n---\n` followed by the same Markdown body as `format="markdown"`. (added v0.9.0) |
+| T-OUT-18 | `apcli exec mod --format skill` / `apcli system health --format markdown` | Click rejects with exit code 2 (markdown/skill not in `exec`/`system *`/`strategy *` choice sets — those payloads are not `ScannedModule` data). (added v0.9.0) |

@@ -7,6 +7,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.8.0] - 2026-05-07
 
+### Added
+
+- **FR-DISC-004 — `markdown` and `skill` output formats** for `list` and
+  `describe` (issue
+  [#20](https://github.com/aiperceivable/apcore-cli/issues/20)). Both delegate
+  to `apcore_toolkit.format_module(s)` (toolkit ≥0.6) so output is byte-identical
+  across the Python / TypeScript / Rust SDKs. `--format skill` produces
+  vendor-neutral SKILL.md content (`name` + `description` frontmatter) loadable
+  as-is by Claude Code (`.claude/skills/<id>/SKILL.md`) and Gemini CLI
+  (`.gemini/skills/<id>/SKILL.md`). `exec`, `apcli system *`, and
+  `apcli strategy *` deliberately keep the five-format choice set
+  `[table, json, csv, yaml, jsonl]` — markdown/skill target `ScannedModule`
+  and do not apply to arbitrary business / health / strategy payloads.
+  - SRS §5.4 FR-DISC-004 main flow, AF-2, and acceptance criteria rewritten
+    around the seven-format canonical choice set.
+  - SRS §5.4 FR-DISC-003 AF-4 added documenting the toolkit delegation.
+  - Feature spec FE-08 §1, §3 (Contracts), §4.2, §4.3, §5, §7 updated;
+    new test rows T-OUT-16 / T-OUT-17 / T-OUT-18.
+  - Tech Design §3.2 Goal 4 expanded with the Claude Code / Gemini CLI
+    skill-export workflow.
+
 ### Changed
 
 - **`docs/tech-design.md` §8.2.7 — `create_cli()` canonical signature gains
@@ -28,6 +49,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   carry `"version": "0.8.0"` in `create_cli.json` so the cross-SDK
   `expected_help.txt` golden continues to verify `-V, --version` rendering
   in addition to apcli visibility.
+
+### Fixed
+
+- **SRS FR-DISC-004 AC-4 staleness** (issue
+  [#20](https://github.com/aiperceivable/apcore-cli/issues/20)) — the previous
+  AC asserting that `--format yaml` should be rejected was removed; csv/yaml/jsonl
+  have been shipped since v0.6.0 and the new AC-6 covers invalid-format
+  rejection generically.
 
 ### Note
 

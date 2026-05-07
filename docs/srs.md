@@ -7,9 +7,9 @@
 | Field | Value |
 |-------|-------|
 | **Document ID** | SRS-APCORE-CLI-001 |
-| **Version** | 0.7 |
+| **Version** | 0.8 |
 | **Author** | Spec Forge |
-| **Date** | 2026-04-15 |
+| **Date** | 2026-05-07 |
 | **Status** | Active |
 
 ---
@@ -18,6 +18,7 @@
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 0.8 | 2026-05-07 | Spec Forge | Rewrite FR-DISC-004 around the seven-format canonical choice set (`table, json, csv, yaml, jsonl, markdown, skill`); drop stale AC-4 yaml-rejection assertion; add FR-DISC-003 AF-4 documenting toolkit delegation. Issue #20. |
 | 0.7 | 2026-04-15 | Spec Forge | Add requirements for FE-10 Init Command (§5.7), FE-11 Usability Enhancements (§5.8), FE-12 Exposure Filtering (§5.9). Update status to Active. |
 | 0.1 | 2026-03-14 | Spec Forge | Initial draft |
 
@@ -1146,6 +1147,7 @@ The system provides eight feature groups:
 - **AF-1: Module Not Found.** If `<module_id>` is not in the Registry, the system shall write to stderr: `Error: Module '{module_id}' not found.` and exit with code 44 (`MODULE_NOT_FOUND`).
 - **AF-2: JSON Output Format.** If `--format json` is specified, the system shall output the module metadata as a single JSON object without syntax highlighting.
 - **AF-3: Module Without Optional Fields.** If the module lacks `output_schema`, annotations, or extension metadata, the system shall omit those sections from the display rather than showing empty sections.
+- **AF-4: Markdown / Skill Output Format.** If `--format markdown` or `--format skill` is specified, the system shall delegate rendering to `apcore_toolkit.format_module(..., style="markdown"|"skill", display=True)` so the body is byte-identical to the toolkit's contract (see FR-DISC-004 main flow steps 5–6 and apcore-toolkit `formatting.md` § "Style Matrix").
 
 **Postconditions:**
 - Full module metadata is displayed. Exit code is 0 or 44.
@@ -1165,27 +1167,36 @@ The system provides eight feature groups:
 | **ID** | FR-DISC-004 |
 | **Title** | Output Format Selection |
 | **Priority** | P1 |
-| **Priority Rationale** | AI agents require structured JSON output. Developers prefer readable tables. TTY-adaptive defaults eliminate the need for explicit flags in common cases. |
-| **Source** | Feature Spec FE-04 FR-04-05 |
+| **Priority Rationale** | AI agents require structured output (JSON for programmatic consumption; Markdown / Skill for prompt injection and Agent-Skill export to Claude Code / Gemini CLI). Developers prefer readable tables. TTY-adaptive defaults eliminate the need for explicit flags in common cases. |
+| **Source** | Feature Spec FE-08 (formerly FE-04 FR-04-05); apcore-toolkit `formatting.md` Style Matrix |
 
-**Description:** The system shall accept a `--format` flag on `list` and `describe` subcommands with allowed values `table` and `json`. The default shall be TTY-adaptive: `table` when `sys.stdout.isatty()` returns `True`, `json` when `sys.stdout.isatty()` returns `False`. The `--format` flag shall override the TTY-adaptive default.
+**Description:** The system shall accept a `--format` flag whose canonical choice set depends on the subcommand's data shape:
+
+- **`list` and `describe`** (render `ScannedModule` metadata) accept the full set `[table, json, csv, yaml, jsonl, markdown, skill]`. The `markdown` and `skill` styles delegate to `apcore_toolkit.format_module(s)` so output is byte-identical across the Python / TypeScript / Rust SDKs (see apcore-toolkit `formatting.md` § "Annotations Rendering").
+- **`apcli system *`, `apcli strategy *`, and `apcli exec`** (render arbitrary business / health / strategy results, not `ScannedModule`) accept `[table, json, csv, yaml, jsonl]`. `markdown` and `skill` are deliberately excluded — the surface-aware toolkit formatters target `ScannedModule` and are not meaningful for these payloads.
+
+The default shall be TTY-adaptive: `table` when `sys.stdout.isatty()` returns `True`, `json` when `sys.stdout.isatty()` returns `False`. The `--format` flag shall override the TTY-adaptive default.
 
 **Actors:** Developer, AI Agent
 
 **Preconditions:**
-- The `list` or `describe` subcommand is invoked.
+- One of the supported subcommands is invoked.
 
 **Main Flow:**
 1. The system shall check for a `--format` flag.
-2. If `--format table` is specified, render output as a formatted table using `rich`.
+2. If `--format table` is specified, render output as a formatted table using `rich` (or the SDK's idiomatic equivalent).
 3. If `--format json` is specified, render output as a JSON document (array for `list`, object for `describe`) with 2-space indentation.
-4. If no `--format` is specified:
+4. If `--format csv|yaml|jsonl` is specified, render rows via the standard library's CSV writer / `yaml.safe_dump` / one `json.dumps(row)` per line respectively (added v0.6.0).
+5. If `--format markdown` is specified, delegate to `apcore_toolkit.format_module(s)(..., style="markdown")`. For `list`, the result is the per-module Markdown bodies joined by a blank line (optionally grouped by tag/prefix).
+6. If `--format skill` is specified, delegate to `apcore_toolkit.format_module(s)(..., style="skill")` — Markdown body prefixed with the vendor-neutral YAML frontmatter (`name`, `description`). The output is shaped to be written as `.claude/skills/<id>/SKILL.md` or `.gemini/skills/<id>/SKILL.md`.
+7. If no `--format` is specified:
    a. If `sys.stdout.isatty()` is `True`, default to `table`.
    b. If `sys.stdout.isatty()` is `False`, default to `json`.
 
 **Alternative Flows:**
 
-- **AF-1: Invalid Format Value.** If the user provides a value other than `table` or `json`, Click shall reject the input with an error listing the allowed choices and exit with code 2.
+- **AF-1: Invalid Format Value.** If the user provides a value outside the canonical choice set, Click (or the SDK's CLI parser) shall reject the input with an error listing the allowed choices and exit with code 2.
+- **AF-2: Non-module subcommand scope.** The `apcli exec`, `apcli system *`, and `apcli strategy *` subcommands render arbitrary business / health / strategy results, not `ScannedModule` metadata. Their `--format` choice set is `[table, json, csv, yaml, jsonl]`; `markdown` and `skill` are not accepted.
 
 **Postconditions:**
 - Output is rendered in the selected or defaulted format.
@@ -1195,7 +1206,9 @@ The system provides eight feature groups:
 - **AC-1:** Given a TTY session, when the user runs `apcore-cli list` without `--format`, then the output shall be a formatted table.
 - **AC-2:** Given a non-TTY context (e.g., piped output), when the agent runs `apcore-cli list` without `--format`, then the output shall be valid JSON.
 - **AC-3:** Given a TTY session, when the user runs `apcore-cli list --format json`, then the output shall be valid JSON (overriding the TTY default).
-- **AC-4:** Given `--format yaml` is provided, then Click shall reject the value and exit with code 2.
+- **AC-4:** Given `--format markdown` on `list` or `describe`, then the output shall match the Markdown rendering produced by `apcore_toolkit.format_module(s)(..., style="markdown")` byte-for-byte.
+- **AC-5:** Given `--format skill` on `describe <id>`, then the first line of stdout shall be `---`, followed by `name:` and `description:` lines, followed by `---`, followed by the same Markdown body as `--format markdown`. The result shall be loadable by Claude Code and Gemini CLI as a SKILL definition.
+- **AC-6:** Given `--format <unknown>` on any covered subcommand, then the SDK's CLI parser shall reject the value and exit with code 2.
 
 ---
 

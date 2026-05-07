@@ -7,9 +7,9 @@
 | Field | Value |
 |-------|-------|
 | **Document Title** | Technical Design: apcore-cli |
-| **Version** | 2.7 |
+| **Version** | 2.8 |
 | **Author** | Spec Forge |
-| **Date** | 2026-04-15 |
+| **Date** | 2026-05-07 |
 | **Status** | Active |
 | **Supersedes** | Tech Design v1.0 (`docs/tech-design.md`) |
 | **Upstream SRS** | `docs/srs.md` (SRS-APCORE-CLI-001 v0.1) |
@@ -20,6 +20,7 @@
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 2.8 | 2026-05-07 | Spec Forge | Expand §3.2 Goal 4 with the seven-format canonical choice set and the Claude Code / Gemini CLI skill-export workflow; cross-reference toolkit `formatModule(s)` byte-identical guarantee. Issue #20. |
 | 2.7 | 2026-04-15 | Spec Forge | Add §8.12 Init Command implementation, §8.13 Usability Enhancements implementation, §8.14 Module Exposure Filter implementation. Update status to Active. |
 | 1.0 | 2026-03-14 | Spec Forge | Full rewrite from SRS. Supersedes v0.4. Adds security stack, shell integration, C4 diagrams, traceability matrix. |
 | 2.0 | 2026-03-23 | Spec Forge | Adds Display Overlay integration (ADR-07), Grouped CLI Commands (ADR-08). New `GroupedModuleGroup` class, group resolution algorithm, updated discovery/shell/output components. |
@@ -39,7 +40,7 @@ The `apcore` ecosystem provides a protocol for building AI-Perceivable modules w
 1. **Auto-Mapping**: Zero-config generation of CLI commands from `apcore` Module JSON Schema definitions (SRS FR-SCHEMA-001 through FR-SCHEMA-006).
 2. **Efficiency**: < 100ms CLI startup time, < 50ms adapter overhead excluding module execution (SRS NFR-PERF-001, NFR-PERF-002).
 3. **Safety**: TTY-aware Human-in-the-Loop approval gates for destructive or sensitive operations (SRS FR-APPR-001 through FR-APPR-005).
-4. **Composability**: Unix pipe integration via STDIN JSON input and TTY-adaptive output formatting (SRS FR-DISP-004, FR-DISC-004).
+4. **Composability**: Unix pipe integration via STDIN JSON input and TTY-adaptive output formatting (SRS FR-DISP-004, FR-DISC-004). The output formatter accepts `[table, json, csv, yaml, jsonl, markdown, skill]` on `list` / `describe` (which render `ScannedModule` metadata) and `[table, json, csv, yaml, jsonl]` on `exec` / `apcli system *` / `apcli strategy *` (arbitrary business payloads). The `markdown` and `skill` styles delegate to `apcore_toolkit.format_module(s)` so the rendering is byte-identical across the Python / TypeScript / Rust SDKs (toolkit `formatting.md` line 142). `--format skill` produces vendor-neutral SKILL.md content (`name` + `description` frontmatter only) directly loadable by Claude Code (`.claude/skills/<id>/SKILL.md`) and Gemini CLI (`.gemini/skills/<id>/SKILL.md`), enabling a one-shot skill-export workflow.
 5. **Security**: Full authentication, encrypted config, audit logging, and sandboxed execution stack (SRS FR-SEC-001 through FR-SEC-004).
 6. **Scalable Navigation**: Grouped command hierarchy for projects with 50+ modules, with readable root help and intuitive `apcore-cli <group> <command>` invocation. *(New in v2.0)*
 7. **Display Overlay**: Surface-specific command naming and descriptions via `binding.yaml` display metadata, replacing direct module_id exposure. *(New in v2.0)*
