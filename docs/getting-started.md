@@ -48,10 +48,12 @@ apcore-cli math.add --a 5 --b 10
 
 ## Discover modules
 
+> **v0.8 reminder:** built-in commands live under the `apcli` group (`<cli> apcli <sub>`); root-level shims (e.g. `apcore-cli list`) were removed in v0.8.0. In standalone mode `apcli` is visible by default; embedded hosts can hide or filter it (see [features/builtin-group.md](features/builtin-group.md)). User business modules (e.g. `apcore-cli math.add`) remain unprefixed.
+
 ### List all modules
 
 ```bash
-apcore-cli list
+apcore-cli apcli list
 ```
 
 In an interactive terminal you get a formatted table; when piped, output switches to JSON automatically.
@@ -59,13 +61,13 @@ In an interactive terminal you get a formatted table; when piped, output switche
 ### Filter by tag
 
 ```bash
-apcore-cli list --tag math
+apcore-cli apcli list --tag math
 ```
 
 ### Inspect a module
 
 ```bash
-apcore-cli describe math.add
+apcore-cli apcli describe math.add
 ```
 
 This shows the module's description, input/output schemas, tags, and annotations (including `requires_approval`).
@@ -117,8 +119,8 @@ export APCORE_CLI_AUTO_APPROVE=1
 Force a specific format regardless of TTY detection:
 
 ```bash
-apcore-cli list --format json     # always JSON
-apcore-cli list --format table    # always table
+apcore-cli apcli list --format json     # always JSON
+apcore-cli apcli list --format table    # always table
 ```
 
 ---
@@ -206,21 +208,21 @@ Generate and install completion scripts for your shell:
 === "Bash"
 
     ```bash
-    apcore-cli completion bash > ~/.apcore-cli-complete.bash
+    apcore-cli apcli completion bash > ~/.apcore-cli-complete.bash
     echo 'source ~/.apcore-cli-complete.bash' >> ~/.bashrc
     ```
 
 === "Zsh"
 
     ```bash
-    apcore-cli completion zsh > ~/.apcore-cli-complete.zsh
+    apcore-cli apcli completion zsh > ~/.apcore-cli-complete.zsh
     echo 'source ~/.apcore-cli-complete.zsh' >> ~/.zshrc
     ```
 
 === "Fish"
 
     ```bash
-    apcore-cli completion fish > ~/.config/fish/completions/apcore-cli.fish
+    apcore-cli apcli completion fish > ~/.config/fish/completions/apcore-cli.fish
     ```
 
 ---

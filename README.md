@@ -34,9 +34,9 @@ It serves as the terminal-native counterpart to `apcore-mcp` (Model Context Prot
   ━━━━━━━━━━━━━━━━━━━━━━━━━━        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   math.add(a, b)             ──┐
   math.sub(a, b)             ──┤──→  apcore-cli math add --a 1 --b 2
-  system.health.summary()    ──┤──→  apcore-cli system health.summary
-  git.commit(msg)            ──┤──→  apcore-cli list --tag math
-  db.query(sql)              ──┘──→  apcore-cli describe math.add
+  system.health.summary()    ──┤──→  apcore-cli apcli health
+  git.commit(msg)            ──┤──→  apcore-cli apcli list --tag math
+  db.query(sql)              ──┘──→  apcore-cli apcli describe math.add
 ```
 
 ---
@@ -120,24 +120,26 @@ It serves as the terminal-native counterpart to `apcore-mcp` (Model Context Prot
 
 ### Step 3: Explore available modules
 
+> **v0.8 reminder:** in standalone mode the `apcli` group is visible by default; in embedded mode integrators may hide or filter it (see [features/builtin-group.md](docs/features/builtin-group.md)). Built-ins are reachable via `<cli> apcli <sub>` only — root-level shims (e.g. `apcore-cli list`) were removed in v0.8.0. User business modules (e.g. `apcore-cli math.add`) remain unprefixed.
+
 ```bash
 # List all discovered modules
-apcore-cli list
+apcore-cli apcli list
 
 # Search by keyword
-apcore-cli list --search email
+apcore-cli apcli list --search email
 
 # Filter by tag
-apcore-cli list --tag math
+apcore-cli apcli list --tag math
 
 # Filter by annotation
-apcore-cli list --annotation destructive --annotation requires-approval
+apcore-cli apcli list --annotation destructive --annotation requires-approval
 
 # See full details for a module
-apcore-cli describe math.add
+apcore-cli apcli describe math.add
 
 # Validate without executing
-apcore-cli validate math.add --a 5 --b hello
+apcore-cli apcli validate math.add --input '{"a": 5, "b": "hello"}'
 ```
 
 ### Step 4: STDIN piping & output formats
@@ -386,16 +388,16 @@ apcore-cli math.add --a 5 --b 10 --trace
 
 ```bash
 # Health overview
-apcore-cli health
+apcore-cli apcli health
 
 # Usage statistics
-apcore-cli usage --period 7d
+apcore-cli apcli usage --period 7d
 
 # Disable a module
-apcore-cli disable db.dangerous --reason "release freeze" --yes
+apcore-cli apcli disable db.dangerous --reason "release freeze" --yes
 
 # View pipeline strategy
-apcore-cli describe-pipeline --strategy minimal
+apcore-cli apcli describe-pipeline --strategy minimal
 ```
 
 ### Streaming output
@@ -425,8 +427,8 @@ apcore-cli data.export --query "SELECT *" --stream
 - **Approval Gate** -- TTY-aware HITL prompts for modules with `requires_approval: true`, with `--yes` bypass and 60s timeout
 - **Schema Validation** -- Inputs validated against JSON Schema before execution, with `$ref`/`allOf`/`anyOf`/`oneOf` resolution
 - **Security** -- API key auth (keyring + AES-256-GCM), append-only audit logging, subprocess sandboxing
-- **Shell Completions** -- `apcore-cli completion bash|zsh|fish` generates completion scripts with dynamic module ID completion
-- **Man Pages** -- `apcore-cli man <command>` generates roff-formatted man pages; `--help --man` generates a full program man page covering all commands
+- **Shell Completions** -- `apcore-cli apcli completion bash|zsh|fish` generates completion scripts with dynamic module ID completion
+- **Man Pages** -- `apcore-cli apcli man <command>` generates roff-formatted man pages; `--help --man` generates a full program man page covering all commands
 - **Verbose Help** -- Built-in apcore options are hidden by default; pass `--help --verbose` to show the full option list
 - **Documentation Links** -- `set_docs_url()` / `setDocsUrl()` adds online documentation URLs to help footers and man pages
 - **Audit Logging** -- All executions logged to `~/.apcore-cli/audit.jsonl` with SHA-256 input hashing

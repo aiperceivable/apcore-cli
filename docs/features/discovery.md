@@ -126,7 +126,7 @@ apcore-cli list [--tag TAG]... [--search QUERY] [--status STATUS]
 | `--search` / `-s` | string | Fuzzy search across module_id + description (case-insensitive substring match) |
 | `--status` | choice | `enabled` (default), `disabled`, `all` |
 | `--annotation` / `-a` | multi | Filter by annotation flag: `destructive`, `requires-approval`, `readonly`, `streaming`, `cacheable`, `idempotent` |
-| `--sort` | choice | `id` (default), `calls`, `errors`, `latency`. The latter three require `system.usage.summary` data; when system modules are unavailable, fall back to `id` sort with WARNING. |
+| `--sort` | choice | `id` (default), `calls`, `errors`, `latency`. The latter three read aggregates from the local audit log (`~/.apcore-cli/audit.jsonl`) over a default 24h window. When the log has no entries in that window, the SDK falls back to `id` sort and prints a user-visible note to stderr (FE-04 / issue #17). |
 | `--reverse` | flag | Reverse sort order |
 | `--deprecated` | flag | Include deprecated modules (excluded by default) |
 | `--deps` | flag | Show dependency count column |
@@ -285,3 +285,18 @@ Tags: math, core
 | T-DISC-13 | Module without `output_schema` in `describe` | Output Schema section omitted. |
 | T-DISC-14 | Module without annotations in `describe` | Annotations section omitted. |
 | T-DISC-15 | `apcore-cli list --format yaml` | Click rejects. Exit 2. |
+
+### 8.1 Enhanced `list` Filter Tests (FE-11 §3.7 — referenced from usability-enhancements.md)
+
+| ID | Test |
+|----|------|
+| T-LST-01 | `apcli list --search add` → only modules whose ID, description, or tags match `add` (case-insensitive substring). |
+| T-LST-02 | `apcli list --status disabled` → only modules disabled at runtime; `--status all` shows both enabled and disabled. |
+| T-LST-03 | `apcli list --annotation destructive` → only modules whose annotations include `destructive`. Repeatable: `-a destructive -a requires-approval` is OR logic across `--annotation` flags. |
+| T-LST-04 | `apcli list --sort calls` → modules sorted by audit-log call count (descending unless `--reverse`); falls back to id-sort if audit log unreadable. |
+| T-LST-05 | `apcli list --sort errors` / `--sort latency` → analogous audit-log-derived sorts. |
+| T-LST-06 | `apcli list --reverse` → reverses the active sort order; idempotent in two passes. |
+| T-LST-07 | `apcli list --deprecated` → only modules whose annotations or metadata mark them deprecated; default view excludes them. |
+| T-LST-08 | `apcli list --deps` → augments each row with a "Depends on:" cell pulled from `metadata.dependencies` or `manifest.depends_on`. |
+
+These tests cover the v0.6.0 (FE-11 §3.7) `list` flag additions. Test fixtures live alongside `tests/test_list_command_filters.py` in each implementation repo.

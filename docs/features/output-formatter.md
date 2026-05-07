@@ -55,7 +55,7 @@ The Output Formatter provides TTY-adaptive output rendering for `apcore-cli`. It
 
 ### Inputs
 - modules: list[ModuleDefinition], required — List of module definitions to render. Empty list shows "No modules found."
-- format: str, required — `"table"` or `"json"`.
+- format: str, required — `"table"`, `"json"`, `"csv"`, `"yaml"`, or `"jsonl"` (csv/yaml/jsonl added v0.6.0 per FE-11 §3.9).
 - filter_tags: tuple[str, ...], optional — Tags used to customize the empty-list message. Default: `()`.
 
 ### Errors
@@ -75,7 +75,7 @@ The Output Formatter provides TTY-adaptive output rendering for `apcore-cli`. It
 
 ### Inputs
 - module_def: ModuleDefinition, required — Module definition to render in full detail.
-- format: str, required — `"table"` or `"json"`.
+- format: str, required — `"table"`, `"json"`, `"csv"`, `"yaml"`, or `"jsonl"` (csv/yaml/jsonl added v0.6.0 per FE-11 §3.9).
 
 ### Errors
 - (none raised)
@@ -94,7 +94,8 @@ The Output Formatter provides TTY-adaptive output rendering for `apcore-cli`. It
 
 ### Inputs
 - result: Any, required — Module execution result. Supports dict, list, str, None, or any str-convertible type.
-- format: str | None, optional — Output format hint. Default: `None` (auto).
+- format: str | None, optional — Output format hint. Allowed values: `"json"` (default for non-TTY), `"table"` (default for TTY), `"csv"`, `"yaml"`, `"jsonl"`. Default: `None` (auto via `resolve_format`). csv/yaml/jsonl added v0.6.0 per FE-11 §3.9.
+- fields: tuple[str, ...] | str | None, optional — Dot-path field selector for `--fields`. When set, the formatter projects only the named fields from each result row before rendering. Added v0.6.0 per FE-11 §3.9.
 
 ### Errors
 - (none raised — non-serializable types use `default=str` fallback)
@@ -175,13 +176,35 @@ Logic steps:
 
 ### 4.4 Function: `format_exec_result`
 
-**Signature**: `format_exec_result(result: Any, format: str | None = None) -> None`
+**Signature**: `format_exec_result(result: Any, format: str | None = None, fields: tuple[str, ...] | str | None = None) -> None`
 
 Logic steps:
-1. If result is a `dict` or `list`: print `json.dumps(result, indent=2, default=str)`.
-2. If result is a `str`: print result directly.
-3. If result is `None`: print nothing (empty stdout).
-4. Otherwise: print `str(result)`.
+1. Resolve format via `resolve_format(format)` (TTY-adaptive default).
+2. If `fields` is set, project the named dot-paths from `result` before rendering (see §4.6).
+3. Dispatch on the resolved format:
+   - `"json"`: print `json.dumps(result, indent=2, default=str)`.
+   - `"table"`: render via Rich; for dict-of-scalars use a 2-column key/value table; for list-of-dicts use one row per item with columns from union-of-keys.
+   - `"csv"` (added v0.6.0): write CSV via `csv.DictWriter`; rows = list-of-dicts; nested values are JSON-serialized; single dict treated as one-row.
+   - `"yaml"` (added v0.6.0): print `yaml.safe_dump(result, sort_keys=False, default_flow_style=False)`.
+   - `"jsonl"` (added v0.6.0): for list-of-dicts, write one `json.dumps(row)` per line; for non-list, write a single line.
+4. If `result is None`: print nothing (empty stdout).
+5. For non-mapping/non-list scalar `result` and a tabular format, render as a single-row table; for `"json"`/`"jsonl"` wrap the scalar.
+
+### 4.5 Function: `format_module_detail` extensions
+
+`format_module_detail` and `format_module_list` accept the same extended format set when called from the `apcli` group's `list`/`describe` paths. Backward-compatible mappings: legacy callers that pass only `"json"` or `"table"` continue to work.
+
+### 4.6 Field Selection (`--fields`, added v0.6.0)
+
+The `--fields` flag accepts a comma-separated list of dot-paths (e.g. `--fields id,description,metadata.author`). The formatter:
+
+1. Parses the comma list into `paths: list[str]`.
+2. For each row in `result` (or the single dict if not a list), traverses the dot-path with `dict.get` at each segment; missing keys → empty string in csv/table, `null` in json/yaml/jsonl.
+3. Renders only the projected columns.
+
+`--fields` applies to all five formats (`json`, `table`, `csv`, `yaml`, `jsonl`); the projection happens before format dispatch.
+
+> Cross-ref: [usability-enhancements.md §3.9](usability-enhancements.md) (FE-11), [Tech Design §8.13.x](../tech-design.md).
 
 ### 4.5 Helper: `_truncate`
 
@@ -229,3 +252,7 @@ def _truncate(text: str, max_length: int = 80) -> str:
 | T-OUT-09 | `format_exec_result` with dict | JSON-formatted dict. |
 | T-OUT-10 | `format_exec_result` with None | Empty stdout. |
 | T-OUT-11 | Description truncation at 80 chars | 77 chars + "..." for text > 80 chars. |
+| T-OUT-12 | `format_exec_result(rows, format="csv")` | CSV with header row + one line per dict in `rows`; nested values JSON-serialized. (added v0.6.0) |
+| T-OUT-13 | `format_exec_result(rows, format="yaml")` | YAML stream emitted via `yaml.safe_dump(..., sort_keys=False)`. (added v0.6.0) |
+| T-OUT-14 | `format_exec_result(rows, format="jsonl")` | One `json.dumps(row)` per line, newline-terminated. (added v0.6.0) |
+| T-OUT-15 | `format_exec_result(rows, format="json", fields="id,metadata.author")` | Output rows projected to only the two named dot-paths; missing keys produce `null`. (added v0.6.0) |

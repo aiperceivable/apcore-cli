@@ -785,7 +785,7 @@ The enhanced list flags (`--search`, `--status`, `--annotation`, `--sort`, `--re
 - `ModuleDescriptor`: all fields (annotations, tags, enabled, deprecated, dependencies)
 - `ModuleAnnotations`: destructive, requires_approval, readonly, streaming, cacheable
 
-**Verification tests:** T-LST-01 through T-LST-08 (see discovery.md).
+**Verification tests:** T-LST-01 through T-LST-08 — defined in [discovery.md §8.1](discovery.md#81-enhanced-list-filter-tests-fe-11-37--referenced-from-usability-enhancementsmd).
 
 ---
 
@@ -924,10 +924,12 @@ apcore-cli <module_id> --fields result.status,result.count
 
 | ID | Test |
 |----|------|
-| T-GRP-01 | `group_depth=2` with `admin.user.create` → `admin user create` |
-| T-GRP-02 | `group_depth=2` with `math.add` (2 segments) → `math add` (single level) |
-| T-GRP-03 | `group_depth=1` (default) behaves identically to current implementation |
-| T-GRP-04 | `display.cli.group` override still takes precedence over auto-grouping |
+| T-DEPTH-01 | `group_depth=2` with `admin.user.create` → `admin user create` |
+| T-DEPTH-02 | `group_depth=2` with `math.add` (2 segments) → `math add` (single level) |
+| T-DEPTH-03 | `group_depth=1` (default) behaves identically to current implementation |
+| T-DEPTH-04 | `display.cli.group` override still takes precedence over auto-grouping |
+
+> **Note:** the `T-GRP-*` test ID prefix is reserved by [grouped-commands.md §7](grouped-commands.md) for FE-09 tests. The four `group_depth` tests above were renumbered from `T-GRP-*` to `T-DEPTH-*` to avoid collision with the FE-09 suite (T-GRP-01..T-GRP-18).
 
 ---
 

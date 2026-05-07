@@ -274,7 +274,7 @@ For the canonical library-use factory signature, see §8.2.7 "Consolidated Signa
 
 **Context:** Untrusted modules should be isolated from the host system (SRS FR-SEC-004).
 
-**Decision:** Use `subprocess.Popen` with a restricted environment dictionary and a temporary working directory when `--sandbox` is active. The restricted environment includes only `PATH`, `PYTHONPATH`, `HOME` (set to temp dir), and explicitly allowed `APCORE_*` variables.
+**Decision:** Use `subprocess.Popen` with a restricted environment dictionary and a temporary working directory when `--sandbox` is active. The restricted environment includes only `PATH`, `LANG`, `LC_ALL`, `HOME` and `TMPDIR` (both set to a fresh temp dir), and explicitly allowed `APCORE_*` variables (with `APCORE_AUTH_*` denied). See [features/security.md §4.4](features/security.md#44-sandbox) for the canonical, hardened whitelist (post-v0.7 D10-001 hardening).
 
 **Rationale:** Process-level isolation is portable across Linux, macOS, and Windows. It does not require elevated privileges or platform-specific APIs (unlike cgroups, AppArmor, or Windows AppContainer). For Phase 1, this provides defense-in-depth without operational complexity.
 
@@ -641,25 +641,33 @@ Logic steps:
 
 **Method: `list_commands(ctx) -> list[str]`**
 
-Logic steps:
-1. Define built-in commands via the canonical `BUILTIN_COMMANDS` constant:
+Logic steps (post-FE-13, v0.7+):
+1. Per FE-13 the only reserved root entry is the `apcli` group. Built-in subcommands
+   (`list`, `describe`, `exec`, `validate`, `init`, `health`, `usage`, `enable`,
+   `disable`, `reload`, `config`, `completion`, `describe-pipeline`) live under
+   `<cli> apcli <sub>` — they are NOT spliced back at the root. The canonical 14-name
+   set now lives in `apcore_cli.builtin_group.APCLI_SUBCOMMAND_NAMES` and is owned
+   by FE-13 §4.9. Root-level reservation:
    ```python
-   BUILTIN_COMMANDS = [
-       "completion", "config", "describe", "describe-pipeline", "disable",
-       "enable", "exec", "health", "init", "list", "man", "reload", "usage",
-       "validate",
-   ]
+   RESERVED_GROUP_NAMES = frozenset({"apcli"})
    ```
-   (14 entries, alphabetically sorted. See FE-10 for `init` and FE-11 for the system-management commands `config`, `describe-pipeline`, `disable`, `enable`, `health`, `reload`, `usage`, `validate`.)
 2. Call `_build_alias_map()`.
 3. Build reverse map: `module_id -> alias` from `_alias_map`.
 4. Get all module IDs from `registry.list()`.
 5. For each module_id: use the alias if one exists, else use the module_id.
-6. Return `sorted(set(BUILTIN_COMMANDS + names))`.
+6. Compute `root_names = set(names)`. If the apcli group is registered AND visible
+   per `ApcliGroup.is_group_visible()`, add `"apcli"`.
+7. Return `sorted(root_names)`.
 
 Edge cases:
-- Registry returns empty list: return only built-in commands.
-- Registry raises exception: catch, log WARNING, return only built-in commands.
+- Registry returns empty list: return only `["apcli"]` (when visible) or `[]`.
+- Registry raises exception: catch, log WARNING, return the apcli sentinel only.
+
+> **Migration note (v0.7+):** the previous algorithm spliced a 14-entry
+> `BUILTIN_COMMANDS` constant into the root command set. That constant was retired
+> in v0.7.0 (CHANGELOG `### Removed`); the FE-13 design owns the apcli-group child
+> set as `APCLI_SUBCOMMAND_NAMES` and the root reservation set as
+> `RESERVED_GROUP_NAMES`. See [features/builtin-group.md §4.9](features/builtin-group.md).
 
 **Method: `get_command(ctx, cmd_name) -> click.Command | None`**
 
@@ -741,20 +749,25 @@ Logic steps:
 
 **Method: `list_commands(ctx) -> list[str]`**
 
-Logic steps:
-1. Use the canonical `BUILTIN_COMMANDS` constant (14 entries, alphabetically sorted):
+Logic steps (post-FE-13, v0.7+):
+1. Per FE-13 the only reserved root entry is `apcli`. The 14-entry built-in subcommand
+   set (formerly `BUILTIN_COMMANDS`, retired in v0.7.0) is now owned by
+   `apcore_cli.builtin_group.APCLI_SUBCOMMAND_NAMES` and reachable as
+   `<cli> apcli <sub>` — it is NOT spliced into the root command set:
    ```python
-   BUILTIN_COMMANDS = [
-       "completion", "config", "describe", "describe-pipeline", "disable",
-       "enable", "exec", "health", "init", "list", "man", "reload", "usage",
-       "validate",
-   ]
+   RESERVED_GROUP_NAMES = frozenset({"apcli"})
    ```
-   See FE-10 for the `init` subcommand and FE-11 for the system-management commands.
 2. Call `_build_group_map()`.
 3. Collect group names from `self._group_map.keys()`.
 4. Collect top-level module names from `self._top_level_modules.keys()`.
-5. Return `sorted(set(BUILTIN_COMMANDS + list(group_names) + list(top_level_names)))`.
+5. Compute `root = set(group_names) | set(top_level_names)`. If the apcli group is
+   registered AND visible per `ApcliGroup.is_group_visible()`, add `"apcli"`.
+6. Return `sorted(root)`.
+
+> **Migration note (v0.7+):** the previous algorithm spliced `BUILTIN_COMMANDS` into
+> the root command set. FE-13 retired that constant; only `apcli` is reserved at
+> root. See [features/builtin-group.md §4.9](features/builtin-group.md) for the
+> apcli-group child set.
 
 Edge cases:
 - A group name collides with a built-in command name (e.g., module `list.something`): the built-in command takes priority. Log WARNING: `"Group name 'list' conflicts with built-in command. Modules in this group will be inaccessible via grouped commands. Use 'exec' to invoke them."`.
@@ -840,7 +853,7 @@ Logic steps:
 1. Call `_build_group_map()`.
 2. Write usage line via `self.format_usage(ctx, formatter)`.
 3. Write help text (root group description).
-4. Write "Commands:" section with all 14 built-in commands from the canonical `BUILTIN_COMMANDS` constant.
+4. Write "Commands:" section with the `apcli` group entry (when visible per `ApcliGroup.is_group_visible()`). The 13 apcli subcommands are reachable via `<cli> apcli --help` and are NOT enumerated at the root.
 5. Write "Top-level Modules:" section with ungrouped modules (if any).
 6. Write "Groups:" section:
    - For each group in sorted `self._group_map.keys()`:
@@ -1000,6 +1013,8 @@ create_cli(
     expose: dict | ExposureFilter | None = None,
     extra_commands: list | None = None,
     apcli: bool | dict | ApcliGroup | None = None,
+    version: str | None = None,
+    description: str | None = None,
 ) -> click.Group
 ```
 
@@ -1020,6 +1035,8 @@ create_cli(
 | `expose` | `dict \| ExposureFilter \| None` | `None` | Module exposure filter (see FE-12). Accepts a dict, an `ExposureFilter` instance, or None (fall through to config). | v0.6.0 |
 | `extra_commands` | `list \| None` | `None` | Additional custom Click commands/groups to register alongside built-in commands (see FE-11). | v0.6.0 |
 | `apcli` | `bool \| dict \| ApcliGroup \| None` | `None` | Built-in command group visibility and subcommand filtering (see FE-13). `True`/`False` shorthand toggles the whole group; dict form supports `mode`/`include`/`exclude`/`disable_env`; `None` falls through to `apcore.yaml` → auto-detect default (embedded → hidden, standalone → visible). | v0.7.0 |
+| `version` | `str \| None` | `None` | Host application version printed by `-V/--version` (issue #18). When omitted, the `--version` flag is not registered — embedded CLIs that do not opt in no longer leak the SDK's own version. The standalone `apcore-cli` bin entry passes its package version explicitly. | v0.8.0 |
+| `description` | `str \| None` | `None` | Top-level CLI description shown at the head of `--help` (issue #19). Defaults to `f"{prog_name} CLI"` so embedded CLIs do not leak the framework name. | v0.8.0 |
 
 **Raises:** `ValueError("executor requires registry — pass both or neither")` if `executor` is passed without `registry`. Exits 47 on config-not-found (extensions directory missing or unreadable).
 
@@ -1054,10 +1071,11 @@ Logic steps:
 6. Initialize `AuditLogger()`.
 7. **Build `click.Group` using `cls=GroupedModuleGroup`** (changed from `LazyModuleGroup` in v2.0).
 8. Add root-level options:
-   a. `click.version_option`, `--log-level`, `--verbose`, `--man` — always registered.
-   b. `--extensions-dir`, `--commands-dir`, `--binding` — **only when `registry is None`** (standalone mode). Not registered in embedded mode per FE-13 FR-13-13.
+   a. `--log-level`, `--verbose`, `--man` — always registered.
+   b. `click.version_option` — **only when `version` is supplied** (issue #18). When omitted the flag is not registered, so embedded CLIs without an explicit version do not surface the SDK's own version.
+   c. `--extensions-dir`, `--commands-dir`, `--binding` — **only when `registry is None`** (standalone mode). Not registered in embedded mode per FE-13 FR-13-13.
 9. Construct `ApcliGroup` via `ApcliGroup.from_cli_config(apcli, ...)` when `apcli` is not None; otherwise via `ApcliGroup.from_yaml(ConfigResolver().resolve_object("apcli"), ...)`. The two paths differ in Tier precedence — see FE-13 §4.4.
-10. **Create the `apcli` Click group** with `hidden=not apcli_cfg.is_group_visible()`. Register its subcommands via `_register_apcli_subcommands()` per FE-13 §4.9 (per-subcommand filtering with `exec` always-registered). `register_discovery_commands()` / `register_shell_commands()` / `register_system_commands()` / etc. now attach to this `apcli` group, **not** the root.
+10. **Create the `apcli` Click group** with `hidden=not apcli_cfg.is_group_visible()`. Register its subcommands via `_register_apcli_subcommands()` per FE-13 §4.9 (per-subcommand filtering with `exec` always-registered). The per-subcommand registrars — `register_list_command`, `register_describe_command`, `register_exec_command`, `register_validate_command`, `register_health_command`, `register_usage_command`, `register_enable_command`, `register_disable_command`, `register_reload_command`, `register_config_command`, `register_completion_command`, `register_pipeline_command`, `register_init_command`, `register_man_command` — attach to this `apcli` group, **not** the root. The pre-v0.7 batched registrars (`register_discovery_commands`, `register_shell_commands`, `register_system_commands`) were retired in v0.7.0 (CHANGELOG `### Removed`).
 11. Return the assembled group.
 
 **Cross-language equivalents:**
@@ -1066,7 +1084,7 @@ Logic steps:
 |----------|-----|----------------------|
 | Python | `create_cli(registry=reg, executor=exec, apcli=False)` | `registry` + optional `executor` kwargs |
 | TypeScript | `createCli({ registry, executor, progName, apcli: false })` | `CreateCliOptions` interface |
-| Rust | `CliConfig { registry, executor, apcli, .. }` | `CliConfig` struct with `Default` impl |
+| Rust | `CliConfig { registry: Some(reg), executor: Some(exec), apcli: Some(ApcliConfig{ mode: ApcliMode::None, ..Default::default() }), .. }` | `CliConfig` struct with `Default` impl. All embedding fields are `Option<>`-wrapped per [features/builtin-group.md §7](features/builtin-group.md). **Status:** the v0.7 D9-001/002 audit deleted the previous `CliConfig`/`run_with_config` pair; a redesigned library-API factory is deferred to a later minor release. Until then, the standalone binary entry points (`create_cli`, `create_cli_with` in `apcore-cli-rust/src/main.rs`) are BIN-only and accept a reduced parameter set. |
 | Go | `CreateCli(CliConfig{Registry, Executor, Apcli})` | `CliConfig` struct (Go SDK planned for a later minor release per FE-13 §12) |
 
 **Traces to:** FR-DISP-001, FR-DISP-003, FR-DISP-005, FR-DISP-006, FR-DISP-008, FR-DISP-009.
@@ -1513,8 +1531,13 @@ class AuditLogger:
 class Sandbox:
     """Subprocess-based execution sandbox with restricted environment."""
 
-    ALLOWED_ENV_VARS = {"PATH", "PYTHONPATH", "LANG", "LC_ALL"}
+    # Hardened in v0.7 (D10-001) — see features/security.md §4.4 for canonical list.
+    # PYTHONPATH / NODE_PATH / RUBYLIB / GOPATH / LD_LIBRARY_PATH are intentionally
+    # excluded to prevent host module-resolution paths from leaking into the sandbox.
+    ALLOWED_ENV_VARS = {"PATH", "LANG", "LC_ALL"}
     ALLOWED_APCORE_PREFIXES = {"APCORE_"}
+    DENIED_APCORE_PREFIXES = {"APCORE_AUTH_"}
+    DENIED_APCORE_KEYS = {"APCORE_AUTH_API_KEY"}
 
     def __init__(self, enabled: bool = False):
         self._enabled = enabled
@@ -1533,6 +1556,10 @@ class Sandbox:
                 restricted_env[key] = os.environ[key]
         for key, value in os.environ.items():
             if key.startswith("APCORE_"):
+                if any(key.startswith(p) for p in self.DENIED_APCORE_PREFIXES):
+                    continue
+                if key in self.DENIED_APCORE_KEYS:
+                    continue
                 restricted_env[key] = value
 
         with tempfile.TemporaryDirectory(prefix="apcore_sandbox_") as tmpdir:
@@ -1562,14 +1589,13 @@ class Sandbox:
 | No sandbox flag | Module runs in current process via Executor | FR-SEC-004 AF-1 |
 | Platform doesn't support sandbox | Log WARNING, run without sandbox | FR-SEC-004 AF-2 |
 
-**Restricted environment contents:**
-- `PATH`: from host (needed for Python)
-- `PYTHONPATH`: from host (needed for module imports)
+**Restricted environment contents** (canonical list: see [features/security.md §4.4](features/security.md#44-sandbox); hardened in v0.7 D10-001):
+- `PATH`: from host (needed to locate executables)
 - `LANG`, `LC_ALL`: locale settings
-- `APCORE_*`: all apcore environment variables
+- `APCORE_*`: all apcore environment variables EXCEPT those starting with `APCORE_AUTH_` (and the explicit deny key `APCORE_AUTH_API_KEY`)
 - `HOME`: set to temporary directory
 - `TMPDIR`: set to temporary directory
-- All other env vars: stripped
+- All other env vars: stripped — including `PYTHONPATH`, `NODE_PATH`, `RUBYLIB`, `GOPATH`, `LD_LIBRARY_PATH` and any other host module-resolution paths
 
 ### 8.7 Shell Integration
 
@@ -1905,7 +1931,7 @@ Before writing, the resolved output path is checked with `Path.resolve()`. If th
 
 #### 8.12.6 Collision Detection
 
-Before generating files, `MODULE_ID` is checked against `BUILTIN_COMMANDS` (the set of reserved CLI command names: `list`, `describe`, `exec`, `health`, `usage`, `enable`, `disable`, `reload`, `config`, `init`, `validate`). On collision, exit 2: `"Error: '{module_id}' conflicts with a built-in command name."`.
+Before generating files, `MODULE_ID` is checked against `RESERVED_GROUP_NAMES = frozenset({"apcli"})` — the only reserved root name post-FE-13. On collision, exit 2: `"Error: '{module_id}' conflicts with the reserved 'apcli' group name."` Built-in subcommands (`list`, `describe`, `exec`, `health`, etc.) are NOT root-reserved — they live under `<cli> apcli <sub>` and never collide with user module IDs at the root.
 
 #### 8.12.7 `--commands-dir` Integration in `create_cli()`
 
@@ -1956,7 +1982,7 @@ Behavior: auto-approves when `auto_approve=True` or `APCORE_CLI_AUTO_APPROVE=1`;
 
 #### 8.13.7 `extra_commands` and Collision Detection
 
-`create_cli(extra_commands: list[click.Command] | None = None)` accepts caller-supplied commands. Before registration each command's `name` is checked against `BUILTIN_COMMANDS`. Collision raises `ValueError` at startup: `"extra_commands contains a name that conflicts with built-in command: '{name}'."`.
+`create_cli(extra_commands: list[click.Command] | None = None)` accepts caller-supplied commands. Before registration each command's `name` is checked against `RESERVED_GROUP_NAMES = frozenset({"apcli"})` (the only reserved root name post-FE-13). Collision raises `ValueError` at startup: `"extra_commands contains a name that conflicts with the reserved 'apcli' group: '{name}'."` Additionally, the name must not collide with any non-shim live root command (e.g., a registered user module).
 
 #### 8.13.8 Key apcore APIs
 
@@ -2115,25 +2141,38 @@ apcore-cli/
 ├── pyproject.toml                 # Package metadata, dependencies, entry point
 ├── apcore_cli/
 │   ├── __init__.py                # Package init, version
-│   ├── __main__.py                # Entry point: main(), create_cli()
+│   ├── __main__.py                # Entry point: main()
+│   ├── factory.py                 # create_cli() (v0.5.1+)
 │   ├── cli.py                     # LazyModuleGroup, GroupedModuleGroup, build_module_command()
+│   ├── builtin_group.py           # ApcliGroup, ApcliMode, RESERVED_GROUP_NAMES, APCLI_SUBCOMMAND_NAMES (v0.7.0, FE-13)
+│   ├── exposure.py                # ExposureFilter (v0.7.0, FE-12)
+│   ├── system_cmd.py              # health/usage/enable/disable/reload/config registrars (v0.6.0, FE-11)
+│   ├── strategy.py                # describe-pipeline + --strategy wiring (v0.6.0, FE-11; refined v0.7.0)
+│   ├── init_cmd.py                # apcli init module subcommand (v0.3.0, FE-10)
 │   ├── schema_parser.py           # schema_to_click_options(), type mapping
 │   ├── ref_resolver.py            # resolve_refs(), $ref inlining
-│   ├── approval.py                # check_approval(), TTY prompt, timeout
-│   ├── discovery.py               # list_cmd(), describe_cmd() — group-aware
-│   ├── output.py                  # format_output(), TTY-adaptive, grouped list formatting
-│   ├── config.py                  # ConfigResolver
+│   ├── approval.py                # CliApprovalHandler, check_approval(), TTY prompt, timeout
+│   ├── discovery.py               # register_list_command/describe_command/exec_command/validate_command (v0.7.0 split)
+│   ├── output.py                  # format_output(), TTY-adaptive, grouped list formatting; csv/yaml/jsonl + --fields (v0.6.0)
+│   ├── config.py                  # ConfigResolver (incl. resolve_object — v0.7.0)
 │   ├── errors.py                  # Error hierarchy, exit code mapping
-│   ├── shell.py                   # completion_cmd(), man_cmd() — group-aware
+│   ├── shell.py                   # register_completion_command, man pager (v0.7.0 split)
 │   ├── _sandbox_runner.py         # Subprocess entry point for sandboxed execution
 │   └── security/
 │       ├── __init__.py            # Exports
 │       ├── auth.py                # AuthProvider
 │       ├── config_encryptor.py    # ConfigEncryptor
 │       ├── audit.py               # AuditLogger
-│       └── sandbox.py             # Sandbox
+│       └── sandbox.py             # Sandbox (hardened env whitelist, v0.7.0 D10-001)
 ├── tests/
 │   ├── test_cli.py                # LazyModuleGroup + GroupedModuleGroup tests
+│   ├── test_builtin_group.py      # ApcliGroup unit tests (FE-13)
+│   ├── test_apcli_integration.py  # End-to-end apcli group integration (FE-13)
+│   ├── test_factory_fe13.py       # create_cli edges for FE-13
+│   ├── test_exposure.py           # ExposureFilter modes + glob (FE-12)
+│   ├── test_system_cmd.py         # System-management subcommand registrars (FE-11)
+│   ├── test_strategy.py           # describe-pipeline + --strategy
+│   ├── test_init_cmd.py           # apcli init module scaffolding
 │   ├── test_grouped_commands.py   # Group resolution, nested invocation, help formatting
 │   ├── test_schema_parser.py
 │   ├── test_ref_resolver.py
@@ -2146,7 +2185,9 @@ apcore-cli/
 │   │   ├── test_audit.py
 │   │   └── test_sandbox.py
 │   ├── test_shell.py              # Group-aware completion tests
-│   └── test_output.py             # Group-aware formatting tests
+│   ├── test_output.py             # Group-aware formatting tests
+│   └── conformance/
+│       └── test_apcli_visibility.py  # Cross-language conformance vs spec fixtures (FE-13)
 └── docs/
     ├── srs.md
     ├── tech-design.md              # This document

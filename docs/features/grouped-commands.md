@@ -152,7 +152,7 @@ Logic steps:
    b. Call `(group, cmd) = self._resolve_group(module_id, descriptor)`.
    c. If `group is None`: `self._top_level_modules[cmd] = (module_id, descriptor)`.
    d. Else: `self._group_map.setdefault(group, {})[cmd] = (module_id, descriptor)`.
-5. Check for collisions between group names and `BUILTIN_COMMANDS`. For each collision: log WARNING `"Group name '{name}' conflicts with built-in command. Modules in this group are only accessible via 'exec <module_id>'."`.
+5. Check for collisions between group names and `RESERVED_GROUP_NAMES = frozenset({"apcli"})` (the only reserved root name post-FE-13). For each collision: raise `click.UsageError` (exit 2) with message `"Group name '{name}' conflicts with the reserved 'apcli' group. Choose a different module-ID prefix or set display.cli.group explicitly."`. Pre-FE-13 this was a soft WARNING against `BUILTIN_COMMANDS`; the v0.7+ contract is stricter because there is only one reserved name to defend.
 6. Set `_group_map_built = True`.
 7. Wrap entire method in try/except. On failure: log WARNING `"Failed to build group map"`, do NOT set the flag (allows retry on transient errors).
 
@@ -160,12 +160,15 @@ Logic steps:
 
 **Signature**: `list_commands(ctx: click.Context) -> list[str]`
 
-Logic steps:
-1. `builtin = list(BUILTIN_COMMANDS)` — canonical 14-entry constant defined in Tech Design §8.2.1 (single source of truth; do not hard-code the list here).
+Logic steps (post-FE-13, v0.7+):
+1. The only reserved root entry is `apcli` (`RESERVED_GROUP_NAMES = frozenset({"apcli"})`). The 14-entry `BUILTIN_COMMANDS` constant was retired in v0.7.0; built-in subcommands now live under `<cli> apcli <sub>` and are NOT spliced at the root.
 2. Call `_build_group_map()`.
-3. `group_names = [g for g in self._group_map if g not in BUILTIN_COMMANDS]`.
+3. `group_names = list(self._group_map.keys())` — collisions with `RESERVED_GROUP_NAMES` already rejected in `_build_group_map` step 5.
 4. `top_names = list(self._top_level_modules.keys())`.
-5. Return `sorted(set(builtin + group_names + top_names))`.
+5. Compute `root = set(group_names) | set(top_names)`. If the apcli group is registered AND visible per `ApcliGroup.is_group_visible()`, add `"apcli"`.
+6. Return `sorted(root)`.
+
+> Cross-ref: [Tech Design §8.2.2](../tech-design.md), [features/builtin-group.md §4.9](builtin-group.md).
 
 ### 4.5 Method: `get_command`
 
@@ -236,7 +239,7 @@ Logic steps:
 2. Write usage line: `formatter.write_usage(...)`.
 3. Write root help text (from `self.help`).
 4. Write "Options:" section (standard Click behavior for global options).
-5. Write "Commands:" section listing `BUILTIN_COMMANDS` with their help text.
+5. Write "Commands:" section listing the `apcli` group entry (when visible per `ApcliGroup.is_group_visible()`) with its help text. The 13 apcli subcommands are reachable via `<cli> apcli --help` and are NOT enumerated at the root.
 6. If `self._top_level_modules` is non-empty: write "Modules:" section with top-level module names and descriptions.
 7. If `self._group_map` is non-empty: write "Groups:" section. For each group in sorted order:
    a. `count = len(self._group_map[group_name])`.

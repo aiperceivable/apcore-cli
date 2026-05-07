@@ -105,8 +105,22 @@ DEFAULTS = {
     "cli.stdin_buffer_limit": 10_485_760,  # 10 MB
     "cli.auto_approve": False,
     "cli.help_text_max_length": 1000,
+    "cli.approval_timeout": 60,        # added v0.6.0 (FE-11) — interactive approval prompt timeout (seconds)
+    "cli.strategy": "standard",        # added v0.6.0 (FE-11) — pipeline strategy name
+    "cli.group_depth": 1,              # added v0.6.0 (FE-09 group_depth) — multi-level grouping depth
 }
 ```
+
+**Environment-variable overrides** (Tier 2 — see [Tech Design §8.8](../tech-design.md)):
+- `APCORE_EXTENSIONS_ROOT` → `extensions.root`
+- `APCORE_LOGGING_LEVEL` / `APCORE_CLI_LOGGING_LEVEL` → `logging.level` (CLI-specific takes priority over global)
+- `APCORE_CLI_SANDBOX` → `sandbox.enabled`
+- `APCORE_CLI_AUTO_APPROVE` → `cli.auto_approve`
+- `APCORE_CLI_HELP_TEXT_MAX_LENGTH` → `cli.help_text_max_length`
+- `APCORE_CLI_APPROVAL_TIMEOUT` → `cli.approval_timeout` (added v0.6.0)
+- `APCORE_CLI_STRATEGY` → `cli.strategy` (added v0.6.0)
+- `APCORE_CLI_GROUP_DEPTH` → `cli.group_depth` (added v0.6.0)
+- `APCORE_CLI_APCLI` → apcli visibility override (added v0.7.0, FE-13 — see [features/builtin-group.md](builtin-group.md))
 
 ### 4.4 Method: `_load_config_file`
 

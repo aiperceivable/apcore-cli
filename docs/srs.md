@@ -187,7 +187,7 @@ The system provides eight feature groups:
 4. The system shall display a help message containing:
    - The program name (`apcore-cli`).
    - A brief description of the tool.
-   - A list of built-in subcommands: the 14 built-in subcommands defined in Tech Design §8.2.1 `BUILTIN_COMMANDS` constant (SRS defers to tech-design as the authoritative list).
+   - A single built-in group entry `apcli` (when visible per FE-13 visibility resolution — see [features/builtin-group.md §4.1](features/builtin-group.md)). The 13 built-in subcommands (`list`, `describe`, `exec`, `validate`, `init`, `health`, `usage`, `enable`, `disable`, `reload`, `config`, `completion`, `describe-pipeline`) are reachable as `<cli> apcli <sub>`, not at root.
    - A list of available module Canonical IDs (as dynamically registered top-level subcommands).
 5. The system shall exit with code 0.
 
@@ -203,9 +203,10 @@ The system provides eight feature groups:
 
 **Acceptance Criteria:**
 
-- **AC-1:** Given `apcore-cli` is installed and a valid extensions directory exists, when the user runs `apcore-cli --help`, then the help output shall contain all 14 built-in commands from `BUILTIN_COMMANDS` (Tech Design §8.2.1), along with any registered module IDs, and the process shall exit with code 0.
+- **AC-1:** Given `apcore-cli` is installed and a valid extensions directory exists, when the user runs `apcore-cli --help`, then the help output shall contain `apcli` (when visible) plus any registered module IDs/groups, and the process shall exit with code 0.
 - **AC-2:** Given the configured extensions directory does not exist, when the user runs `apcore-cli --help`, then stderr shall contain a message including the text "extensions" and a suggestion to set `APCORE_EXTENSIONS_ROOT`, and the process shall exit with code 47.
 - **AC-3:** Given the Registry contains modules `math.add` and `text.summarize`, when the user runs `apcore-cli --help`, then the output shall list both `math.add` and `text.summarize`.
+- **AC-4:** Given an embedded host invokes `create_cli(..., apcli=False)`, when the user runs `<cli> --help`, then the help output shall NOT list `apcli` (group hidden per FE-13). Cross-reference [features/builtin-group.md §4.1](features/builtin-group.md).
 
 ---
 
@@ -1847,12 +1848,13 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 | **Priority Rationale** | Enables framework integrations (Django, FastAPI) to inject custom commands without forking the CLI entrypoint. |
 | **Source** | Feature Spec FE-11 FR-11-11 |
 
-**Description:** The `create_cli()` function shall accept an `extra_commands` parameter (type: `list[click.BaseCommand] | None`). When provided, each command in the list shall be added to the root CLI group after all built-in and module commands are registered. Commands in `extra_commands` shall not conflict with `BUILTIN_COMMANDS`; if a name collision is detected, the system shall raise a `ValueError` at CLI construction time with the conflicting command name.
+**Description:** The `create_cli()` function shall accept an `extra_commands` parameter (type: `list[click.BaseCommand] | None`). When provided, each command in the list shall be added to the root CLI group after the `apcli` group and module commands are registered. Commands in `extra_commands` shall not conflict with `RESERVED_GROUP_NAMES = frozenset({"apcli"})`; if a name collision is detected, the system shall raise a `ValueError` at CLI construction time with the conflicting command name. (Pre-FE-13 wording referred to `BUILTIN_COMMANDS`; that constant was retired in v0.7.0 — only `apcli` is now root-reserved.)
 
 **Acceptance Criteria:**
 
-- **AC-1:** Given `create_cli(extra_commands=[my_custom_cmd])`, then `my_custom_cmd` shall appear in `apcore-cli --help` output alongside the built-in commands.
-- **AC-2:** Given `extra_commands` containing a command whose name matches a `BUILTIN_COMMANDS` entry, then `create_cli()` shall raise `ValueError` with the conflicting name before the CLI is returned.
+- **AC-1:** Given `create_cli(extra_commands=[my_custom_cmd])`, then `my_custom_cmd` shall appear in `apcore-cli --help` output alongside the `apcli` group entry.
+- **AC-2:** Given `extra_commands` containing a command whose name is `"apcli"` (the only entry in `RESERVED_GROUP_NAMES`), then `create_cli()` shall raise `ValueError` with the conflicting name before the CLI is returned.
+- **AC-3:** Given `extra_commands` containing a command whose name collides with a non-shim live root command (e.g., a registered user module ID), then `create_cli()` shall raise `ValueError` with the conflicting name.
 
 ---
 

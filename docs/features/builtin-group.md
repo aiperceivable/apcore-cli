@@ -1,7 +1,7 @@
 # Feature Spec: Built-in Command Group (`apcli`)
 
 **Feature ID**: FE-13
-**Status**: Draft — Ready for Review
+**Status**: Implemented (v0.7.0; refined v0.8.0)
 **Priority**: P0
 **Parent**: [Tech Design v2.0](../tech-design.md) Section 8.2
 **SRS Requirements**: FR-DISP-001, FR-DISP-002, FR-DISP-009, FR-DISC-001, NFR-USB-001

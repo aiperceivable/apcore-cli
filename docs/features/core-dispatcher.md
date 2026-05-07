@@ -214,14 +214,17 @@ class LazyModuleGroup(click.Group):
 
 **Method: `list_commands(ctx) -> list[str]`**
 
-Logic steps:
-1. Use the canonical `BUILTIN_COMMANDS` constant (14 entries) defined in Tech Design §8.2.1. This is the single source of truth — do not hard-code the list here.
+Logic steps (post-FE-13, v0.7+):
+1. The only reserved root entry is `apcli` (`RESERVED_GROUP_NAMES = frozenset({"apcli"})`). The 14-entry `BUILTIN_COMMANDS` constant was retired in v0.7.0; the canonical built-in subcommand set now lives in `apcore_cli.builtin_group.APCLI_SUBCOMMAND_NAMES` and is reachable as `<cli> apcli <sub>`. Do NOT splice it back at the root.
 2. If `_alias_map_built` is False: call `_build_alias_map()`.
-3. Return `sorted(set(BUILTIN_COMMANDS + list(self._alias_map.keys())))`.
+3. Compute `root_names = set(self._alias_map.keys())`. If the apcli group is registered AND visible per `ApcliGroup.is_group_visible()`, add `"apcli"`.
+4. Return `sorted(root_names)`.
 
 Edge cases:
-- Registry returns empty list: return only built-in commands.
-- Registry raises exception during `list()`: catch, log WARNING, return only built-in commands.
+- Registry returns empty list: return `["apcli"]` (when visible) or `[]`.
+- Registry raises exception during `list()`: catch, log WARNING, return `["apcli"]` (when visible) or `[]`.
+
+> Cross-ref: [Tech Design §8.2.1](../tech-design.md), [features/builtin-group.md §4.9](builtin-group.md).
 
 **Method: `_build_alias_map()`**
 
@@ -300,73 +303,15 @@ Logic steps:
 
 ### 4.5 Function: `create_cli`
 
-**Canonical signature**: see Tech Design v2.0 §8.2.7 "Consolidated Signature" — this is the single source of truth for the full 8-parameter form.
+**Canonical signature, logic steps, and cross-language equivalents** are owned by [Tech Design v2.0 §8.2.7](../tech-design.md). That section is the **single source of truth** — refer there for the current 13-parameter form (including FE-13 `apcli=`, Issue #18 `version=`, Issue #19 `description=`, and the v0.7.0 additions `app=`, `allowed_prefixes=`).
 
-```python
-create_cli(
-    extensions_dir: str | None = None,
-    prog_name: str | None = None,
-    commands_dir: str | None = None,
-    binding_path: str | None = None,
-    registry: Registry | None = None,
-    executor: Executor | None = None,
-    expose: dict | ExposureFilter | None = None,
-    extra_commands: list | None = None,
-) -> click.Group
-```
+This feature spec intentionally does NOT duplicate the signature, logic steps, or cross-language equivalents block — duplicating them previously caused this section to drift two minor versions behind reality (the historical 8-parameter form was retained here long after `apcli`, `version`, `description`, `app`, and `allowed_prefixes` had landed in code). To fix this once, the per-parameter contract lives in §3 above (Contract block) and the procedural steps live in tech-design.md.
 
-**File**: `apcore_cli/__main__.py`
+**File:** `apcore_cli/factory.py` (split out of `apcore_cli/__main__.py` in v0.5.1+).
 
-**Purpose**: Factory function that assembles and returns the fully configured Click group. Separating construction from invocation enables library users to embed the CLI in a larger application and override settings (including the program name) without touching entry-point code.
+**Purpose:** Factory function that assembles and returns the fully configured Click group. Separating construction from invocation enables library users to embed the CLI in a larger application and override settings (including the program name) without touching entry-point code.
 
 **Pre-populated registry support (v0.5.1):** When a `registry` parameter is provided, filesystem discovery is skipped entirely. This enables frameworks that register modules at runtime (e.g. apflow's bridge, which populates the registry programmatically via `create_apflow_registry()`) to generate CLI commands from their existing registry without requiring an extensions directory on disk.
-
-Logic steps:
-0. **Validate parameters:** If `executor` is not None and `registry` is None, raise `ValueError("executor requires registry — pass both or neither")`.
-1. Resolve `prog_name` (FR-DISP-006):
-   a. If `prog_name` is not `None`, use it (Tier 1 — explicit parameter).
-   b. Otherwise, compute `os.path.basename(sys.argv[0])`.
-   c. If the result is empty, fall back to `"apcore-cli"`.
-2. Resolve and apply initial log level (before Click runs). Three-tier precedence:
-   - Tier 1 (highest): `--log-level` CLI flag — applied at runtime in the group callback.
-   - Tier 2: `APCORE_CLI_LOGGING_LEVEL` env var — CLI-specific; takes priority over the global var.
-   - Tier 3: `APCORE_LOGGING_LEVEL` env var — global apcore setting; used as fallback when the CLI-specific var is absent.
-   - Default: `logging.WARNING`.
-
-   Steps:
-   a. Read `APCORE_CLI_LOGGING_LEVEL`; if empty, read `APCORE_LOGGING_LEVEL`. Map to a `logging` constant; default to `logging.WARNING` if absent or unrecognised.
-   b. Call `logging.basicConfig(level=..., format="%(levelname)s: %(message)s")` once (no-op on subsequent calls).
-   c. Set `logging.getLogger("apcore").setLevel(ERROR)` when the resolved level is above INFO; set to the resolved level when INFO or lower. This suppresses noisy upstream apcore output unless the user explicitly requests verbose output.
-   d. At runtime the `--log-level` flag overrides: call `logging.getLogger().setLevel(level)` (not `basicConfig`) and apply the same `apcore` level logic. Accepted choices: `DEBUG`, `INFO`, `WARNING`, `ERROR` (case-insensitive).
-3. **If `registry` is provided** (pre-populated path):
-   a. Instantiate `CliApprovalHandler(auto_approve=cli_flags["yes"], timeout=resolved_timeout)`.
-   b. If `executor` is None, instantiate `Executor(registry, approval_handler=handler)`.
-   c. Log INFO: `"Using pre-populated registry ({N} modules)."`.
-   d. Skip steps 4–9 (no filesystem resolution, no directory validation, no discovery).
-4. Resolve `extensions_dir`:
-   a. If `extensions_dir` is not `None`, use it.
-   b. Otherwise, instantiate `ConfigResolver()` and call `config.resolve("extensions.root", cli_flag="--extensions-dir", env_var="APCORE_EXTENSIONS_ROOT")`.
-5. Verify `extensions_dir` path exists and is a readable directory:
-   - Not exists: exit 47, message "Extensions directory not found: '{path}'. Set APCORE_EXTENSIONS_ROOT or verify the path."
-   - Not readable: exit 47, message "Cannot read extensions directory: '{path}'. Check file permissions."
-6. Instantiate `Registry(extensions_dir)`.
-7. Call `registry.discover()`. Log DEBUG: `"Loading extensions from {extensions_dir}"`.
-8. Log INFO: `"Initialized {prog_name} with {N} modules."`.
-9. Instantiate `CliApprovalHandler(auto_approve=cli_flags["yes"], timeout=resolved_timeout)`, then instantiate `Executor(registry, approval_handler=handler)`.
-10. Initialize `AuditLogger()`. Set as module-level global via `set_audit_logger()`.
-11. Build `click.Group` using `cls=GroupedModuleGroup` (v2.0; was `LazyModuleGroup` in v1.0), `name=prog_name`, `registry=registry`, `executor=executor`.
-12. Add `click.version_option(version=__version__, prog_name=prog_name)`.
-13. Add `--extensions-dir` and `--log-level` options to the root group.
-14. Register built-in commands via `register_discovery_commands()` and `register_shell_commands(cli, prog_name=prog_name)`.
-15. Return the assembled `click.Group`.
-
-**Cross-language equivalents:**
-
-| Language | API | Pre-populated registry |
-|----------|-----|----------------------|
-| Python | `create_cli(registry=reg, executor=exec)` | `registry` + optional `executor` kwargs |
-| TypeScript | `createCli({ registry, executor, progName })` | `CreateCliOptions` interface |
-| Rust | `CliConfig { registry, executor, .. }` | `CliConfig` struct with `Default` impl |
 
 ### 4.6 Function: `main`
 

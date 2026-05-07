@@ -5,6 +5,39 @@ All notable changes to the apcore-cli specification will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
+## [0.8.0] - 2026-05-07
+
+### Changed
+
+- **`docs/tech-design.md` §8.2.7 — `create_cli()` canonical signature gains
+  `version: str | None = None` and `description: str | None = None`** parameters
+  (issues #18 and #19). Logic step 8 reworded so `click.version_option` is
+  documented as opt-in (registered only when `version` is supplied), and the
+  description defaults to `f"{prog_name} CLI"` rather than the legacy
+  `apcore CLI — execute apcore modules from the command line` string.
+- **`docs/features/discovery.md` §4.1 — `list --sort calls|errors|latency`**
+  description updated to reflect the implemented behaviour: aggregates are
+  read from the local audit log (`~/.apcore-cli/audit.jsonl`) over a default
+  24h window; when no entries match, the SDK falls back to `id` sort and
+  emits a user-visible note to stderr (issue #17). Replaces the prior
+  "system modules unavailable; WARNING" placeholder text.
+- **Conformance fixtures (`conformance/fixtures/apcli-visibility/*`)**
+  refreshed to match the debranded help output and the new `version` /
+  `description` opt-ins. All five fixtures (`standalone-default`,
+  `embedded-default`, `cli-override`, `env-override`, `yaml-include`) now
+  carry `"version": "0.8.0"` in `create_cli.json` so the cross-SDK
+  `expected_help.txt` golden continues to verify `-V, --version` rendering
+  in addition to apcli visibility.
+
+### Note
+
+- **Issues #15 (OpenAPI spec-driven discovery) and #16 (RFC 8628 device-auth
+  flow) deferred** out of v0.8.0 scope. Both belong primarily in
+  `apcore-toolkit` (with thin cli-side adapters), require their own RFCs,
+  and span 2–3 release cycles each. Tracked for v0.9+.
+
+---
+
 ## [0.7.0] - 2026-04-25
 
 ### Added
