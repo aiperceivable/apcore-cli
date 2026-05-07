@@ -181,6 +181,7 @@ apcore_cli/security/
 - async: false
 - thread_safe: true (constructor only stores references; performs no I/O)
 - pure: true (no I/O, no mutation of inputs)
+- **Rust language note**: Rust splits this into two factories — `AuthProvider::new(config)` (1 param, encryptor=None) and `AuthProvider::with_encryptor(config, encryptor)` (2 params). This is the idiomatic Rust pattern for a constructor with one optional argument; both factories produce the same behavioral result as Python `AuthProvider(config, encryptor=None)` and TypeScript `new AuthProvider(config, encryptor?)`. Mirrors the cross-language note pattern used for `AuthenticationError::MalformedApiKey` in `AuthProvider.authenticate_request`.
 
 ---
 
@@ -268,19 +269,29 @@ apcore_cli/security/
 
 ### Inputs
 - enabled: bool, optional — Toggle for subprocess isolation. Default: `False` (sandbox disabled — `execute` delegates directly to the supplied `Executor`).
+- timeout: int, optional — Per-call subprocess timeout in seconds. Default: `300` (5 minutes).
 
 ### Errors
 - (none raised by constructor itself)
 
 ### Returns
-- On success: Sandbox instance with `_enabled` set.
+- On success: Sandbox instance with `_enabled`, `_timeout`, `_extensions_root` (None), and `_max_output_bytes` (None) set.
 
 ### Properties
 - async: false
-- thread_safe: true (constructor only stores a primitive flag)
+- thread_safe: true (constructor only stores primitive flags / option values)
 - pure: true (no I/O, no mutation of inputs)
 
-> Note: the constructor parameter set is intentionally minimal at this revision. Additional knobs (timeout override, output-size cap, allow-list customization) may be added via builder pattern or kwargs in a future revision; that decision is tracked under D1-004 and is **not** part of this Contract.
+### Builder methods (fluent style)
+- `with_extensions_root(path)` — sets the canonical extensions root for the sandbox subprocess. Takes precedence over the inherited `APCORE_EXTENSIONS_ROOT` env var; injected as that env var into the subprocess.
+- `with_max_output_bytes(n)` — overrides the per-stream output cap; replaces the default 64 MiB limit. `None` (the default) preserves the 64 MiB cap.
+
+Each builder returns the same `Sandbox` instance (Python / TypeScript) or a moved owned value (Rust) so calls can be chained. All three SDKs expose the same fluent surface.
+
+Example (canonical fluent style):
+- Python:  `Sandbox(enabled=True, timeout=30).with_extensions_root("/srv/exts").with_max_output_bytes(2 * 1024 * 1024)`
+- Rust:    `Sandbox::new(true, 30).with_extensions_root(Some(PathBuf::from("/srv/exts"))).with_max_output_bytes(2 * 1024 * 1024)`
+- TS:      `new Sandbox(true, 30).withExtensionsRoot("/srv/exts").withMaxOutputBytes(2 * 1024 * 1024)`
 
 ---
 

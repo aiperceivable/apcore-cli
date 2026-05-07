@@ -169,7 +169,7 @@ The Core Dispatcher is the primary entry point for `apcore-cli`. It provides the
   reject_with: ValueError("app is mutually exclusive with registry/executor")
 - expose: dict | ExposureFilter | None, optional — Exposure filter config (FE-12).
 - apcli: bool | dict | ApcliGroup | None, optional — Built-in apcli group config (FE-13).
-- allowed_prefixes: list[str] | None, optional — Allowlist for binding/convention target resolution.
+- allowed_prefixes: list[str] | None, optional — Allowlist for binding/convention target resolution. Cross-SDK status: Python (`allowed_prefixes`) and TypeScript (`allowedPrefixes`, threaded through `createCli` → `applyToolkitIntegration` → `loadBindingDisplayOverlay`) both expose this option. **Rust does not yet have this option**; the parity gap is tracked separately and is NOT a "Python-only" feature any more.
 
 ### Errors
 - ValueError — `executor` provided without `registry`
@@ -424,3 +424,47 @@ Logic steps:
 | T-DISP-18 | `create_cli(registry=mock_registry, executor=mock_executor)` | CLI created without filesystem access. No exit 47. Modules from registry available. |
 | T-DISP-19 | `create_cli(registry=mock_registry)` (executor omitted) | Executor auto-built from provided registry. CLI created successfully. |
 | T-DISP-20 | `create_cli(executor=mock_executor)` (registry omitted) | `ValueError` raised: "executor requires registry". |
+
+---
+
+## 8. Cross-SDK API surface
+
+This appendix enumerates the public symbols that embedders may rely on, with each SDK's per-language name and parity status. All entries are valid for v0.8+ unless otherwise noted.
+
+### 8.1 `register_*_command` factory family
+
+All three SDKs export the per-subcommand registrar family (e.g. `register_list_command`, `register_describe_command`, `register_exec_command`, `register_validate_command`, `register_health_command`, `register_usage_command`, `register_enable_command`, `register_disable_command`, `register_reload_command`, `register_config_command`, `register_completion_command`, `register_pipeline_command`, `register_init_command`) plus the helper `configure_man_help`, as a public composition API for embedders building their own root command tree. See `features/builtin-group.md` §4.9 for the full split. Python parity with TS / Rust landed in v0.8.0 via `apcore_cli/__init__.py` re-exports (D1-001).
+
+### 8.2 Error-class table — `ModuleNotFoundError`
+
+| Language | Class name | Module | Notes |
+|----------|-----------|--------|-------|
+| Python | `ModuleNotFoundError` | `apcore_cli.errors` | Previously `CliModuleNotFoundError` in v0.7.x — kept as a deprecated alias `CliModuleNotFoundError = ModuleNotFoundError` until v0.10.0 (D1-002). |
+| TypeScript | `ModuleNotFoundError` | `errors.ts` | — |
+| Rust | `ModuleNotFoundError` | `src/lib.rs` | — |
+
+Maps to exit code 44.
+
+### 8.3 Programmatic exit-code mapping (embedder helpers)
+
+| Language | Public surface |
+|----------|---------------|
+| Python | `apcore_cli.EXIT_CODES` dict + `apcore_cli.exit_code_for_error(err)` helper (parity with TS `EXIT_CODES` / `exitCodeForError` and Rust `EXIT_*` constants in `src/lib.rs`). 24 `EXIT_*` constants exported from `apcore_cli/exit_codes.py`. (D1-003) |
+| TypeScript | `EXIT_CODES` dict + `exitCodeForError(err)` helper exported from `errors.ts`. |
+| Rust | 24 `EXIT_*` constants in `src/lib.rs`; `exit_code_for_error(&Error)` helper. |
+
+### 8.4 `create_cli` / `createCli` `allowed_prefixes` / `allowedPrefixes`
+
+| Language | Parameter | Status |
+|----------|-----------|--------|
+| Python | `allowed_prefixes: list[str] \| None` | Available since v0.7.0 (FE-12). |
+| TypeScript | `allowedPrefixes?: string[]` (on `CreateCliOptions`) | Available since v0.8.0 (D1-006). Threaded through `createCli` → `applyToolkitIntegration` → `loadBindingDisplayOverlay`. |
+| Rust | (not yet implemented) | Cross-SDK parity gap — tracked separately. The Rust source comment in `lib.rs` claiming this is "Python-only" is stale as of v0.8.0 and should be updated when Rust adds the option. |
+
+### 8.5 Output formatter helpers
+
+All three SDKs export the four formatter helpers — `resolve_format`, `format_module_list`, `format_module_detail`, `format_exec_result` — as of v0.8.0 (D1-007). See `features/output-formatter.md` for the per-helper Contract. Earlier "Python/TS only export `format_exec_result`" caveats are no longer accurate.
+
+### 8.6 Sandbox builder API
+
+All three SDKs expose the fluent builder methods `with_extensions_root` / `withExtensionsRoot` and `with_max_output_bytes` / `withMaxOutputBytes` on the `Sandbox` constructor as of v0.8.0 (D1-004). See `features/security.md` `Contract: Sandbox.__init__` for the canonical example.
