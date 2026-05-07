@@ -131,6 +131,11 @@ apcore_cli/security/
 
 ### Errors
 - keyring errors propagate if keyring.set_password fails unexpectedly
+  - **Cross-language error-wrap note**: the wrap shape diverges by SDK convention.
+    - Python: re-raises the raw `keyring` exception (no wrap).
+    - TypeScript: catches and rethrows as `ConfigDecryptionError` with prepended message `"Failed to store '{key}' in OS keyring: ..."`.
+    - Rust: maps any keyring failure to `ConfigDecryptionError::KeyringError(String)` carrying the underlying error's display string.
+    All three preserve the underlying cause and surface a non-zero exit; the divergence is in the exception class wrapping, not in the observable failure mode.
 
 ### Returns
 - On success with keyring: str — `"keyring:{key}"` reference string

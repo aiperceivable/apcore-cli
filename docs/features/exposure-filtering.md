@@ -112,7 +112,7 @@ expose:
   - Mode `"all"`: always `True`
   - Mode `"include"`: `True` iff at least one include pattern matches `module_id`
   - Mode `"exclude"`: `True` iff no exclude pattern matches `module_id`
-  - Any other mode (or `"none"`): `True` (fail-open in Python; fail-closed in Rust)
+  - Mode `"none"` (or any unknown mode string, which is clamped to `"none"` with a WARNING at construction time): `False` (fail-closed across all SDKs as of D11-008, 2026-04). Earlier Python versions returned `True` (fail-open) here; that divergence is closed.
 
 ### Properties
 - async: false

@@ -63,6 +63,7 @@ The Grouped CLI Commands feature extends the Core Dispatcher to organize modules
 ### Inputs
 - module_id: str, required — Canonical module identifier.
 - descriptor: Any, required — Module descriptor with optional `display.cli.group` and `display.cli.alias` overlay.
+- group_depth: int = 1, optional — Number of leading dot-segments treated as the group prefix. Default `1` matches the canonical single-level grouping (`a.b.c` → group `a`, command `b.c`). TypeScript accepts this parameter directly on `resolveGroup(moduleId, descriptor, groupDepth)`; Python folds depth handling into `_build_group_map` so `_resolve_group` itself is depth-1-only — both routes converge to the same group map.
 
 ### Errors
 - (none raised — logs WARNING for empty module_id)
@@ -74,6 +75,9 @@ The Grouped CLI Commands feature extends the Core Dispatcher to organize modules
 - async: false
 - thread_safe: true (read-only)
 - pure: true (no I/O, no side effects, no logging except on empty module_id edge case)
+
+### Language note
+- **Rust**: no `GroupedModuleGroup` class — `clap` differs structurally from `click` (Python) and `commander` (TypeScript). The equivalent group-resolution logic is inlined in the per-command builder path (`build_module_command` and friends in `cli.rs`); the resulting routing is byte-identical, only the class shape differs.
 
 ---
 
