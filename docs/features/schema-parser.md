@@ -61,8 +61,8 @@ The Schema Parser converts a module's JSON Schema `input_schema` into Click CLI 
 
 ### Inputs
 - schema: dict, required — JSON Schema dict potentially containing `$ref` and `$defs`/`definitions`.
-- max_depth: int, optional — Maximum `$ref` resolution recursion depth. Default: `32`.
-  validates: depth must not exceed `max_depth`; `$ref` targets must exist in `$defs`
+- max_depth: int, optional — Maximum **`$ref` hop count** along any single resolution chain. Default: `32`. Counts only `$ref` traversals and composition-branch (`allOf`/`anyOf`/`oneOf`) descents; does NOT increment for plain nested-properties recursion (audit D11-NEW-003 alignment, 2026-05-08).
+  validates: `$ref` chain depth must not exceed `max_depth`; `$ref` targets must exist in `$defs`
   reject_with: SystemExit(48) — on circular ref or depth exceeded; SystemExit(45) — on unresolvable ref
 - module_id: str, optional — Used in error messages only.
 
@@ -220,22 +220,26 @@ Logic steps:
    g. Return `_resolve_node(defs[key], defs, visited, depth + 1, max_depth)`.
 2. If `"allOf"` in `node`:
    a. Initialize `merged = {"properties": {}, "required": []}`.
-   b. For each sub-schema in `node["allOf"]`:
-      - Recursively resolve the sub-schema.
+   b. **Sibling preservation:** seed `merged["properties"]` from the parent node's own `properties` (if any) and seed `merged["required"]` from the parent's own `required` list (if any) BEFORE iterating branches. Parent fields fill gaps; branches win on key conflict.
+   c. For each sub-schema in `node["allOf"]`:
+      - Recursively resolve the sub-schema (composition descent — counts toward `max_depth`).
       - Merge its `properties` into `merged["properties"]` (later entries override).
       - Extend `merged["required"]` with sub-schema's `required`.
-   c. Copy any non-composition keys from `node` (e.g., `description`) into `merged`.
-   d. Return `merged`.
+   d. Copy any non-composition keys from `node` (e.g., `description`) into `merged` (skipping keys already merged).
+   e. Return `merged`.
 3. If `"anyOf"` or `"oneOf"` in `node`:
    a. Initialize `merged = {"properties": {}, "required": []}`.
-   b. Collect `all_required_sets = []`.
-   c. For each sub-schema:
-      - Recursively resolve the sub-schema.
-      - Merge its `properties` into `merged["properties"]` (union).
+   b. **Sibling preservation (audit D11-NEW-001, 2026-05-08):** seed `merged["properties"]` from the parent node's own `properties` (if any) and capture `sibling_required = list(node.get("required", []))` BEFORE iterating branches. Per JSON Schema semantics, a parent's `required` applies in addition to the branch intersection.
+   c. Collect `all_required_sets = []`.
+   d. For each sub-schema:
+      - Recursively resolve the sub-schema (composition descent — counts toward `max_depth`).
+      - Merge its `properties` into `merged["properties"]` (union; branches win on key conflict).
       - Collect its `required` list into `all_required_sets`.
-   d. Compute intersection: `merged["required"] = list(set.intersection(*[set(r) for r in all_required_sets]))` if all sets non-empty, else `[]`.
-   e. Return `merged`.
-4. Recursively process nested `properties` values.
+   e. Compute branch intersection: `branch_required = list(set.intersection(*all_required_sets))` if all sets non-empty, else `[]`.
+   f. Combine: `merged["required"] = sibling_required ∪ branch_required` (deduplicated, sibling-first order).
+   g. Copy any non-composition keys from `node` into `merged` (skipping keys already merged).
+   h. Return `merged`.
+4. Recursively process nested `properties` values. **Plain nested-properties recursion does NOT increment `depth`** — `max_depth` counts only `$ref` hops + composition-branch descents.
 5. Return node.
 
 ---
