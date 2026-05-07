@@ -73,6 +73,52 @@ Shell Integration provides two subcommands: `apcore-cli completion <shell>` for 
 
 ---
 
+## Contract: configure_man_help
+
+### Inputs
+- cli: click.Group, required — Root CLI group on which the hidden `--man` option is registered and the help interceptor is wired. (TS: `program: Command`; Rust: command tree built lazily after the pre-parse hook fires.)
+- prog_name: str, required — Program name used for the `.TH` header, command labels, and SEE ALSO references in the generated man page.
+- version: str, required — Program version string emitted in the `.TH` header.
+- description: str | None, optional — Override program description used for `.SH NAME` / `.SH DESCRIPTION`. Default: `None` — derived from the `cli` group's help text, falling back to `"{prog_name} CLI"`.
+- docs_url: str | None, optional — Base URL forwarded to `set_docs_url` for SEE ALSO and per-command help footers. Default: `None` (no online docs link).
+
+### Errors
+- (none raised) — pre-parse failure for `--man` / `--help` is non-fatal: when neither flag is present, the call is a no-op aside from registering the hidden option.
+
+### Returns
+- On success: None — registers the hidden `--man` option on `cli` and installs the help interceptor as a side effect. When `--man` and `--help` are both observed at runtime, the interceptor calls `build_program_man_page`, prints the result to stdout, and exits the process with code 0.
+
+### Properties
+- async: false
+- thread_safe: false (mutates `cli` by adding a hidden option and installing a help-text hook; also calls `set_docs_url`, which mutates module-level global state)
+- pure: false (mutates cli, mutates the module-level `_docs_url` global, reads the help text)
+
+---
+
+## Contract: set_docs_url
+
+### Inputs
+- url: str | None, required — Base URL for online documentation, or `None` to clear. (TS: `string | null`; Rust: `Option<String>`.)
+  - validation: when not `None`, MUST be a non-empty string. Implementations MAY additionally require the value to start with `http://` or `https://` for safety; the canonical Python implementation does not enforce this and trusts the caller.
+  - reject_with: ValueError (caller-side; not enforced by this method in the reference implementation)
+
+### Errors
+- (none raised) — invalid URLs are accepted as-is and surfaced verbatim in help output / man page; the caller is responsible for validation.
+
+### Returns
+- On success: None — updates the module-level `_docs_url` global. After the call:
+  - Per-command `--help` footer appends: `Docs: {url}/commands/{command_name}` when `url` is set.
+  - `build_program_man_page` SEE ALSO appends: `Full documentation at {url}` when `url` is set.
+  - When `url` is `None`/`null`, no docs link is shown anywhere (the prior value is cleared).
+
+### Properties
+- async: false
+- thread_safe: false — mutates a module-level global without locking. Concurrent calls from multiple threads may race; embedders MUST configure this once at startup before exposing the CLI to concurrent invocations.
+- pure: false (mutates module-level global state)
+- idempotent: true (calling twice with the same `url` produces the same observable state)
+
+---
+
 ### 4.1 Command: `completion`
 
 **Registration**: `@cli.command("completion")`

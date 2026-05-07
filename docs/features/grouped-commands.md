@@ -96,6 +96,50 @@ The Grouped CLI Commands feature extends the Core Dispatcher to organize modules
 
 ---
 
+## Contract: GroupedModuleGroup.list_commands
+
+### Inputs
+- ctx: click.Context, required — Click context. Accepted to satisfy the Click `Group.list_commands` signature; not read by this override.
+
+### Errors
+- click.UsageError — propagated from `_build_group_map` when a module's resolved group / top-level CLI name collides with `RESERVED_GROUP_NAMES` (e.g., `"apcli"`). Maps to exit code 2.
+
+### Returns
+- On success: list[str] — sorted, deduplicated root entries: union of `_group_map` keys, `_top_level_modules` keys, and `"apcli"` when the apcli group is registered AND visible per `ApcliGroup.is_group_visible()`.
+- Sort order: ascending lexicographic (`sorted(...)`); the `apcli` entry is included in the same sort, not pinned to the front.
+- Empty registry: returns `["apcli"]` when the apcli group is visible, otherwise `[]`.
+
+### Properties
+- async: false
+- thread_safe: false (calls `_build_group_map`, which mutates instance state on first call)
+- pure: false (reads registry on first call via `_build_group_map`)
+
+---
+
+## Contract: GroupedModuleGroup.get_command
+
+### Inputs
+- ctx: click.Context, required — Click context. Forwarded to nested groups when applicable; not used directly for resolution.
+- cmd_name: str, required — Root entry name to resolve.
+
+### Errors
+- (none raised — unknown names return `None`; `_build_group_map` errors propagate as `click.UsageError`, mapping to exit code 2)
+
+### Returns
+- On success (built-in / shim): click.Command — when `cmd_name` is in `self.commands` (e.g., the `apcli` group shim, registered before module discovery).
+- On success (group): click.Group — `_LazyGroup` instance built from `_group_map[cmd_name]` and cached in `self._group_cache` on first access.
+- On success (top-level module): click.Command — built lazily via `build_module_command(...)` from `_top_level_modules[cmd_name]` and cached in `self._module_cache`.
+- On miss: None — `cmd_name` is neither built-in, nor a group, nor a top-level module.
+
+Lookup order (first match wins): (1) `self.commands` (built-ins and the `apcli` shim), (2) `self._group_cache`, (3) `self._group_map` (build + cache), (4) `self._module_cache`, (5) `self._top_level_modules` (build + cache), (6) return `None`.
+
+### Properties
+- async: false
+- thread_safe: false (mutates `_group_cache` and `_module_cache` on first access)
+- pure: false (reads registry transitively, builds Click commands)
+
+---
+
 ### 4.1 Class: `GroupedModuleGroup`
 
 **File**: `apcore_cli/cli.py`

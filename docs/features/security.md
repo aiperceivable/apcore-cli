@@ -50,6 +50,7 @@ apcore_cli/security/
 - ModuleExecutionError(stderr_content) — when the subprocess exits non-zero
 - ModuleExecutionError("sandbox output exceeds size limit") — when stdout exceeds 64 MiB
 - ModuleExecutionError("Module '{id}' timed out in sandbox.") — when subprocess exceeds 300 s timeout
+- Rust language note: surfaces these as `ModuleExecutionError::{NonZeroExit, OutputParseFailed, Timeout}`; additionally exposes `ModuleExecutionError::{SpawnFailed, ModuleError}` for language-specific failure modes (subprocess spawn, in-process executor passthrough error preservation). Mirrors the cross-language note pattern used for `AuthenticationError::MalformedApiKey` in `AuthProvider.authenticate_request`.
 
 ### Returns
 - On success: Any — parsed JSON from subprocess stdout
@@ -78,7 +79,7 @@ apcore_cli/security/
 - On failure: raises ModuleExecutionError or executor-specific error
 
 ### Properties
-- async: false
+- async: depends_on_language — Python sync; Rust async (tokio subprocess I/O); TS see implementation. Mirrors the language-idiom split documented for `AuthProvider.authenticate_request` below: the spec acknowledges that subprocess and in-process executor I/O are blocking on Python's stdlib but await-driven on tokio, and embedders MUST treat the return as awaitable in Rust and as a direct return in Python.
 - thread_safe: false (sandbox path spawns subprocess; non-sandbox path inherits executor thread-safety)
 - pure: false (I/O: calls executor or spawns subprocess)
 
@@ -161,6 +162,125 @@ apcore_cli/security/
 - async: false
 - thread_safe: false (keyring and PBKDF2 calls are not thread-safe across instances)
 - pure: false (reads OS keyring or derives key from hostname/username/PBKDF2)
+
+---
+
+## Contract: AuthProvider.__init__
+
+### Inputs
+- config: ConfigResolver, required — Config resolver used to look up `auth.api_key` and (transitively) the bound `ConfigEncryptor`.
+- encryptor: ConfigEncryptor | None, optional — Explicit encryptor override. Default: `None` (the encryptor reachable through `config` is used when an encrypted reference is resolved).
+
+### Errors
+- (none raised by constructor itself)
+
+### Returns
+- On success: AuthProvider instance
+
+### Properties
+- async: false
+- thread_safe: true (constructor only stores references; performs no I/O)
+- pure: true (no I/O, no mutation of inputs)
+
+---
+
+## Contract: AuthProvider.get_api_key
+
+### Inputs
+- (no parameters — uses instance state)
+
+### Errors
+- ConfigDecryptionError — propagated from `ConfigEncryptor.retrieve` when an `enc:` / `enc:v2:` / `keyring:` reference fails to decrypt or look up. Maps to exit code 47.
+
+### Returns
+- On success: str | None — resolved (and decrypted, when stored as `keyring:` or `enc:`) API key, or `None` when no source provided one.
+- Resolution chain (first non-empty wins): `--api-key` CLI flag → `APCORE_AUTH_API_KEY` env var → `auth.api_key` in config (decrypted via `ConfigEncryptor.retrieve` when prefixed with `keyring:` or `enc:`).
+
+### Properties
+- async: false
+- thread_safe: true (reads CLI flag, env var, and config; relies on `ConfigEncryptor.retrieve` thread-safety, which is per-instance)
+- pure: false (reads env vars, config file, OS keyring)
+
+---
+
+## Contract: AuthProvider.handle_response
+
+### Inputs
+- status_code: int, required — HTTP status code returned by the remote registry.
+
+### Errors
+- AuthenticationError("Authentication failed. Verify your API key.") — when `status_code` is `401` or `403`. Maps to exit code 77.
+
+### Returns
+- On success: None (any status other than 401/403 is treated as success for auth-handling purposes; downstream code is responsible for non-auth status handling).
+
+### Properties
+- async: false
+- thread_safe: true (no shared state read or written)
+- pure: true (no I/O; result depends only on the input status_code)
+
+---
+
+## Contract: AuditLogger.__init__
+
+### Inputs
+- path: Path | None, optional — Override path for the JSON Lines audit log. Default: `None` — resolves to `AuditLogger.DEFAULT_PATH` (`Path.home() / ".apcore-cli" / "audit.jsonl"`).
+
+### Errors
+- OSError — propagated only when the parent-directory `mkdir(parents=True, exist_ok=True)` cannot create the directory (e.g., read-only filesystem, permission denied). Implementations MAY swallow this and defer the failure to the first `log_execution` call to keep CLI startup robust; the canonical Python implementation chooses to propagate.
+
+### Returns
+- On success: AuditLogger instance with `_path` resolved and parent directory created.
+
+### Properties
+- async: false
+- thread_safe: true (single-instance construction; the directory-creation call is idempotent under `exist_ok=True`)
+- pure: false (creates parent directory on disk if missing — observable filesystem side effect)
+
+---
+
+## Contract: AuditLogger.log_execution
+
+### Inputs
+- module_id: str, required — Canonical module identifier (already validated upstream against `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`).
+- input_data: dict, required — Module input payload. Hashed for the audit entry (never stored verbatim).
+- status: Literal["success", "error"], required — Outcome classification.
+  - validation: must be one of `"success"` or `"error"`
+  - reject_with: ValueError (caller-side; not enforced by this method)
+- exit_code: int, required — Process exit code, expected range `0..=255`.
+- duration_ms: int, required — Wall-clock duration in milliseconds, expected `>= 0`.
+
+### Errors
+- (none raised) — `OSError` from the underlying append-write is intentionally swallowed: the method logs a WARNING to stderr (`"Warning: Could not write audit log: {e}."`) and returns. Audit-log unavailability MUST NOT abort module execution, because the audit log is an after-the-fact security record, not a precondition.
+
+### Returns
+- On success: None — appends one JSON Lines entry `{timestamp, user, module_id, input_hash, status, exit_code, duration_ms}` to `self._path`.
+- On disk error: None — WARNING logged to stderr; no entry written; no raise.
+
+### Properties
+- async: false
+- thread_safe: false — this is a security-gated surface; concurrent callers MUST serialize externally. The reference Python implementation does not hold a lock around the append-write, so two concurrent calls may interleave bytes in the file. Per-call salt (`secrets.token_bytes(16)`) for the input-hash means concurrent callers do not share hashing state.
+- pure: false (reads OS user identity, generates per-call random salt, appends to the audit file).
+
+---
+
+## Contract: Sandbox.__init__
+
+### Inputs
+- enabled: bool, optional — Toggle for subprocess isolation. Default: `False` (sandbox disabled — `execute` delegates directly to the supplied `Executor`).
+
+### Errors
+- (none raised by constructor itself)
+
+### Returns
+- On success: Sandbox instance with `_enabled` set.
+
+### Properties
+- async: false
+- thread_safe: true (constructor only stores a primitive flag)
+- pure: true (no I/O, no mutation of inputs)
+
+> Note: the constructor parameter set is intentionally minimal at this revision. Additional knobs (timeout override, output-size cap, allow-list customization) may be added via builder pattern or kwargs in a future revision; that decision is tracked under D1-004 and is **not** part of this Contract.
 
 ---
 

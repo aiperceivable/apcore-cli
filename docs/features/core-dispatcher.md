@@ -188,6 +188,37 @@ The Core Dispatcher is the primary entry point for `apcore-cli`. It provides the
 
 ---
 
+## Contract: main
+
+### Inputs
+- prog_name: str | None, optional — Override program name shown in help and error output. Default: `None` — the basename of `sys.argv[0]` is used.
+
+### Errors
+- SystemExit — `main` is the process entry-point shim; every error path translates to a `SystemExit` whose code matches the canonical exit-code table in §6 below. Notably:
+  - SystemExit(0) — normal completion.
+  - SystemExit(1) — module execution error.
+  - SystemExit(2) — invalid CLI input, missing argument, or invalid module ID format (propagated from `validate_module_id` / `collect_input` / Click).
+  - SystemExit(44) — module not found, disabled, or load error.
+  - SystemExit(45) — schema validation failure.
+  - SystemExit(46) — approval denied / timed out / no TTY.
+  - SystemExit(47) — extensions directory missing or unreadable; configuration / decryption error.
+  - SystemExit(48) — schema contains a circular `$ref`.
+  - SystemExit(77) — ACL denied or authentication failure.
+  - SystemExit(130) — SIGINT / Ctrl-C.
+
+### Returns
+- On success: None — process exits via Click's `standalone_mode=True` with exit code 0; the function does not return normally on error paths because Click translates exceptions into `SystemExit` before control returns.
+- Stdin: not consumed by `main` itself; STDIN handling is delegated to `collect_input` per command (only commands that opt in via `--input -` or `--input <file>` read STDIN).
+
+### Properties
+- async: false
+- thread_safe: false (entry-point shim — initialises module-level globals via `create_cli`)
+- pure: false (reads `sys.argv`, env vars, filesystem; writes stdout/stderr; calls `sys.exit`)
+
+> Note: `main` is intentionally a thin wrapper around `create_cli`. New behavioral knobs SHOULD be added to `create_cli` and surfaced here only when an entry-point semantic differs (e.g., `--extensions-dir` pre-extraction). See §4.6 for the procedural detail and `Contract: create_cli` above for the full parameter surface.
+
+---
+
 ### 4.1 Class: `LazyModuleGroup`
 
 **File**: `apcore_cli/cli.py`
