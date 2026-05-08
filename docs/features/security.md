@@ -90,9 +90,14 @@ _sandboxed_execute(module_id, input_data):
                                             # (default 64 MiB; configurable via
                                             # Sandbox.with_max_output_bytes — D1-004)
 
-    # 5. Output-size guard — raise BEFORE returning, even on exit_code==0.
+    # 5. Output-size guard — per-stream, raise BEFORE returning, even on
+    #    exit_code==0. Each stream is bounded independently so a module
+    #    cannot evade the cap by splitting payload across stdout/stderr
+    #    (audit D10-001, 2026-05-08).
     if len(stdout) > self.max_output_bytes:
-      raise ModuleExecutionError("sandbox output exceeds size limit")
+      raise ModuleExecutionError("sandbox stdout exceeds size limit")
+    if len(stderr) > self.max_output_bytes:
+      raise ModuleExecutionError("sandbox stderr exceeds size limit")
 
     # 6. Non-zero exit → raise with stderr body for the caller's error message.
     if proc.returncode != 0:
@@ -106,7 +111,7 @@ _sandboxed_execute(module_id, input_data):
 **Cross-SDK-critical invariants** (every implementation must preserve):
 1. Environment is allowlist-built, NOT inherited+filtered. Adding a new safe env-var requires updating the allowlist in all 3 SDKs.
 2. Tempdir cleanup MUST run on the exception path (Python `TemporaryDirectory` context, Rust `tempfile::TempDir` Drop, TS `fs.rm({recursive:true})` in finally).
-3. Output-size check fires BEFORE return — a 0-exit module producing 100 MiB of stdout is still rejected. Audit D1-004 `with_max_output_bytes` (2026-05).
+3. Output-size check fires BEFORE return and is **per-stream** — `len(stdout) > cap` and `len(stderr) > cap` are checked independently. A 0-exit module producing 100 MiB on either pipe is rejected. Audit D1-004 `with_max_output_bytes` (2026-05); audit D10-001 per-stream alignment (2026-05-08).
 4. Timeout uses SIGTERM-first / SIGKILL-fallback (300 s default); never raw SIGKILL on first signal.
 5. `extensions_root` confinement check happens BEFORE spawn — never resolve symlinks via subprocess. Audit D1-004 `with_extensions_root`.
 
@@ -486,7 +491,7 @@ Logic steps:
 
 Logic steps:
 1. `hostname = socket.gethostname()` (or OS equivalent).
-2. `username = os.getenv("USER", os.getenv("USERNAME", "unknown"))` (or OS equivalent).
+2. `username = USER ?? LOGNAME ?? USERNAME ?? "unknown"` — canonical four-tier env-var fallback (audit D11-W1, 2026-05-08). Order is fixed so v1/v2 ciphertexts encrypted under any platform decrypt cross-SDK: `USER` covers POSIX, `LOGNAME` covers some POSIX login shells, `USERNAME` covers Windows. Python: `os.getenv("USER") or os.getenv("LOGNAME") or os.getenv("USERNAME") or "unknown"`.
 3. `salt = random 16-byte value` — generated per encryption and embedded in the ciphertext.
 4. `material = f"{hostname}:{username}".encode()`.
 5. Return PBKDF2-HMAC-SHA256(`material`, `salt`, iterations=**600_000**).
@@ -567,7 +572,7 @@ Logic steps:
 Logic steps:
 1. Try: return `os.getlogin()`.
 2. On `OSError`: try `pwd.getpwuid(os.getuid()).pw_name` (Unix only).
-3. On `ImportError` / `KeyError` / `AttributeError`: return `os.getenv("USER", os.getenv("USERNAME", "unknown"))`.
+3. On `ImportError` / `KeyError` / `AttributeError`: return `USER ?? LOGNAME ?? USERNAME ?? "unknown"` — same canonical four-tier env-var fallback used by `ConfigEncryptor._derive_key` so audit-log `user` field and encryption material agree on the same identity across SDKs (audit D11-W1, 2026-05-08).
 
 **Audit entry example:**
 ```json
@@ -606,7 +611,7 @@ Logic steps:
    - Capture stdout (result) and stderr (error messages).
    - Timeout: **300 seconds** (5 minutes).
 6. If process exits non-zero: raise `ModuleExecutionError(stderr_content)`.
-7. If output exceeds 64 MiB: raise `ModuleExecutionError("sandbox output exceeds size limit")`.
+7. If `len(stdout) > 64 MiB` OR `len(stderr) > 64 MiB`: raise `ModuleExecutionError("sandbox <stream> exceeds size limit")` (per-stream — audit D10-001, 2026-05-08).
 8. Parse stdout as JSON and return.
 9. Cleanup: temporary directory is auto-deleted.
 
