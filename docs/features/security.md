@@ -61,6 +61,55 @@ apcore_cli/security/
 - thread_safe: false (spawns subprocess; each call creates a temp dir)
 - pure: false (spawns subprocess, creates temporary directory, may read filesystem)
 
+### Algorithm
+
+```
+_sandboxed_execute(module_id, input_data):
+  # 1. Build allowlisted environment.
+  env = {}
+  for key in SANDBOX_ENV_ALLOWLIST:        # PATH, HOME, LANG, LC_*, TZ, USER, TMPDIR
+    if key in os.environ: env[key] = os.environ[key]
+  # No bulk-copy of os.environ — caller-defined secrets must not leak.
+
+  # 2. Create per-call tempdir (auto-removed on context exit / Drop).
+  with TemporaryDirectory() as tmp:
+    env["TMPDIR"] = tmp                    # subprocess sees its own scratch
+    env["HOME"]  = tmp                     # confine accidental ~/ writes
+
+    # 3. Resolve module entry-point. Outside-extensions-root resolution rejects
+    #    via Sandbox.with_extensions_root prefix check (audit D1-004).
+    cmd = locate_executable(module_id)
+    if not within(cmd, self.extensions_root): raise ModuleExecutionError("escape")
+
+    # 4. Spawn with bounded stdin / stdout / stderr.
+    proc = Popen([cmd], env=env, cwd=tmp,
+                 stdin=PIPE, stdout=PIPE, stderr=PIPE,
+                 timeout=300)               # SIGTERM-then-SIGKILL ladder
+    stdout, stderr = proc.communicate(json.dumps(input_data).encode())
+                                            # buffered up to max_output_bytes
+                                            # (default 64 MiB; configurable via
+                                            # Sandbox.with_max_output_bytes — D1-004)
+
+    # 5. Output-size guard — raise BEFORE returning, even on exit_code==0.
+    if len(stdout) > self.max_output_bytes:
+      raise ModuleExecutionError("sandbox output exceeds size limit")
+
+    # 6. Non-zero exit → raise with stderr body for the caller's error message.
+    if proc.returncode != 0:
+      raise ModuleExecutionError(stderr.decode(errors="replace"))
+
+    # 7. Parse JSON or raise. (TempDir auto-removes on context unwind even on
+    #    exception path — guarantee preserved across all 3 SDKs.)
+    return json.loads(stdout)
+```
+
+**Cross-SDK-critical invariants** (every implementation must preserve):
+1. Environment is allowlist-built, NOT inherited+filtered. Adding a new safe env-var requires updating the allowlist in all 3 SDKs.
+2. Tempdir cleanup MUST run on the exception path (Python `TemporaryDirectory` context, Rust `tempfile::TempDir` Drop, TS `fs.rm({recursive:true})` in finally).
+3. Output-size check fires BEFORE return — a 0-exit module producing 100 MiB of stdout is still rejected. Audit D1-004 `with_max_output_bytes` (2026-05).
+4. Timeout uses SIGTERM-first / SIGKILL-fallback (300 s default); never raw SIGKILL on first signal.
+5. `extensions_root` confinement check happens BEFORE spawn — never resolve symlinks via subprocess. Audit D1-004 `with_extensions_root`.
+
 ---
 
 ## Contract: Sandbox.execute
@@ -167,6 +216,56 @@ apcore_cli/security/
 - async: false
 - thread_safe: false (keyring and PBKDF2 calls are not thread-safe across instances)
 - pure: false (reads OS keyring or derives key from hostname/username/PBKDF2)
+
+### Algorithm
+
+```
+retrieve(key, ref):
+  # `ref` is the stored reference string. Three on-wire shapes:
+  #   "keyring:<name>"   → opaque keyring entry; plaintext after lookup.
+  #   "enc:v2:<b64>"     → AES-GCM(salt, nonce, tag, ct); current format.
+  #   "enc:<hex|b64>"    → legacy v1 envelope; PBKDF2-HMAC-SHA256(hostname).
+
+  # 1. Plain keyring path (no encryption).
+  if ref.startswith("keyring:"):
+    name = ref[len("keyring:"):]
+    val = keyring.get_password("apcore-cli", name)
+    if val is None:
+      raise ConfigDecryptionError(f"Keyring entry not found for '{name}'.")
+    return val
+
+  # 2. AES-GCM v2 (current format).
+  if ref.startswith("enc:v2:"):
+    blob = b64decode(ref[len("enc:v2:"):])
+    salt, nonce, tag, ct = blob[:16], blob[16:28], blob[28:44], blob[44:]
+    derived_key = PBKDF2_HMAC_SHA256(host_user_pepper(), salt, iter=100_000, length=32)
+    try:
+      return AESGCM(derived_key).decrypt(nonce, ct + tag, aad=None).decode("utf-8")
+    except InvalidTag:
+      raise ConfigDecryptionError(user_facing_message(key))   # audit D10-truncated #1
+                                                               # — never expose
+                                                               # InvalidTag verbatim
+
+  # 3. Legacy v1 envelope (back-compat read-only; new writes go through v2).
+  if ref.startswith("enc:"):
+    blob = decode_legacy_envelope(ref[len("enc:"):])
+    derived_key = legacy_v1_key_from(hostname(), username())
+    try:
+      return AES_decrypt(derived_key, blob)
+    except Exception:
+      raise ConfigDecryptionError(user_facing_message(key))
+
+  # 4. None of the prefixes matched — programmer error (caller didn't gate on
+  #    is_encrypted_ref). Distinct from a decryption failure.
+  raise ConfigDecryptionError(f"Unknown reference format for '{key}'.")
+```
+
+**Cross-SDK-critical invariants** (every implementation must preserve):
+1. **Order of try-paths is keyring → enc:v2: → enc:** (longest prefix first). `enc:v2:` must be checked BEFORE the bare `enc:` prefix or v2 references would mis-route into the legacy path. Audit D10-truncated #1.
+2. The user-facing error string for a decryption failure MUST NOT leak the underlying cryptography exception name (`InvalidTag`, `InvalidSignature`, etc.). Always re-raise as the canonical `ConfigDecryptionError` with the spec-mandated message. Audit D10-truncated #1 (2026-05).
+3. PBKDF2 iteration count is **100 000**. Lower counts in any SDK weaken cross-host-portable secrets and break v2 round-trip.
+4. `keyring:` is plaintext-after-lookup; the keyring backend is the security boundary. Do NOT attempt to AES-decrypt a `keyring:` value.
+5. v1 (`enc:` no-version-tag) is read-only and write-deprecated. New `set` calls always emit `enc:v2:`. The v1 branch exists strictly for migration of pre-2025 configs.
 
 ---
 

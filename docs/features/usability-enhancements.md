@@ -334,6 +334,17 @@ executor.default_timeout = 30000
 - thread_safe: false (mutates `cli` by adding commands)
 - pure: false (calls `executor.validate` to probe availability; mutates `cli`)
 
+### Per-subcommand authoritative behavior
+
+The `register_system_commands` Contract above is the **authoritative cross-SDK reference for behavior shared by all six registered subcommands** (`health`, `usage`, `enable`, `disable`, `reload`, `config`). Audit D4-013 (2026-05-08) noted that splitting into one Contract block per subcommand was deferred to v0.10 to avoid premature spec churn while implementations stabilize. Until then, the following shared behavioral envelope applies to ALL six subcommands and any cross-SDK divergence here is a parity bug:
+
+- **Approval gating**: `enable`, `disable`, `reload`, `config set` MUST go through `check_approval(synthetic_module_def, --yes-flag)` before invoking the executor. `health`, `usage`, `config get` are read-only and MUST NOT prompt for approval. (Audit D11-B-001, 2026-05-08, found this absent in TS — track separately.)
+- **Exit-code mapping**: every subcommand maps executor errors through the canonical SDK error→exit-code table (Python `_ERROR_CODE_MAP`, Rust `map_module_error_to_exit_code`, TS `exitCodeForError`). Hard-coded `sys.exit(1)` collapse on a generic `except Exception` is a parity bug. (Audit D11-B-002, 2026-05-08, found this in Python.)
+- **Output formatting**: every subcommand respects `--format` from the canonical exec set (`table | json | csv | yaml | jsonl`). `markdown` and `skill` are NOT accepted (those formats target `ScannedModule` metadata, not free-form business payloads — see `output-formatter.md`).
+- **Module-availability gating**: the entire group registers atomically — either all six subcommands appear (executor returns success on `system.health.summary` probe) or none do. Partial registration is a parity bug.
+
+When v0.10 splits these into six per-subcommand Contracts, those Contracts MUST inherit the four invariants above; any deviation requires a spec-amendment issue, not just an implementation change.
+
 ---
 
 All system commands are registered in `create_cli()` after built-in commands, gated on system module availability:

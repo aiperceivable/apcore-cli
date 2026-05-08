@@ -40,11 +40,12 @@ The Schema Parser converts a module's JSON Schema `input_schema` into Click CLI 
 
 ### Inputs
 - schema: dict, required — JSON Schema dict with `properties` and optional `required` array.
-  validates: flag names must not collide after underscore-to-hyphen conversion
-  reject_with: SystemExit(48) — on flag name collision
+  validates: property names must not appear in the reserved CLI option set (`input`, `yes`, `large_input`, `format`, `fields`, `sandbox`, `verbose`, `dry_run`, `trace`, `stream`, `strategy`, `approval_timeout`, `approval_token`); flag names must not collide after underscore-to-hyphen conversion
+  reject_with: SystemExit(48) — on reserved property name OR flag name collision (both are schema-author errors and share exit code 48 across SDKs)
 - max_help_length: int, optional — Maximum help text length before truncation. Default: `1000`.
 
 ### Errors
+- SystemExit(48) — schema property name conflicts with a reserved CLI option (cross-SDK parity, audit D11-NEW-005, 2026-05-08)
 - SystemExit(48) — two properties map to the same `--flag` name after underscore-to-hyphen conversion
 
 ### Returns
@@ -53,7 +54,13 @@ The Schema Parser converts a module's JSON Schema `input_schema` into Click CLI 
 ### Properties
 - async: false
 - thread_safe: true
-- pure: false (may call sys.exit on flag collision)
+- pure: false (may call sys.exit on reserved name or flag collision)
+
+### Cross-language notes
+
+- **Rust** (`schema_to_clap_args` in `apcore-cli-rust/src/schema_parser.rs`): returns `Err(SchemaParserError::ReservedPropertyName)` / `Err(SchemaParserError::FlagCollision)` rather than calling `process::exit` directly. The CLI dispatcher (`apcore-cli-rust/src/cli.rs`) maps both variants to `EXIT_SCHEMA_CIRCULAR_REF` (48) so the observable exit code matches Python and TypeScript.
+- **TypeScript** (`schemaToCliOptions` in `apcore-cli-typescript/src/schema-parser.ts`): calls `process.exit(EXIT_CODES.SCHEMA_CIRCULAR_REF)` (= 48) for both reserved-name and flag-collision, matching Python `sys.exit(48)`.
+- The `SCHEMA_CIRCULAR_REF` constant name is historical — exit code 48 is the protocol-spec slot for general schema-validity errors and is reused across circular-ref, missing-target, depth-exceeded, reserved-name, and flag-collision violations.
 
 ---
 
@@ -78,6 +85,70 @@ The Schema Parser converts a module's JSON Schema `input_schema` into Click CLI 
 - async: false
 - thread_safe: true (operates on a deep copy)
 - pure: false (may call sys.exit)
+
+### Algorithm
+
+```
+resolve_refs(schema, max_depth=32, module_id="?"):
+  defs = schema["$defs"] or schema["definitions"] or {}
+  result = resolve_node(deep_copy(schema), defs, depth=0, max_depth, visited={}, module_id)
+  delete result["$defs"]; delete result["definitions"]
+  return result
+
+resolve_node(node, defs, depth, max_depth, visited, module_id):
+  # 1. Depth guard — counts only $ref hops + composition descents.
+  if depth > max_depth: exit(48, "ref chain exceeds max_depth")
+
+  # 2. $ref resolution — circular detection via visited-path set.
+  if node has "$ref":
+    if node["$ref"] in visited: exit(48, "circular $ref")
+    target_key = node["$ref"].split("/")[-1]
+    if target_key not in defs: exit(45, "unresolvable $ref")
+    return resolve_node(defs[target_key], defs, depth+1, max_depth,
+                        visited ∪ {node["$ref"]}, module_id)
+
+  # 3. allOf composition — merge sibling-first, then each branch.
+  #    Required: parent.required + Σ branches[].required, dedup first-seen.
+  #    Properties: parent.properties (seed), branches[].properties (later wins).
+  if node has "allOf":
+    merged.properties = parent.properties (copy)
+    merged.required   = parent.required (copy)
+    for sub in node["allOf"]:
+      r = resolve_node(sub, defs, depth+1, ...)
+      merged.properties.update(r.properties)        # later branch wins
+      merged.required.extend(r.required)
+    merged.required = dedup_first_seen(merged.required)   # cross-SDK parity
+    copy_remaining_keys(node, merged, except="allOf")
+    return merged
+
+  # 4. anyOf / oneOf — Required = (sibling required) ∪ (∩ across branches).
+  for keyword in ("anyOf", "oneOf"):
+    if node has keyword:
+      merged.properties = parent.properties (copy)
+      sibling_required  = parent.required (copy)
+      branch_required_sets = []
+      for sub in node[keyword]:
+        r = resolve_node(sub, defs, depth+1, ...)
+        merged.properties.update(r.properties)
+        if r.required: branch_required_sets.append(set(r.required))
+      branch_required = ∩(branch_required_sets)            # set-intersection
+      merged.required = dedup_first_seen(sibling_required + branch_required)
+      copy_remaining_keys(node, merged, except=keyword)
+      return merged
+
+  # 5. Plain object / nested properties — recurse on .properties values without
+  #    incrementing depth (depth counter is for $ref + composition only).
+  if node["type"] == "object" and node has "properties":
+    for k, v in node["properties"]:
+      node["properties"][k] = resolve_node(v, defs, depth, max_depth, visited, module_id)
+  return node
+```
+
+**Cross-SDK-critical invariants** (every implementation must preserve):
+1. Depth counter increments ONLY on `$ref` hops and composition-branch descents — NOT on nested-properties recursion. Audit D11-NEW-003 (2026-05-08).
+2. Sibling `required` is captured BEFORE the branch loop and merged with branch-derived `required`. Audit D11-NEW-001 (2026-05-08).
+3. `required` arrays are deduped first-seen-wins after merging in BOTH `allOf` and `anyOf`/`oneOf` paths. Audit D9-NEW-002 (2026-05-08).
+4. Visited-set is path-keyed (`#/$defs/X`), not value-keyed — same target reachable via two siblings is allowed; cycles are blocked.
 
 ---
 

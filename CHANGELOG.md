@@ -5,9 +5,18 @@ All notable changes to the apcore-cli specification will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
-## [0.8.0] - 2026-05-07
+## [0.8.0] - 2026-05-08
 
 ### Added
+
+- **Built-in command group rename** (`builtin_group_name` kwarg / `builtinGroupName` option) — downstream branded CLIs that embed apcore-cli can now expose the built-ins under a custom namespace (e.g. `mycorp-cli admin health` instead of `mycorp-cli apcli health`). Default remains `"apcli"`. Validated against `/^[a-z][a-z0-9_-]*$/`. Env var `APCORE_CLI_APCLI` and config keys `apcli.*` deliberately do NOT rename — they are apcore-cli-internal toggles, not user-facing. New "Built-in group rename" section in `docs/features/builtin-group.md`; new `name` parameter on `Contract: ApcliGroup.__init__`. Cross-SDK parity: Python `create_cli(builtin_group_name=...)` and TypeScript `createCli({ builtinGroupName })`; Rust documented as parity gap pending embedding-API rebuild.
+- **`## Algorithm:` blocks added to four high-complexity Contracts** (audit D4-012):
+  - `resolve_refs` (`docs/features/schema-parser.md`) — captures the cross-SDK-critical merge invariants for `allOf` / `anyOf` / `oneOf` / `$ref`, depth-counter semantics, and visited-path tracking.
+  - `Sandbox._sandboxed_execute` (`docs/features/security.md`) — env allowlist, tempdir cleanup-on-exception, output-size guard, SIGTERM/SIGKILL ladder.
+  - `ConfigEncryptor.retrieve` (`docs/features/security.md`) — three-tier `keyring:` → `enc:v2:` → `enc:` fallback with order-of-prefix-check invariants and PBKDF2 iteration count.
+  - `ApcliGroup.resolve_visibility` (`docs/features/builtin-group.md`) — strict 4-tier order (CliConfig > env > yaml > auto-detect) with case-insensitive trim-on-read env parsing.
+- **`register_system_commands` per-subcommand authoritative-behavior section** added to `docs/features/usability-enhancements.md` (audit D4-013). Documents the four cross-SDK invariants the six system subcommands (`health`, `usage`, `enable`, `disable`, `reload`, `config`) must satisfy: client-side approval gating on mutating ops, canonical error→exit-code mapping, format-set restriction, atomic group registration. Full per-subcommand Contract split deferred to v0.10.
+- **`docs/audit-report-2026-05-08.md`** — fresh release-gate snapshot reflecting all 33+ findings closed plus the D11 Tier B deep scan results (system_cmd / output / discovery). Supersedes the in-conversation `audit-report-2026-05-07.md` snapshot which was never persisted.
 
 - **FR-DISC-004 — `markdown` and `skill` output formats** for `list` and
   `describe` (issue
@@ -29,6 +38,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     skill-export workflow.
 
 ### Changed
+
+- **`docs/features/schema-parser.md` Contract: `schema_to_click_options`** — explicitly documents that reserved-property-name violations exit with code 48 (was previously implicit). Both reserved-name and flag-name-collision share `SystemExit(48)` for cross-SDK parity (audit D11-NEW-005). New "Cross-language notes" section enumerates the per-SDK error-routing patterns (Python raises via `sys.exit`, Rust returns `Err(SchemaParserError::*)`, TypeScript exits via `process.exit(EXIT_CODES.SCHEMA_CIRCULAR_REF)`) — observable exit code is 48 across all three.
+- **`docs/spec/...` resolve_refs `allOf` semantics** — the Algorithm block (see Added) codifies that `required` arrays are deduped first-seen-wins after merging in BOTH the `allOf` and `anyOf`/`oneOf` paths. This was previously implementation-defined; audit D9-NEW-002 found Python missing the dedup, Rust deduping parent-vs-branches but not branches-vs-branches, and TypeScript fully deduping. Spec now mandates full dedup everywhere.
 
 - **`docs/tech-design.md` §8.2.7 — `create_cli()` canonical signature gains
   `version: str | None = None` and `description: str | None = None`** parameters

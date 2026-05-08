@@ -177,6 +177,29 @@ apcli:
 - `disable_env` may be set independently of `mode`. A config like `apcli: {disable_env: true}` with no `mode` key is valid and means "auto-detect visibility, but do not honor `APCORE_CLI_APCLI` env var" (internally treated as `mode: auto, disable_env: true`).
 - `include` and `exclude` lists match against the **first-level apcli subcommand name only** (e.g., `list`, `config`). Nested paths (`config.set`) are not supported in v0.7 — if `config` is in the list, its entire subtree is controlled.
 
+## Built-in group rename (cross-SDK feature, 2026-05-08)
+
+Downstream branded CLIs that embed apcore-cli often prefer their built-ins under a custom namespace rather than the literal `apcli` (e.g., `mycorp-cli admin health` is friendlier than `mycorp-cli apcli health` to users who don't know what `apcli` is). The SDK supports this via an optional rename kwarg:
+
+| SDK | API |
+|-----|-----|
+| Python | `create_cli(builtin_group_name="apcli", ...)` (default `"apcli"`) |
+| TypeScript | `createCli({ builtinGroupName: "apcli", ... })` (default `"apcli"`) |
+| Rust | Documented parity gap until embedding API is rebuilt; see `apcore-cli-rust/src/lib.rs:148-167` |
+
+**Validation**: the resolved name MUST match `/^[a-z][a-z0-9_-]*$/` (non-empty, lowercase, leading letter, alphanumeric + `_` / `-`). Invalid values cause exit code 2 with a user-facing error message before any commands register.
+
+**What renames**: the click/commander/clap sub-group node (so `apcli health` becomes `<resolved_name> health`); the `RESERVED_GROUP_NAMES` collision check (so a business module cannot claim the resolved name); listing/help filtering (so the renamed group is the one excluded from registry-driven `listCommands` output).
+
+**What does NOT rename** (intentional cross-SDK invariants):
+- Env var `APCORE_CLI_APCLI` — this is an apcore-cli-internal toggle, exposed to devops/CI rather than to end users. Stable across SDK versions and rename overrides.
+- Config keys `apcli.mode` / `apcli.include` / `apcli.exclude` / `apcli.disable_env` — same rationale; the keyspace identity is the apcore-cli project, not the runtime group name.
+- Spec / documentation / test names — examples in this document continue to use `apcli` as the canonical default. Implementations MUST preserve all behavior described here when the resolved name is `apcli`; the rename feature is purely a presentation-layer relabel.
+
+**Pre-built ApcliGroup conflict**: when a caller passes both an `ApcliGroup` instance to `create_cli(apcli=...)` AND a `builtin_group_name` kwarg with a different value, both SDKs raise an error (TypeError in Python, Error in TS) and exit 2 — never silently pick a winner.
+
+---
+
 ## Contract: ApcliGroup.__init__
 
 ### Inputs
@@ -187,6 +210,8 @@ apcli:
 - disable_env: bool, optional — When True, severs `APCORE_CLI_APCLI` env-var override (Tier 2 skipped in `resolve_visibility`). Default: `False`.
 - registry_injected: bool, optional — Whether the registry was provided programmatically (embedded mode). Used by Tier 4 auto-detect. Default: `False`.
 - from_cli_config: bool, optional — True when constructed via `from_cli_config()` (Tier 1). A non-auto mode from Tier 1 wins outright over env var and yaml. Default: `False`.
+- name: str, optional — Resolved built-in-group name (default `"apcli"`). Forwarded from `create_cli(builtin_group_name=...)` / `createCli({ builtinGroupName })`. Must match `/^[a-z][a-z0-9_-]*$/`.
+  reject_with: ValueError (Python) / Error (TypeScript) — when the name fails the regex; create_cli/createCli catches and exits 2.
 
 ### Errors
 - (none raised by constructor itself — validation errors are raised by `_build` / `from_cli_config` callers)
@@ -261,6 +286,48 @@ apcli:
 - async: false
 - thread_safe: true (reads env; no mutation)
 - pure: false (reads `os.environ`)
+
+### Algorithm
+
+```
+resolve_visibility(self):
+  # Tier 1: programmatic CliConfig wins outright. Embedders that explicitly
+  # construct an ApcliGroup with a non-"auto" mode have made a deliberate
+  # choice and the env var must NOT override it.
+  if self._from_cli_config and self._mode != "auto":
+    return self._mode
+
+  # Tier 2: env var APCORE_CLI_APCLI (when not disabled). Two-value parser:
+  #   show/1/true  → "all"
+  #   hide/0/false → "none"
+  # Other values are ignored (fall through). Env-disable flag is for tests
+  # that need a hermetic environment; production embedders leave it unset.
+  if not self._disable_env:
+    raw = os.environ.get("APCORE_CLI_APCLI", "").strip().lower()
+    if raw in ("show", "1", "true"):  return "all"
+    if raw in ("hide", "0", "false"): return "none"
+    # Any other value (including unset) → fall through to Tier 3.
+
+  # Tier 3: yaml-loaded mode (apcli-config.yaml). Same shape as Tier 1 but
+  # represents a config-file decision rather than a programmatic one. Env
+  # already had its turn — yaml is honored only when env didn't decide.
+  if self._mode != "auto":
+    return self._mode
+
+  # Tier 4: auto-detect by injection presence.
+  #   _registry_injected = True  → embedded inside a host CLI; hide built-ins
+  #                                 to avoid command-name pollution → "none"
+  #   _registry_injected = False → standalone apcore-cli; expose all → "all"
+  if self._registry_injected:
+    return "none"
+  return "all"
+```
+
+**Cross-SDK-critical invariants** (every implementation must preserve):
+1. **Tier order is strict** — CliConfig > env > yaml > auto. The earlier-tier non-auto value wins; later tiers are NOT consulted.
+2. The env-var parser is case-insensitive and trim-on-read. A leading/trailing space must NOT cause a Tier-3/Tier-4 fall-through silently.
+3. Tier 4 default differs by injection state — embedded SDKs return `"none"`, standalone CLIs return `"all"`. Inverting this would surface or hide built-ins by accident in roughly half the deployments.
+4. The function is idempotent w.r.t. instance state — repeated calls return the same value within one process unless `os.environ` mutates between calls.
 
 ---
 
