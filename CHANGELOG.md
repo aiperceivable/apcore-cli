@@ -5,6 +5,13 @@ All notable changes to the apcore-cli specification will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
+## [Unreleased]
+
+### Added
+
+- **New conformance fixture: Algorithm C-SNAKE** (`conformance/fixtures/snake-case-kwargs/`). Verifies that schema property names containing underscores (`has_solution`, `sort_by`, `sort_order`) survive the round trip from CLI parsing to the input dict that `Executor.execute(module_id, input)` / `Executor.call(module_id, input)` receives. Includes a synthetic `test.snake_case_kwargs` module schema and five test cases (positive flag, negation, default fallback, snake_case string flag, multi-flag combination). Cross-SDK runners landed in apcore-cli-typescript / apcore-cli-python / apcore-cli-rust (Unreleased entries in each). Surfaces a class of bugs that single-word-only test fixtures (`math.add` with `a` / `b`) cannot detect: TypeScript commander auto-camelCases long flags and the TS SDK previously did not reverse-map them; Python click and Rust clap natively keep the snake_case attribute name.
+
+
 ## [0.8.0] - 2026-05-08
 
 ### Added

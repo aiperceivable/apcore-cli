@@ -1,0 +1,54 @@
+{
+  "description": "Snake_case multi-word kwargs flow from CLI parsing into module input (Algorithm C-SNAKE)",
+  "version": "0.8.0",
+  "module_id": "test.snake_case_kwargs",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "has_solution": {
+        "type": "boolean",
+        "default": false,
+        "description": "Filter by has solution"
+      },
+      "sort_by": {
+        "type": "string",
+        "description": "Field to sort by"
+      },
+      "sort_order": {
+        "type": "string",
+        "description": "Sort direction"
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "id": "boolean_flag_set",
+      "args": ["--has-solution"],
+      "expected_input": { "has_solution": true }
+    },
+    {
+      "id": "boolean_flag_negated",
+      "args": ["--no-has-solution"],
+      "expected_input": { "has_solution": false }
+    },
+    {
+      "id": "boolean_flag_omitted_uses_default",
+      "args": [],
+      "expected_input": { "has_solution": false }
+    },
+    {
+      "id": "string_flag_with_underscore",
+      "args": ["--sort-by", "name"],
+      "expected_input": { "sort_by": "name" }
+    },
+    {
+      "id": "multiple_snake_case_flags",
+      "args": ["--has-solution", "--sort-by", "name", "--sort-order", "asc"],
+      "expected_input": {
+        "has_solution": true,
+        "sort_by": "name",
+        "sort_order": "asc"
+      }
+    }
+  ]
+}
