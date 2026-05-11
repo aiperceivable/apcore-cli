@@ -1186,7 +1186,7 @@ The default shall be TTY-adaptive: `table` when `sys.stdout.isatty()` returns `T
 1. The system shall check for a `--format` flag.
 2. If `--format table` is specified, render output as a formatted table using `rich` (or the SDK's idiomatic equivalent).
 3. If `--format json` is specified, render output as a JSON document (array for `list`, object for `describe`) with 2-space indentation.
-4. If `--format csv|yaml|jsonl` is specified, render rows via the standard library's CSV writer / `yaml.safe_dump` / one `json.dumps(row)` per line respectively (added v0.6.0).
+4. If `--format csv` or `--format jsonl` is specified, the SDK MUST delegate to `apcore_toolkit.format_csv(rows)` or `apcore_toolkit.format_jsonl(rows)` respectively. Per-SDK reimplementation is prohibited; output MUST be byte-identical across Python / TypeScript / Rust (see tech-design ADR-09 and `apcore-toolkit/conformance/fixtures/format_csv.json` / `format_jsonl.json`). If `--format yaml` is specified, render via the SDK's idiomatic YAML library (currently Tier 2 SDK-native — byte-equivalent YAML pending). (added v0.6.0; csv/jsonl promoted to toolkit-delegated tier v0.7.0)
 5. If `--format markdown` is specified, delegate to `apcore_toolkit.format_module(s)(..., style="markdown")`. For `list`, the result is the per-module Markdown bodies joined by a blank line (optionally grouped by tag/prefix).
 6. If `--format skill` is specified, delegate to `apcore_toolkit.format_module(s)(..., style="skill")` — Markdown body prefixed with the vendor-neutral YAML frontmatter (`name`, `description`). The output is shaped to be written as `.claude/skills/<id>/SKILL.md` or `.gemini/skills/<id>/SKILL.md`.
 7. If no `--format` is specified:
@@ -1209,6 +1209,7 @@ The default shall be TTY-adaptive: `table` when `sys.stdout.isatty()` returns `T
 - **AC-4:** Given `--format markdown` on `list` or `describe`, then the output shall match the Markdown rendering produced by `apcore_toolkit.format_module(s)(..., style="markdown")` byte-for-byte.
 - **AC-5:** Given `--format skill` on `describe <id>`, then the first line of stdout shall be `---`, followed by `name:` and `description:` lines, followed by `---`, followed by the same Markdown body as `--format markdown`. The result shall be loadable by Claude Code and Gemini CLI as a SKILL definition.
 - **AC-6:** Given `--format <unknown>` on any covered subcommand, then the SDK's CLI parser shall reject the value and exit with code 2.
+- **AC-7 (added v0.7.0):** Given `--format csv` or `--format jsonl` on any covered subcommand, the SDK's stdout shall be byte-identical to `apcore_toolkit.format_csv(rows)` / `format_jsonl(rows)` respectively. The 3 SDKs (Python / TypeScript / Rust) shall pass the shared conformance corpus at `apcore-toolkit/conformance/fixtures/`. Nested values shall be serialized as canonical compact JSON (no Python repr, no `[object Object]`). CSV header columns shall be the union of keys across all rows (heterogeneous rows shall not drop fields). CSV line terminator shall be CRLF per RFC 4180.
 
 ---
 

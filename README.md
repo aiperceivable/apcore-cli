@@ -424,6 +424,7 @@ apcore-cli data.export --query "SELECT *" --stream
 - **Enum Choices** -- `"enum": ["json", "csv"]` becomes `--format json` with Click validation
 - **STDIN Piping** -- `--input -` reads JSON from STDIN, CLI flags override for duplicate keys
 - **TTY-Adaptive Output** -- Rich tables for terminals, JSON for pipes (configurable via `--format`)
+- **Byte-Equivalent Tabular Output** _(v0.9.0)_ -- `--format csv` and `--format jsonl` delegate to `apcore-toolkit` so output is byte-identical across Python / TypeScript / Rust SDKs. Fixes a class of cross-SDK divergence (Python repr for nested values, TypeScript heterogeneous-keys data loss, Rust `\n` vs CRLF). See [tech-design ADR-09](docs/tech-design.md)
 - **Approval Gate** -- TTY-aware HITL prompts for modules with `requires_approval: true`, with `--yes` bypass and 60s timeout
 - **Schema Validation** -- Inputs validated against JSON Schema before execution, with `$ref`/`allOf`/`anyOf`/`oneOf` resolution
 - **Security** -- API key auth (keyring + AES-256-GCM), append-only audit logging, subprocess sandboxing
@@ -478,7 +479,7 @@ When executing a module (e.g. `apcore-cli math.add`), these built-in options are
 | `--input -` | Read JSON input from STDIN |
 | `--yes` / `-y` | Bypass approval prompts |
 | `--large-input` | Allow STDIN input larger than 10MB |
-| `--format` | Output format: `json`, `table`, `csv`, `yaml`, `jsonl` |
+| `--format` | Output format: `json`, `table`, `csv`, `yaml`, `jsonl`, `markdown`, `skill` (list/describe only). **v0.9.0:** `csv` and `jsonl` are now byte-identical across SDKs (delegated to `apcore-toolkit`); see [tech-design ADR-09](docs/tech-design.md) and [features/output-formatter.md](docs/features/output-formatter.md). |
 | `--fields` | Comma-separated dot-paths to select from the result |
 | `--dry-run` | Run preflight checks without executing |
 | `--trace` | Show execution pipeline trace with per-step timing |

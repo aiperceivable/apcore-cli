@@ -4,12 +4,33 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.0] - 2026-05-11
 
-## [0.8.1] - 2026-05-11
+Aligned spec release. Promotes csv/jsonl from SDK-native to **toolkit-delegated byte-equivalent** tier alongside markdown/skill. Requires apcore-toolkit `>=0.7.0` (was optional peer). Three SDKs (Python / TypeScript / Rust) refactored to delegate; all spec-driven conformance tests pass byte-identical across languages.
 
 ### Added
 
 - **New conformance fixture: Algorithm C-SNAKE** (`conformance/fixtures/snake-case-kwargs/`). Verifies that schema property names containing underscores (`has_solution`, `sort_by`, `sort_order`) survive the round trip from CLI parsing to the input dict that `Executor.execute(module_id, input)` / `Executor.call(module_id, input)` receives. Includes a synthetic `test.snake_case_kwargs` module schema and five test cases (positive flag, negation, default fallback, snake_case string flag, multi-flag combination). Cross-SDK runners landed in apcore-cli-typescript / apcore-cli-python / apcore-cli-rust (Unreleased entries in each). Surfaces a class of bugs that single-word-only test fixtures (`math.add` with `a` / `b`) cannot detect: TypeScript commander auto-camelCases long flags and the TS SDK previously did not reverse-map them; Python click and Rust clap natively keep the snake_case attribute name.
+- **ADR-09: Output Format Tiers — Toolkit-Delegated vs SDK-Native Presentation** (`docs/tech-design.md`) — formalises the three tiers. Tier 1 (byte-equivalent toolkit-delegated): csv, jsonl, markdown, skill. Tier 2 (SDK-native presentation): table, future tui. Tier 3 (trivial stdlib): json. Includes the bug table that drove the decision (apcore-cli-python Python repr; apcore-cli-typescript heterogeneous-keys data loss; apcore-cli-rust `\n` vs CRLF) and the downstream-consumer argument (aisee-cli reimplemented its own broken CSV).
+- **FR-DISC-004 AC-7** (`docs/srs.md`) — `--format csv` / `--format jsonl` MUST produce byte-identical output across SDKs; nested values MUST be canonical compact JSON; CSV header MUST be union of keys across all rows; CSV line terminator MUST be CRLF.
+- **T-OUT-12a / T-OUT-12b** (`docs/features/output-formatter.md`) — explicit conformance test cases for heterogeneous-keys regression and nested-object regression.
+
+### Changed
+
+- **`docs/features/output-formatter.md` §4 dispatcher narrative** — csv/jsonl reclassified from "render rows via stdlib CSV writer / one JSON dump per line" to "MUST delegate to `apcore_toolkit.format_csv(rows)` / `format_jsonl(rows)`". yaml remains Tier 2 (SDK-native, may differ); markdown/skill remain toolkit-delegated as before.
+- **`docs/srs.md` FR-DISC-004 main flow step 4** — wording promoted from "render via the standard library's CSV writer / `yaml.safe_dump` / one `json.dumps(row)` per line" to "the SDK MUST delegate to `apcore_toolkit.format_csv(rows)` / `format_jsonl(rows)`; per-SDK reimplementation is prohibited".
+
+### Breaking changes
+
+- **apcore-toolkit promoted from optional to REQUIRED runtime dependency** for all 3 SDKs:
+  - `apcore-cli-python`: was extras `[toolkit]`, now in `[project.dependencies]`
+  - `apcore-cli-typescript`: peer-dep `optional: true` removed; minimum bumped to `>=0.7.0`
+  - `apcore-cli-rust`: `optional = true` removed; `toolkit` Cargo feature retained as no-op in `default` for backward compat
+- Downstream consumers using only `json` / `table` formats are unaffected at runtime but must install apcore-toolkit alongside apcore-cli.
+
+### Why
+
+Per-SDK reimplementations of csv/jsonl accumulated divergence — see ADR-09 for the full case study. The aisee-cli "CSV completely breaks in Excel" report surfaced the cumulative impact and triggered the architectural change.
 
 
 ## [0.8.0] - 2026-05-08

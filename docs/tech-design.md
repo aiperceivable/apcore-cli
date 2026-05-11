@@ -310,6 +310,46 @@ For the canonical library-use factory signature, see §8.2.7 "Consolidated Signa
 2. **Single-command groups stay as groups** — `health.check` becomes `health check`, not promoted to top-level `health-check`. This is consistent (has `.` = has group) and forward-compatible (adding `health status` later does not break existing commands).
 3. **`display.cli.group` is CLI-only** — not added to PROTOCOL_SPEC §5.13. It is a CLI surface convention documented in this tech design and the feature spec only.
 
+### ADR-09: Output Format Tiers — Toolkit-Delegated vs SDK-Native Presentation
+
+**Context:** Until v0.7, each SDK (`apcore-cli-python` / `-typescript` / `-rust`) shipped its own implementation of every `--format` option. Independent implementations of "trivial" formats (csv, yaml, jsonl) accumulated divergence over time:
+
+| SDK | Symptom |
+|---|---|
+| `apcore-cli-python` | `csv.DictWriter({k: str(v)})` produced Python repr `{'k': 'v'}` (single quotes) for nested values — invalid JSON, downstream parsers failed |
+| `apcore-cli-typescript` | Headers derived from `Object.keys(rows[0])` only — fields appearing in later rows were silently dropped (surfaced via `aisee-cli` `summarizeAction()` which emits optional fields) |
+| `apcore-cli-rust` | Used `\n` instead of CRLF (RFC 4180 violation); shared the heterogeneous-keys bug |
+
+The spec's MUST-language ("nested values are JSON-serialized") could not enforce conformance on downstream consumers (e.g. `aisee-cli`) that reimplemented their own CSV emission.
+
+**Decision:** Split output formats into two tiers, formalised at the spec level.
+
+**Tier 1 — Byte-equivalent toolkit-delegated** (`csv`, `jsonl`, `markdown`, `skill`):
+
+- Single reference implementation lives in `apcore-toolkit` (`format_csv` / `format_jsonl` / `to_markdown` / `format_module(style="skill")`).
+- Each SDK MUST delegate to the toolkit; per-SDK reimplementation is prohibited.
+- A shared conformance corpus (`apcore-toolkit/conformance/fixtures/`) asserts byte-identical output across Python / TypeScript / Rust. The 3 SDKs each run the corpus as part of their test suite.
+- Adding a new test case to the fixture automatically expands cross-language coverage without per-SDK edits.
+- `apcore-toolkit` becomes a **required** peer / runtime dependency (was optional through v0.6).
+
+**Tier 2 — SDK-native presentation** (`table`, future `tui`):
+
+- Each SDK uses its idiomatic terminal-rendering library (Python `rich`, TS plain table helper, Rust `comfy-table`).
+- Behavioural equivalence is required ("readable key-value table"); byte-level differences (ANSI codes, column-width heuristics, color choices) are acceptable.
+- Presentation formats may legitimately differ across surfaces (CLI vs MCP vs A2A) and the toolkit does not constrain them.
+
+**Tier 3 — Trivial stdlib** (`json`):
+
+- Each SDK uses its stdlib JSON encoder. Byte-level output already matches due to RFC 8259 canonical-form constraints (and the toolkit's tabular emitters use the same canonical compact form internally for nested-cell encoding).
+
+**YAML status:** Pending. Idiomatic YAML libraries (PyYAML, js-yaml, serde_yaml_ng) emit different forms even for identical input. Byte-equivalence requires a custom emitter, which is deferred. Until then YAML stays in Tier 2 (SDK-native, may diverge).
+
+**Rationale:** The toolkit's `markdown` and `skill` formats had no divergence history precisely because they were Tier 1 from day one. Promoting csv/jsonl to the same tier closes the same class of bug for arbitrary tabular data. Downstream consumers (`aisee-cli`, future `aisee-*`, third-party adapters) get the fixes for free via dependency upgrade rather than each having to reimplement.
+
+**Breaking change:** Apcore-toolkit is now a required peer / runtime dependency for `apcore-cli-typescript` (`>=0.7.0`) and `apcore-cli-rust` (`=0.7.0`). The Python SDK already imports it at module load time. Downstream consumers using only `json` / `table` formats are unaffected at runtime but may need to install the toolkit explicitly if they previously skipped the optional peer.
+
+**See also:** `apcore-toolkit/docs/features/formatting.md` § Tabular Formats for the byte-equivalent contract specifications; `apcore-toolkit/conformance/fixtures/format_csv.json` and `format_jsonl.json` for the conformance corpus.
+
 ---
 
 ## 7. Architecture Design

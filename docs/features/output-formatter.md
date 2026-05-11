@@ -197,11 +197,11 @@ Logic steps:
 1. Resolve format via `resolve_format(format)` (TTY-adaptive default).
 2. If `fields` is set, project the named dot-paths from `result` before rendering (see §4.6).
 3. Dispatch on the resolved format:
-   - `"json"`: print `json.dumps(result, indent=2, default=str)`.
-   - `"table"`: render via Rich; for dict-of-scalars use a 2-column key/value table; for list-of-dicts use one row per item with columns from union-of-keys.
-   - `"csv"` (added v0.6.0): write CSV via `csv.DictWriter`; rows = list-of-dicts; nested values are JSON-serialized; single dict treated as one-row.
-   - `"yaml"` (added v0.6.0): print `yaml.safe_dump(result, sort_keys=False, default_flow_style=False)`.
-   - `"jsonl"` (added v0.6.0): for list-of-dicts, write one `json.dumps(row)` per line; for non-list, write a single line.
+   - `"json"`: print `json.dumps(result, indent=2, default=str)`. (Tier 3 — stdlib, see tech-design ADR-09.)
+   - `"table"`: render via Rich (or `comfy-table` / hand-rolled table in TS); for dict-of-scalars use a 2-column key/value table; for list-of-dicts use one row per item with columns from union-of-keys. (Tier 2 — SDK-native presentation.)
+   - `"csv"` (added v0.6.0; **promoted to toolkit-delegated tier v0.7.0**): MUST delegate to `apcore_toolkit.format_csv(rows, bom=False)`. The toolkit owns the canonical contract: header = union of keys across all rows (fixes prior single-row-keys data-loss bug); cell values serialized via toolkit's canonical encoder (Python repr / `str()` MUST NOT be used for non-scalars); RFC 4180 CRLF terminator; embedded `,` / `"` / `\n` / `\r` quote-wrapped. (Tier 1 — byte-equivalent across SDKs.)
+   - `"yaml"` (added v0.6.0): print via idiomatic per-SDK YAML emitter (PyYAML / js-yaml / serde_yaml_ng). Currently Tier 2 (SDK-native, may differ across SDKs); toolkit-delegated byte-equivalent YAML is pending — see tech-design ADR-09 § YAML status.
+   - `"jsonl"` (added v0.6.0; **promoted to toolkit-delegated tier v0.7.0**): MUST delegate to `apcore_toolkit.format_jsonl(rows)`. Toolkit's canonical compact JSON form (no inter-token whitespace, insertion-order preserved, whole-number floats drop trailing `.0`, NaN/Inf → null, LF terminator). (Tier 1 — byte-equivalent across SDKs.)
 4. If `result is None`: print nothing (empty stdout).
 5. For non-mapping/non-list scalar `result` and a tabular format, render as a single-row table; for `"json"`/`"jsonl"` wrap the scalar.
 
@@ -267,9 +267,11 @@ def _truncate(text: str, max_length: int = 80) -> str:
 | T-OUT-09 | `format_exec_result` with dict | JSON-formatted dict. |
 | T-OUT-10 | `format_exec_result` with None | Empty stdout. |
 | T-OUT-11 | Description truncation at 80 chars | 77 chars + "..." for text > 80 chars. |
-| T-OUT-12 | `format_exec_result(rows, format="csv")` | CSV with header row + one line per dict in `rows`; nested values JSON-serialized. (added v0.6.0) |
-| T-OUT-13 | `format_exec_result(rows, format="yaml")` | YAML stream emitted via `yaml.safe_dump(..., sort_keys=False)`. (added v0.6.0) |
-| T-OUT-14 | `format_exec_result(rows, format="jsonl")` | One `json.dumps(row)` per line, newline-terminated. (added v0.6.0) |
+| T-OUT-12 | `format_exec_result(rows, format="csv")` | Output MUST be byte-identical to `apcore_toolkit.format_csv(rows)` (toolkit conformance corpus at `apcore-toolkit/conformance/fixtures/format_csv.json`). Header = union of all row keys; nested values = canonical compact JSON; RFC 4180 CRLF terminator. (added v0.6.0; toolkit-delegated v0.7.0) |
+| T-OUT-12a | `format_exec_result([{a:1},{a:2,b:3}], format="csv")` | Heterogeneous-keys regression — output header MUST be `a,b\r\n`; later-row extras MUST appear; first row emits empty cell for missing key. Output: `a,b\r\n1,\r\n2,3\r\n`. (added v0.7.0) |
+| T-OUT-12b | `format_exec_result([{schema:{type:"object"}}], format="csv")` | Nested-object regression — cell MUST contain canonical JSON `{"type":"object"}` (double-quoted, doubled per RFC 4180), NOT Python repr `{'type': 'object'}`. (added v0.7.0) |
+| T-OUT-13 | `format_exec_result(rows, format="yaml")` | YAML stream emitted via per-SDK idiomatic YAML library (Tier 2 — SDK-native; byte-equivalence pending). (added v0.6.0) |
+| T-OUT-14 | `format_exec_result(rows, format="jsonl")` | Output MUST be byte-identical to `apcore_toolkit.format_jsonl(rows)` (toolkit conformance corpus at `apcore-toolkit/conformance/fixtures/format_jsonl.json`). Canonical compact JSON per row, LF terminator, no trailing blank. (added v0.6.0; toolkit-delegated v0.7.0) |
 | T-OUT-15 | `format_exec_result(rows, format="json", fields="id,metadata.author")` | Output rows projected to only the two named dot-paths; missing keys produce `null`. (added v0.6.0) |
 | T-OUT-16 | `format_module_list(modules, format="markdown")` | stdout matches `apcore_toolkit.format_modules(modules, style="markdown")` byte-for-byte. (added v0.9.0) |
 | T-OUT-17 | `format_module_detail(module, format="skill")` | stdout starts with `---\nname: …\ndescription: …\n---\n` followed by the same Markdown body as `format="markdown"`. (added v0.9.0) |
