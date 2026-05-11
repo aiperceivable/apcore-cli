@@ -450,7 +450,7 @@ The system provides eight feature groups:
 | **Priority Rationale** | UX improvement. Built-in apcore options are noise for most users; AI agents and power users can opt in via `--verbose`. |
 | **Source** | Feature Spec FE-01; v0.4.0 |
 
-**Description:** The system shall hide four built-in apcore options (`--input`, `--yes`, `--large-input`, `--format`) from `--help` output by default. When the global `--verbose` flag is passed alongside `--help`, the system shall display the full option list including these built-in options. The `--sandbox` option is always hidden (not yet implemented) and is not affected by `--verbose`. The `--verbose` flag shall be pre-parsed from `argv` before the CLI framework processes arguments, since help rendering occurs during parsing. The flag name `verbose` shall be added to the reserved property names set to prevent schema collisions.
+**Description:** The system shall hide four built-in options (`--input`, `--yes`, `--large-input`, `--format`) from `--help` output by default. When the global `--verbose` flag is passed alongside `--help`, the system shall display the full option list including these built-in options. The `--sandbox` option is always hidden (not yet implemented) and is not affected by `--verbose`. The `--verbose` flag shall be pre-parsed from `argv` before the CLI framework processes arguments, since help rendering occurs during parsing. The flag name `verbose` shall be added to the reserved property names set to prevent schema collisions.
 
 **Actors:** Developer, AI Agent
 
@@ -461,7 +461,7 @@ The system provides eight feature groups:
 1. At startup, the system shall scan raw `argv` for `--verbose` before the CLI framework parses arguments.
 2. If `--verbose` is present, the system shall set a global flag indicating verbose help mode.
 3. When building module commands via `build_module_command()`, four built-in options (`--input`, `--yes`, `--large-input`, `--format`) shall be marked as hidden when verbose mode is off, and visible when verbose mode is on. The `--sandbox` option shall remain always hidden until implemented.
-4. The `--verbose` flag shall be registered as a global CLI option with help text: "Show all options in help output (including built-in apcore options)."
+4. The `--verbose` flag shall be registered as a global CLI option with help text: "Show all options in help output (including built-in options)."
 
 **Alternative Flows:**
 - **AF-1: `--verbose` without `--help`.** The flag is accepted but has no visible effect on command execution.
@@ -1456,7 +1456,7 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 
 - **AF-1: Unknown Command (single-command mode).** If the specified command does not exist, the system shall write to stderr: `Error: Unknown command '{command}'.` and exit with code 2.
 - **AF-2: `--man` without `--help`.** The `--man` flag is accepted but has no effect on command execution.
-- **AF-3: `--help --man --verbose`.** The man page includes all options (including built-in apcore options that are normally hidden).
+- **AF-3: `--help --man --verbose`.** The man page includes all options (including built-in options that are normally hidden).
 
 **Postconditions:**
 - A man page in roff format is written to stdout.
