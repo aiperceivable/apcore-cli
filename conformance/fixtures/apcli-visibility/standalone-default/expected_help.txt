@@ -8,7 +8,7 @@ Commands:
 
 Options:
       --log-level <LEVEL>      Logging level (DEBUG|INFO|WARNING|ERROR) [default: WARNING]
-      --verbose                Show all options in help output (including built-in options)
+      --all-options            Show all options in help output (including built-in options)
       --extensions-dir <PATH>  Path to extensions directory
       --commands-dir <PATH>    Path to convention-based commands directory
       --binding <PATH>         Path to binding.yaml for display overlay

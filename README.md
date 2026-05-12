@@ -430,7 +430,7 @@ apcore-cli data.export --query "SELECT *" --stream
 - **Security** -- API key auth (keyring + AES-256-GCM), append-only audit logging, subprocess sandboxing
 - **Shell Completions** -- `apcore-cli apcli completion bash|zsh|fish` generates completion scripts with dynamic module ID completion
 - **Man Pages** -- `apcore-cli apcli man <command>` generates roff-formatted man pages; `--help --man` generates a full program man page covering all commands
-- **Verbose Help** -- Built-in apcore options are hidden by default; pass `--help --verbose` to show the full option list
+- **Verbose Help** -- Built-in apcore options are hidden by default; pass `--help --all-options` to show the full option list
 - **Documentation Links** -- `set_docs_url()` / `setDocsUrl()` adds online documentation URLs to help footers and man pages
 - **Audit Logging** -- All executions logged to `~/.apcore-cli/audit.jsonl` with SHA-256 input hashing
 

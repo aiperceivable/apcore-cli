@@ -40,7 +40,7 @@ The Schema Parser converts a module's JSON Schema `input_schema` into Click CLI 
 
 ### Inputs
 - schema: dict, required — JSON Schema dict with `properties` and optional `required` array.
-  validates: property names must not appear in the reserved CLI option set (`input`, `yes`, `large_input`, `format`, `fields`, `sandbox`, `verbose`, `dry_run`, `trace`, `stream`, `strategy`, `approval_timeout`, `approval_token`); flag names must not collide after underscore-to-hyphen conversion
+  validates: property names must not appear in the reserved CLI option set (`input`, `yes`, `large_input`, `format`, `fields`, `sandbox`, `all_options`, `dry_run`, `trace`, `stream`, `strategy`, `approval_timeout`, `approval_token`); flag names must not collide after underscore-to-hyphen conversion
   reject_with: SystemExit(48) — on reserved property name OR flag name collision (both are schema-author errors and share exit code 48 across SDKs)
 - max_help_length: int, optional — Maximum help text length before truncation. Default: `1000`.
 

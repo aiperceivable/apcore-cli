@@ -445,12 +445,12 @@ The system provides eight feature groups:
 | Field | Value |
 |-------|-------|
 | **ID** | FR-DISP-007 |
-| **Title** | Verbose Help Mode |
+| **Title** | All-Options Help Mode |
 | **Priority** | P2 |
-| **Priority Rationale** | UX improvement. Built-in apcore options are noise for most users; AI agents and power users can opt in via `--verbose`. |
+| **Priority Rationale** | UX improvement. Built-in apcore options are noise for most users; AI agents and power users can opt in via `--all-options`. |
 | **Source** | Feature Spec FE-01; v0.4.0 |
 
-**Description:** The system shall hide four built-in options (`--input`, `--yes`, `--large-input`, `--format`) from `--help` output by default. When the global `--verbose` flag is passed alongside `--help`, the system shall display the full option list including these built-in options. The `--sandbox` option is always hidden (not yet implemented) and is not affected by `--verbose`. The `--verbose` flag shall be pre-parsed from `argv` before the CLI framework processes arguments, since help rendering occurs during parsing. The flag name `verbose` shall be added to the reserved property names set to prevent schema collisions.
+**Description:** The system shall hide four built-in options (`--input`, `--yes`, `--large-input`, `--format`) from `--help` output by default. When the global `--all-options` flag is passed alongside `--help`, the system shall display the full option list including these built-in options. The `--sandbox` option is always hidden (not yet implemented) and is not affected by `--all-options`. The `--all-options` flag shall be pre-parsed from `argv` before the CLI framework processes arguments, since help rendering occurs during parsing. The flag name `all_options` shall be added to the reserved property names set to prevent schema collisions.
 
 **Actors:** Developer, AI Agent
 
@@ -458,23 +458,23 @@ The system provides eight feature groups:
 - The CLI adapter is installed and a module command exists.
 
 **Main Flow:**
-1. At startup, the system shall scan raw `argv` for `--verbose` before the CLI framework parses arguments.
-2. If `--verbose` is present, the system shall set a global flag indicating verbose help mode.
-3. When building module commands via `build_module_command()`, four built-in options (`--input`, `--yes`, `--large-input`, `--format`) shall be marked as hidden when verbose mode is off, and visible when verbose mode is on. The `--sandbox` option shall remain always hidden until implemented.
-4. The `--verbose` flag shall be registered as a global CLI option with help text: "Show all options in help output (including built-in options)."
+1. At startup, the system shall scan raw `argv` for `--all-options` before the CLI framework parses arguments.
+2. If `--all-options` is present, the system shall set a global flag indicating all-options help mode.
+3. When building module commands via `build_module_command()`, four built-in options (`--input`, `--yes`, `--large-input`, `--format`) shall be marked as hidden when all-options mode is off, and visible when all-options mode is on. The `--sandbox` option shall remain always hidden until implemented.
+4. The `--all-options` flag shall be registered as a global CLI option with help text: "Show all options in help output (including built-in options)."
 
 **Alternative Flows:**
-- **AF-1: `--verbose` without `--help`.** The flag is accepted but has no visible effect on command execution.
-- **AF-2: Schema property named `verbose`.** The system shall reject it with exit code 2, as `verbose` is a reserved flag name.
+- **AF-1: `--all-options` without `--help`.** The flag is accepted but has no visible effect on command execution.
+- **AF-2: Schema property named `all_options`.** The system shall reject it with exit code 2, as `all_options` is a reserved flag name.
 
 **Postconditions:**
 - Default `--help` output shows only schema-derived options.
-- `--help --verbose` output shows all options (schema-derived + built-in).
+- `--help --all-options` output shows all options (schema-derived + built-in).
 
 **Acceptance Criteria:**
 - **AC-1:** Given a module with property `name`, when the user runs `apcore-cli module --help`, then `--input`, `--yes`, `--large-input`, `--format`, and `--sandbox` shall NOT appear in the output.
-- **AC-2:** Given the same module, when the user runs `apcore-cli module --help --verbose`, then `--input`, `--yes`, `--large-input`, and `--format` SHALL appear in the output. `--sandbox` shall remain hidden (not yet implemented).
-- **AC-3:** Given a module with a schema property named `verbose`, when the system builds the command, then it shall exit with code 2 and a collision error message.
+- **AC-2:** Given the same module, when the user runs `apcore-cli module --help --all-options`, then `--input`, `--yes`, `--large-input`, and `--format` SHALL appear in the output. `--sandbox` shall remain hidden (not yet implemented).
+- **AC-3:** Given a module with a schema property named `all_options`, when the system builds the command, then it shall exit with code 2 and a collision error message.
 
 ---
 
@@ -535,7 +535,7 @@ The system provides eight feature groups:
 | **Priority Rationale** | Required for every branded/embedded CLI. Without this, built-in commands pollute the root namespace, colliding with business-command verbs (`list`, `init`, `describe`) and exposing developer-only tooling to end users. Also required for the retirement of the brittle `BUILTIN_COMMANDS` collision-check mechanism. |
 | **Source** | Feature Spec FE-13; v0.7.0 |
 
-**Description:** The system shall relocate all apcore-cli-provided commands (`list`, `describe`, `exec`, `init`, `validate`, `health`, `usage`, `enable`, `disable`, `reload`, `config`, `completion`, `describe-pipeline`) under a single reserved group named `apcli`. The root level shall retain only universally recognized meta-commands and flags (`help`, `--help`, `--version`, `--verbose`, `--man`, `--log-level`), plus user business modules/groups. The system shall accept an `apcli` configuration (via `CliConfig` parameter or `apcore.yaml` key) that controls group-level visibility (`all`/`none`/`include`/`exclude`) and supports a `disable_env` opt-out to sever the `APCORE_CLI_APCLI` environment-variable override.
+**Description:** The system shall relocate all apcore-cli-provided commands (`list`, `describe`, `exec`, `init`, `validate`, `health`, `usage`, `enable`, `disable`, `reload`, `config`, `completion`, `describe-pipeline`) under a single reserved group named `apcli`. The root level shall retain only universally recognized meta-commands and flags (`help`, `--help`, `--version`, `--all-options`, `--man`, `--log-level`), plus user business modules/groups. The system shall accept an `apcli` configuration (via `CliConfig` parameter or `apcore.yaml` key) that controls group-level visibility (`all`/`none`/`include`/`exclude`) and supports a `disable_env` opt-out to sever the `APCORE_CLI_APCLI` environment-variable override.
 
 **Actors:** Framework Developer, End User
 
@@ -571,7 +571,7 @@ The system provides eight feature groups:
 - **AC-5:** Given `apcli: {mode: none, disable_env: true}` and `APCORE_CLI_APCLI=show`, when the user runs `<cli> --help`, then the `apcli` group shall remain hidden.
 - **AC-6:** Given `create_cli(apcli=False)` and `APCORE_CLI_APCLI=show`, when the user runs `<cli> --help`, then the `apcli` group shall remain hidden (Tier 1 precedence).
 - **AC-7:** Given a business module whose CLI top-level name or group name is `apcli`, when the CLI is built, then the system shall exit with code 2 and a reserved-name error.
-- **AC-8:** Given `registry` is injected (embedded mode), when `<cli> --help --verbose` is run, then `--extensions-dir`, `--commands-dir`, `--binding` shall NOT appear.
+- **AC-8:** Given `registry` is injected (embedded mode), when `<cli> --help --all-options` is run, then `--extensions-dir`, `--commands-dir`, `--binding` shall NOT appear.
 
 **Cross-language equivalents:**
 
@@ -1451,13 +1451,13 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 3. When the user invokes `{prog_name} --help --man`, the system pre-parses `--man` from argv before the CLI framework processes help.
 4. The system calls `build_program_man_page()` which iterates all visible commands (including downstream business commands), generating a complete roff man page with: TH, NAME, SYNOPSIS, DESCRIPTION, GLOBAL OPTIONS, COMMANDS (with nested subcommands and their options), ENVIRONMENT, EXIT CODES, SEE ALSO.
 5. The system writes the roff output to stdout and exits.
-6. Hidden options (from `--verbose` mode) are excluded from the man page by default.
+6. Hidden options (from `--all-options` mode) are excluded from the man page by default.
 
 **Alternative Flows:**
 
 - **AF-1: Unknown Command (single-command mode).** If the specified command does not exist, the system shall write to stderr: `Error: Unknown command '{command}'.` and exit with code 2.
 - **AF-2: `--man` without `--help`.** The `--man` flag is accepted but has no effect on command execution.
-- **AF-3: `--help --man --verbose`.** The man page includes all options (including built-in options that are normally hidden).
+- **AF-3: `--help --man --all-options`.** The man page includes all options (including built-in options that are normally hidden).
 
 **Postconditions:**
 - A man page in roff format is written to stdout.

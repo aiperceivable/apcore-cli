@@ -12,7 +12,7 @@
 
 ## 1. Description
 
-The Built-in Command Group feature restructures the apcore-cli command surface by moving **all apcore-cli-provided commands** (`list`, `describe`, `exec`, `init`, `validate`, `health`, `usage`, `enable`, `disable`, `reload`, `config`, `completion`, `describe-pipeline`, etc.) under a single reserved group named **`apcli`**. The root level retains only universally recognized meta-commands and flags (`help`, `--help`, `--version`, `--verbose`, `--man`, `--log-level`), plus user business modules/groups discovered from the registry.
+The Built-in Command Group feature restructures the apcore-cli command surface by moving **all apcore-cli-provided commands** (`list`, `describe`, `exec`, `init`, `validate`, `health`, `usage`, `enable`, `disable`, `reload`, `config`, `completion`, `describe-pipeline`, etc.) under a single reserved group named **`apcli`**. The root level retains only universally recognized meta-commands and flags (`help`, `--help`, `--version`, `--all-options`, `--man`, `--log-level`), plus user business modules/groups discovered from the registry.
 
 This addresses two problems with the pre-v0.7 design:
 
@@ -57,7 +57,7 @@ Hiding is an output filter; registered subcommands remain reachable via `<cli> a
 | FR-13-11 | FR-DISP-009 (AC-5) | `apcli.disableEnv: true` severs the env-var override, making `CliConfig.apcli` / `apcore.yaml` / auto-detect the only resolution sources. `disableEnv` is configured via CliConfig or apcore.yaml only — it is not exposed as its own env var. |
 | FR-13-12 | FR-DISP-009 (AC-4) | `exec` subcommand under `apcli` is always registered when the `apcli` group exists, regardless of `include`/`exclude` subcommand filtering — preserves FE-12's hidden-module-invocation guarantee. |
 | FR-13-13 | FR-DISP-009 (AC-8) | Discovery-related root flags (`--extensions-dir`, `--commands-dir`, `--binding`) are registered only in standalone mode; in embedded mode (registry injected) they are not registered at all. |
-| FR-13-14 | NFR-USB-001 | `--verbose` behavior is orthogonal to `apcli` visibility: `--verbose` continues to control per-command option density in help output and does not alter `apcli` group visibility. |
+| FR-13-14 | NFR-USB-001 | `--all-options` behavior is orthogonal to `apcli` visibility: `--all-options` continues to control per-command option density in help output and does not alter `apcli` group visibility. |
 
 ---
 
@@ -86,7 +86,7 @@ Hiding is an output filter; registered subcommands remain reachable via `<cli> a
 | `help` | Command | Standard help dispatcher (Click/Commander built-in). |
 | `--help` / `-h` | Flag | Per-command help. |
 | `--version` | Flag | Print program version. |
-| `--verbose` | Flag | Show built-in per-command options in `--help`. |
+| `--all-options` | Flag | Show built-in per-command options in `--help`. |
 | `--man` | Flag | Render formatted man-page style help (used with `--help --man`). |
 | `--log-level` | Flag | Set log level (DEBUG/INFO/WARNING/ERROR). |
 | `<business-group>` | Group | User modules auto-grouped by namespace (see FE-09). |
@@ -101,7 +101,7 @@ Hiding is an output filter; registered subcommands remain reachable via `<cli> a
 | `--commands-dir` | Flag | Path to convention-based commands directory (apcore-toolkit). |
 | `--binding` | Flag | Path to `binding.yaml` for display overlay (apcore-toolkit). |
 
-Rationale: these three flags only have meaning when apcore-cli performs its own filesystem discovery. In embedded mode — where the integrator has pre-built the `registry` and passes it programmatically — the flags are inert (do nothing) and pollute `--help --verbose` output. Omitting them entirely in embedded mode results in cleaner help and an explicit "unknown option" error if a user attempts them.
+Rationale: these three flags only have meaning when apcore-cli performs its own filesystem discovery. In embedded mode — where the integrator has pre-built the `registry` and passes it programmatically — the flags are inert (do nothing) and pollute `--help --all-options` output. Omitting them entirely in embedded mode results in cleaner help and an explicit "unknown option" error if a user attempts them.
 
 **Under `apcli` group:**
 
@@ -877,7 +877,7 @@ The env var controls **group-level visibility only** (all-or-nothing). It cannot
 | T-APCLI-15 | `apcli: { mode: none, disable_env: true }` + `APCORE_CLI_APCLI` unset | Group hidden (no change vs. without disable_env). |
 | T-APCLI-16 | Business module registered with CLI group `apcli` | Exit 2 with reserved-name error. |
 | T-APCLI-17 | Business module registered with top-level CLI name `apcli` | Exit 2 with reserved-name error. |
-| T-APCLI-18 | Root `--help` output | Shows `help`, `--help`, `--version`, `--verbose`, `--man`, `--log-level`, business modules/groups, `apcli` (if visible). No stray built-in commands. |
+| T-APCLI-18 | Root `--help` output | Shows `help`, `--help`, `--version`, `--all-options`, `--man`, `--log-level`, business modules/groups, `apcli` (if visible). No stray built-in commands. |
 | T-APCLI-19 | `<cli> apcli list --help` | Identical output to pre-v0.7 `<cli> list --help` (behavioral parity). |
 | T-APCLI-20 | `apcli: { mode: include, include: [] }` | Group visible; `<cli> apcli --help` shows only `exec` (always-registered). |
 | T-APCLI-21 | `apcli: { mode: exclude, exclude: [] }` | Equivalent to `mode: all`. |
@@ -893,7 +893,7 @@ The env var controls **group-level visibility only** (all-or-nothing). It cannot
 | T-APCLI-31 | Cross-language parity: Python/TS/Rust/Go, same `apcli: false` | Identical `--help` outputs. |
 | T-APCLI-32 | Startup time with `apcli` group | Within 5% of pre-v0.7 baseline (no regression). |
 | T-APCLI-33 | `createCli({ apcli: new ApcliGroup({...}) })` | Programmatic `ApcliGroup` instance accepted. |
-| T-APCLI-34 | `<cli> --verbose --help` with `apcli: false` | Per-command options shown for business commands; `apcli` group remains hidden (orthogonal behaviors, FR-13-14). |
+| T-APCLI-34 | `<cli> --all-options --help` with `apcli: false` | Per-command options shown for business commands; `apcli` group remains hidden (orthogonal behaviors, FR-13-14). |
 | T-APCLI-35 | `env -u APCORE_CLI_APCLI <cli> --help` with `disable_env: true` set | Standard unset behavior; works regardless of disable_env. |
 | T-APCLI-36 | CliConfig form equivalence: `createCli({apcli: false})`, `createCli({apcli: {mode: "none"}})`, and `createCli({apcli: new ApcliGroup({mode: "none"})})` | All three produce byte-identical `--help` output. |
 | T-APCLI-37 | yaml `apcli: {disable_env: true}` with no `mode` key | Treated as `mode: auto, disable_env: true`. Visibility follows auto-detect; env var ignored. |
@@ -918,7 +918,7 @@ The env var controls **group-level visibility only** (all-or-nothing). It cannot
 | **Output Formatter (FE-08)** | No impact (apcli group renders through existing man/help pipeline) | None |
 | **Grouped Commands (FE-09)** | Reserves `apcli` as a protected name; retires `BUILTIN_COMMANDS` collision check | Replace constant with `RESERVED_GROUP_NAMES = {"apcli"}`; check top-level command names too |
 | **Init Command (FE-10)** | `init` moves under `apcli` group | Update `register_init_command` signature |
-| **Usability Enhancements (FE-11)** | `health`/`usage`/`enable`/`disable`/`reload`/`config` move under `apcli`; `--verbose` behavior preserved and orthogonal to apcli visibility | Split `register_system_commands` into per-subcommand registrars |
+| **Usability Enhancements (FE-11)** | `health`/`usage`/`enable`/`disable`/`reload`/`config` move under `apcli`; `--all-options` behavior preserved and orthogonal to apcli visibility | Split `register_system_commands` into per-subcommand registrars |
 | **Exposure Filtering (FE-12)** | Orthogonal — `expose` controls business-module visibility; `apcli` controls built-in group visibility. FE-12's `exec` guarantee preserved via `_ALWAYS_REGISTERED` | None. Both filters compose independently. |
 
 ---
@@ -949,7 +949,7 @@ aisee — AI-powered vision CLI
 Options:
   -h, --help        Display help for command
   --version         Show aisee version
-  --verbose         Show all options in help output
+  --all-options     Show all options in help output
   --log-level <lvl> Logging level (DEBUG|INFO|WARNING|ERROR)
 
 Commands:
@@ -1031,7 +1031,7 @@ apcli:
 ```bash
 $ apcore-cli --help
 # Full surface available — apcli auto-defaults to visible in standalone mode.
-# Discovery flags (--extensions-dir, --commands-dir, --binding) available with --verbose.
+# Discovery flags (--extensions-dir, --commands-dir, --binding) available with --all-options.
 Commands:
   apcli <cmd>     Built-in apcore-cli commands
   help [command]  Display help for command
@@ -1108,7 +1108,7 @@ This feature is a **breaking change** for standalone `apcore-cli` users who have
 **What does NOT break:**
 - Business module invocations (unaffected — modules remain at root level or in their own groups per FE-09).
 - Embedded integrations (`create_cli(registry=...)`) — no script ever relied on built-in commands being exposed in that mode; the new default (hidden) is strictly better.
-- `--help` / `--version` / `--verbose` / `--log-level` / `--man` flags.
+- `--help` / `--version` / `--all-options` / `--log-level` / `--man` flags.
 
 ### 11.2 Deprecation Window
 

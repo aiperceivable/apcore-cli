@@ -4,7 +4,7 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.9.0] - 2026-05-11
+## [0.9.0] - 2026-05-12
 
 Aligned spec release. Promotes csv/jsonl from SDK-native to **toolkit-delegated byte-equivalent** tier alongside markdown/skill. Requires apcore-toolkit `>=0.7.0` (was optional peer). Three SDKs (Python / TypeScript / Rust) refactored to delegate; all spec-driven conformance tests pass byte-identical across languages.
 
@@ -22,6 +22,7 @@ Aligned spec release. Promotes csv/jsonl from SDK-native to **toolkit-delegated 
 
 ### Breaking changes
 
+- **Global `--verbose` flag renamed to `--all-options`** — The help-display flag is now `--all-options`; use `<cli> --help --all-options` to reveal hidden built-in options (`--input`, `--yes`, `--large-input`, `--format`). `verbose` is removed from the reserved schema property names set — module schemas may now freely define `verbose: boolean` for runtime output control without collision. Tracked in [#21](https://github.com/aiperceivable/apcore-cli/issues/21).
 - **apcore-toolkit promoted from optional to REQUIRED runtime dependency** for all 3 SDKs:
   - `apcore-cli-python`: was extras `[toolkit]`, now in `[project.dependencies]`
   - `apcore-cli-typescript`: peer-dep `optional: true` removed; minimum bumped to `>=0.7.0`

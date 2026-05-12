@@ -265,10 +265,10 @@ Logic steps:
 5. Generate `.SH COMMANDS`: iterate all visible subcommands:
    a. For each command: emit `.TP` with `{prog_name} {command_name}`, description, and visible options.
    b. For nested subcommands (groups): emit `.TP` with `{prog_name} {group} {subcommand}`, description, and visible options.
-   c. Hidden options (from `--verbose` mode) are excluded via `visibleOptions()` / `is_hide_set()`.
+   c. Hidden options (from `--all-options` mode) are excluded via `visibleOptions()` / `is_hide_set()`.
 6. Generate `.SH ENVIRONMENT`: standard apcore env vars.
 7. Generate `.SH EXIT CODES`: standard exit code table.
-8. Generate `.SH SEE ALSO`: pointer to `--help --verbose`.
+8. Generate `.SH SEE ALSO`: pointer to `--help --all-options`.
 9. Return the roff string.
 
 ### 4.9 Function: `configure_man_help`
@@ -357,5 +357,5 @@ man reach
 | T-SHELL-09 | `apcore-cli --help --man` | stdout: complete roff man page with `.TH`, `.SH COMMANDS` covering all registered commands. Exit 0. |
 | T-SHELL-10 | `apcore-cli --help --man \| mandoc -a` | Full man page renders correctly with all commands and options. |
 | T-SHELL-11 | Downstream project calls `configure_man_help(program, "myapp", "1.0.0")`, then runs `myapp --help --man` | stdout: roff man page with program name "myapp" and all downstream commands. |
-| T-SHELL-12 | `apcore-cli --help --man` without `--verbose` | Built-in options (`--input`, `--yes`, etc.) do NOT appear in the COMMANDS section. |
-| T-SHELL-13 | `apcore-cli --help --man --verbose` | Built-in options appear in the COMMANDS section. |
+| T-SHELL-12 | `apcore-cli --help --man` without `--all-options` | Built-in options (`--input`, `--yes`, etc.) do NOT appear in the COMMANDS section. |
+| T-SHELL-13 | `apcore-cli --help --man --all-options` | Built-in options appear in the COMMANDS section. |

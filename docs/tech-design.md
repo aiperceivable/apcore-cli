@@ -972,8 +972,8 @@ Logic steps:
    k. On `KeyboardInterrupt`: exit 130.
    l. On other exception: map error code, audit log (error), exit with mapped code.
 9. Create `click.Command` with `name=effective_cmd_name`, `help=cmd_help`, `callback=callback`.
-10. Append built-in options: `--input`, `--yes`, `--large-input`, `--format`, `--sandbox`. These options are hidden from `--help` output by default; when `--verbose` is passed globally, they become visible.
-11. Guard: check schema property names do not collide with reserved names `{input, yes, large_input, format, sandbox, verbose}`. On collision: exit 2.
+10. Append built-in options: `--input`, `--yes`, `--large-input`, `--format`, `--sandbox`. These options are hidden from `--help` output by default; when `--all-options` is passed globally, they become visible.
+11. Guard: check schema property names do not collide with reserved names `{input, yes, large_input, format, sandbox, all_options}`. On collision: exit 2.
 12. Append schema-generated options.
 13. Return the command.
 
@@ -1112,7 +1112,7 @@ Logic steps:
 6. Initialize `AuditLogger()`.
 7. **Build `click.Group` using `cls=GroupedModuleGroup`** (changed from `LazyModuleGroup` in v2.0).
 8. Add root-level options:
-   a. `--log-level`, `--verbose`, `--man` — always registered.
+   a. `--log-level`, `--all-options`, `--man` — always registered.
    b. `click.version_option` — **only when `version` is supplied** (issue #18). When omitted the flag is not registered, so embedded CLIs without an explicit version do not surface the SDK's own version.
    c. `--extensions-dir`, `--commands-dir`, `--binding` — **only when `registry is None`** (standalone mode). Not registered in embedded mode per FE-13 FR-13-13.
 9. Construct `ApcliGroup` via `ApcliGroup.from_cli_config(apcli, ...)` when `apcli` is not None; otherwise via `ApcliGroup.from_yaml(ConfigResolver().resolve_object("apcli"), ...)`. The two paths differ in Tier precedence — see FE-13 §4.4.
@@ -1737,10 +1737,10 @@ complete -F _myproject myproject
 - `SYNOPSIS` — `{prog_name} [global-options] command [command-options]`.
 - `DESCRIPTION` — Program description.
 - `GLOBAL OPTIONS` — Visible root options (excludes `help`, `version`, `all`, `man`).
-- `COMMANDS` — All visible commands with their options; nested subcommands expanded. Hidden options (from `--verbose` mode) are excluded.
+- `COMMANDS` — All visible commands with their options; nested subcommands expanded. Hidden options (from `--all-options` mode) are excluded.
 - `ENVIRONMENT` — Standard apcore environment variables.
 - `EXIT CODES` — Standard exit code table.
-- `SEE ALSO` — Pointer to `--help --verbose`. If `docsUrl` is provided, includes a link to the full documentation.
+- `SEE ALSO` — Pointer to `--help --all-options`. If `docsUrl` is provided, includes a link to the full documentation.
 
 #### 8.7.4 Man Help Configuration (`configure_man_help`)
 

@@ -7,6 +7,6 @@ Commands:
 
 Options:
       --log-level <LEVEL>  Logging level (DEBUG|INFO|WARNING|ERROR) [default: WARNING]
-      --verbose            Show all options in help output (including built-in options)
+      --all-options        Show all options in help output (including built-in options)
   -h, --help               Print help
   -V, --version            Print version
