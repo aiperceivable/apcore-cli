@@ -1457,7 +1457,9 @@ class ConfigEncryptor:
         username = os.getenv("USER", os.getenv("USERNAME", "unknown"))
         salt = b"apcore-cli-config-v1"
         material = f"{hostname}:{username}".encode()
+        # v1 legacy key (read-only back-compat; static salt, 100k iters for SDK ≤v0.6 values)
         return hashlib.pbkdf2_hmac("sha256", material, salt, iterations=100_000)
+        # v2 key uses per-encryption random 16-byte salt (stored in blob) and 600_000 iterations
 
     def _aes_encrypt(self, plaintext: str) -> bytes:
         """Encrypt using AES-256-GCM."""
@@ -2014,7 +2016,7 @@ Behavior: auto-approves when `auto_approve=True` or `APCORE_CLI_AUTO_APPROVE=1`;
 
 #### 8.13.5 `--trace` and `--stream`
 
-- **`--trace`**: `build_module_command` uses `Executor.call_with_trace(module_id, inputs, context)` instead of `call()`. The returned `PipelineTrace` (`.steps: list[StepTrace]`) is printed to stderr after the result — TTY: symbol-prefixed step table; JSON: merged under `_trace` key.
+- **`--trace`**: `build_module_command` uses `Executor.call_with_trace(module_id, inputs)` instead of `call()`. The returned `PipelineTrace` (`.steps: list[StepTrace]`) is printed to stderr after the result — TTY: symbol-prefixed step table; JSON: merged under `_trace` key.
 - **`--stream`**: checks `annotations.streaming`; if `True` drives `Executor.stream(module_id, inputs)` via `asyncio.run()`, writing JSONL chunks to stdout with immediate flush. If `False`, logs WARNING and falls back to `call()`.
 
 #### 8.13.6 `--strategy` Flag

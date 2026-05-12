@@ -420,7 +420,7 @@ apcore-cli data.export --query "SELECT *" --stream
 - **Display Overlay** -- `metadata["display"]["cli"]` controls CLI command names, descriptions, and guidance per module (§5.13); set via `binding_path` in `create_cli()` / `fastapi-apcore`
 - **Zero-Config Routing** -- Automatically maps module IDs (e.g., `math.add`) to CLI commands
 - **Schema-Driven Args** -- Uses `input_schema` to generate CLI arguments, types, and validation
-- **Boolean Flag Pairs** -- `--verbose` / `--no-verbose` from `"type": "boolean"` schema properties
+- **Boolean Flag Pairs** -- `--quiet` / `--no-quiet` from `"type": "boolean"` schema properties (applies to any schema-declared boolean; `verbose: boolean` is now a valid schema property as of v0.9.0, when the global `--verbose` flag was retired in favour of `--all-options`)
 - **Enum Choices** -- `"enum": ["json", "csv"]` becomes `--format json` with Click validation
 - **STDIN Piping** -- `--input -` reads JSON from STDIN, CLI flags override for duplicate keys
 - **TTY-Adaptive Output** -- Rich tables for terminals, JSON for pipes (configurable via `--format`)

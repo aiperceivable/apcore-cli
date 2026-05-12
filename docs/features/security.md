@@ -243,7 +243,7 @@ retrieve(key, ref):
   if ref.startswith("enc:v2:"):
     blob = b64decode(ref[len("enc:v2:"):])
     salt, nonce, tag, ct = blob[:16], blob[16:28], blob[28:44], blob[44:]
-    derived_key = PBKDF2_HMAC_SHA256(host_user_pepper(), salt, iter=100_000, length=32)
+    derived_key = PBKDF2_HMAC_SHA256(host_user_pepper(), salt, iter=600_000, length=32)
     try:
       return AESGCM(derived_key).decrypt(nonce, ct + tag, aad=None).decode("utf-8")
     except InvalidTag:
@@ -268,7 +268,7 @@ retrieve(key, ref):
 **Cross-SDK-critical invariants** (every implementation must preserve):
 1. **Order of try-paths is keyring → enc:v2: → enc:** (longest prefix first). `enc:v2:` must be checked BEFORE the bare `enc:` prefix or v2 references would mis-route into the legacy path. Audit D10-truncated #1.
 2. The user-facing error string for a decryption failure MUST NOT leak the underlying cryptography exception name (`InvalidTag`, `InvalidSignature`, etc.). Always re-raise as the canonical `ConfigDecryptionError` with the spec-mandated message. Audit D10-truncated #1 (2026-05).
-3. PBKDF2 iteration count is **100 000**. Lower counts in any SDK weaken cross-host-portable secrets and break v2 round-trip.
+3. PBKDF2 iteration count: **v2 = 600 000** (OWASP 2024+, used on all new writes); **v1 legacy read = 100 000** (fallback for values encrypted by SDK ≤v0.6). Never write new v2 values with 100 000 iterations — that weakens cross-host-portable secrets and breaks round-trip.
 4. `keyring:` is plaintext-after-lookup; the keyring backend is the security boundary. Do NOT attempt to AES-decrypt a `keyring:` value.
 5. v1 (`enc:` no-version-tag) is read-only and write-deprecated. New `set` calls always emit `enc:v2:`. The v1 branch exists strictly for migration of pre-2025 configs.
 
@@ -547,6 +547,8 @@ Logic steps:
 
 **Method: `log_execution(module_id, input_data, status, exit_code, duration_ms) -> None`**
 
+> **Rust language note:** Rust collapses `status` + `exit_code` into a single `result: &Result<Value, ModuleExecutionError>` parameter; the 4-parameter Rust signature is `log_execution(&self, module_id: &str, args: &Value, result: &Result<Value, ModuleExecutionError>, duration_ms: u64) -> Result<(), AuditLogError>`. The emitted JSONL entry is byte-identical across languages — the Rust implementation derives `status` and `exit_code` from the `Result` variant before serialisation.
+
 | Parameter | Type | Validation |
 |-----------|------|------------|
 | `module_id` | `str` | Canonical ID format (already validated upstream). |
@@ -586,6 +588,8 @@ Logic steps:
 **Constructor**: `__init__(self, enabled: bool = False)`
 
 **Method: `execute(module_id: str, input_data: dict, executor: Executor) -> Any`**
+
+> **Rust language note:** Rust binds the executor at Sandbox construction time rather than per-call; the Rust signature is `execute(&self, module_id: &str, input: &Value) -> Result<Value, ModuleExecutionError>` (2 parameters — no executor). The non-sandbox passthrough path calls the executor stored in the struct. The emitted error types are identical across languages.
 
 Logic steps:
 1. If `not self._enabled`: return `executor.call(module_id, input_data)` (no sandbox).

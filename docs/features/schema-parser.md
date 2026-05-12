@@ -269,7 +269,7 @@ The `max_length` parameter defaults to 1000 and is configurable via `cli.help_te
 
 **File**: `apcore_cli/ref_resolver.py`
 
-**Function**: `resolve_refs(schema: dict, max_depth: int = 32) -> dict`
+**Function**: `resolve_refs(schema: dict, max_depth: int = 32, module_id: str = "") -> dict`
 
 Logic steps:
 1. Deep-copy the input schema to avoid mutation.
@@ -347,7 +347,7 @@ Logic steps:
 | T-SCHEMA-01 | Property `name` of type `string` | `--name` flag accepts string value. |
 | T-SCHEMA-02 | Property `count` of type `integer` | `--count 5` passes integer `5` to module. |
 | T-SCHEMA-03 | Property `rate` of type `number` | `--rate 3.14` passes float `3.14`. |
-| T-SCHEMA-04 | Property `verbose` of type `boolean` | `--verbose` passes `True`, `--no-verbose` passes `False`. |
+| T-SCHEMA-04 | Property `quiet` of type `boolean` | `--quiet` passes `True`, `--no-quiet` passes `False`. (Uses `quiet` to avoid visual collision with the retired global `--verbose` / current `--all-options` flag.) |
 | T-SCHEMA-05 | Property `data` of type `object` | `--data '{"key":"val"}'` passes JSON string. |
 | T-SCHEMA-06 | Property `items` of type `array` | `--items '[1,2,3]'` passes JSON string. |
 | T-SCHEMA-07 | Property `input_file` of type `string` | Flag name is `--input-file` (underscore to hyphen). |

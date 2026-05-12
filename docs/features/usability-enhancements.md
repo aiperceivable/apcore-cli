@@ -347,7 +347,7 @@ When v0.10 splits these into six per-subcommand Contracts, those Contracts MUST 
 
 ---
 
-All system commands are registered in `create_cli()` after built-in commands, gated on system module availability:
+System commands are registered under the `apcli` built-in group (FE-13, v0.7.0+) via per-command registrars (`register_health_command`, `register_usage_command`, etc.), gated on system module availability:
 
 ```python
 def register_system_commands(cli, executor):
@@ -805,7 +805,7 @@ The enhanced list flags (`--search`, `--status`, `--annotation`, `--sort`, `--re
 **Problem:** CLI always uses the standard 11-step pipeline. Developers testing locally may want to skip ACL/approval. Performance-sensitive batch scripts may want to skip middleware.
 
 **apcore APIs used:**
-- `Executor(registry, strategy=...)` or `Executor.call(..., strategy=...)`
+- `Executor(registry)` constructed with a strategy via the Executor's own factory (see tech-design ADR-03); the strategy is **not** passed as a parameter to `Executor.call()` — `call(module_id, validated_input)` is always 2-arg
 - Preset strategies: `standard`, `internal`, `testing`, `performance`
 
 #### 3.8.1 CLI Interface

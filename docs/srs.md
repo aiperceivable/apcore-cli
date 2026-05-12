@@ -465,7 +465,7 @@ The system provides eight feature groups:
 
 **Alternative Flows:**
 - **AF-1: `--all-options` without `--help`.** The flag is accepted but has no visible effect on command execution.
-- **AF-2: Schema property named `all_options`.** The system shall reject it with exit code 2, as `all_options` is a reserved flag name.
+- **AF-2: Schema property named `all_options`.** The system shall reject it with exit code 48 (`EXIT_SCHEMA_CIRCULAR_REF` — the shared reserved-name / flag-collision slot), as `all_options` is a reserved flag name.
 
 **Postconditions:**
 - Default `--help` output shows only schema-derived options.
@@ -474,7 +474,7 @@ The system provides eight feature groups:
 **Acceptance Criteria:**
 - **AC-1:** Given a module with property `name`, when the user runs `apcore-cli module --help`, then `--input`, `--yes`, `--large-input`, `--format`, and `--sandbox` shall NOT appear in the output.
 - **AC-2:** Given the same module, when the user runs `apcore-cli module --help --all-options`, then `--input`, `--yes`, `--large-input`, and `--format` SHALL appear in the output. `--sandbox` shall remain hidden (not yet implemented).
-- **AC-3:** Given a module with a schema property named `all_options`, when the system builds the command, then it shall exit with code 2 and a collision error message.
+- **AC-3:** Given a module with a schema property named `all_options`, when the system builds the command, then it shall exit with code 48 and a collision error message.
 
 ---
 
@@ -668,9 +668,9 @@ The system provides eight feature groups:
 
 **Acceptance Criteria:**
 
-- **AC-1:** Given a property `verbose` of type `boolean` with no default, when the user provides `--verbose`, then the module shall receive `verbose: true`.
-- **AC-2:** Given a property `verbose` of type `boolean` with no default, when the user provides `--no-verbose`, then the module shall receive `verbose: false`.
-- **AC-3:** Given a property `verbose` of type `boolean` with `default: true`, when the user provides no flag, then the module shall receive `verbose: true`.
+- **AC-1:** Given a property `quiet` of type `boolean` with no default, when the user provides `--quiet`, then the module shall receive `quiet: true`. (Uses `quiet` to avoid visual collision with the retired global `--verbose` / current `--all-options` flag; the mechanism applies to any boolean property name.)
+- **AC-2:** Given a property `quiet` of type `boolean` with no default, when the user provides `--no-quiet`, then the module shall receive `quiet: false`.
+- **AC-3:** Given a property `quiet` of type `boolean` with `default: true`, when the user provides no flag, then the module shall receive `quiet: true`.
 
 ---
 
@@ -1767,7 +1767,9 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 | **Priority Rationale** | Required for long-running modules that emit incremental results (e.g., LLM inference, batch processors). |
 | **Source** | Feature Spec FE-11 FR-11-06 |
 
-**Description:** The system shall provide a `--stream` flag on module execution commands. When active, the system shall invoke `Executor.stream()` instead of `Executor.call()` and write each yielded chunk to stdout as a newline-delimited JSON record. Streaming is only available for modules that declare `annotations.supports_streaming = true`; for non-streaming modules, the system shall emit a warning and fall back to standard `call()`.
+**Description:** The system shall provide a `--stream` flag on module execution commands. When active, the system shall invoke `Executor.stream(module_id, inputs)` instead of `Executor.call()` and write each yielded chunk to stdout as a newline-delimited JSON record. Streaming is only available for modules that declare `annotations.supports_streaming = true`; for non-streaming modules, the system shall emit a warning and fall back to standard `call()`.
+
+> **Implementation note:** `Executor.stream()` is not yet present in the verified public API of any SDK (apcore-cli-python v0.9.0, apcore-cli-typescript v0.9.0, apcore-cli-rust v0.9.0). This is a NOT-YET-IMPLEMENTED requirement — the `--stream` flag is accepted by the CLI but behaves as a no-op fallback until the apcore Executor exposes `stream()`.
 
 **Acceptance Criteria:**
 

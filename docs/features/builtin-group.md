@@ -184,7 +184,7 @@ Downstream branded CLIs that embed apcore-cli often prefer their built-ins under
 | SDK | API |
 |-----|-----|
 | Python | `create_cli(builtin_group_name="apcli", ...)` (default `"apcli"`) |
-| TypeScript | `createCli({ builtinGroupName: "apcli", ... })` (default `"apcli"`) |
+| TypeScript | `createCli({ builtinGroupName: "apcli", ... })` (default `"apcli"`). Note: `createCli` also accepts 3 positional arguments `(extensionsDirOrOpts?, progName?, verbose?)` where the first can be a `CreateCliOptions` object containing `builtinGroupName`; callers should prefer the options-object form for clarity. |
 | Rust | Documented parity gap until embedding API is rebuilt; see `apcore-cli-rust/src/lib.rs:148-167` |
 
 **Validation**: the resolved name MUST match `/^[a-z][a-z0-9_-]*$/` (non-empty, lowercase, leading letter, alphanumeric + `_` / `-`). Invalid values cause exit code 2 with a user-facing error message before any commands register.
@@ -615,7 +615,7 @@ def _register_apcli_subcommands(
         ("reload",            lambda: register_reload_command(apcli_group, registry),             False),
         ("config",            lambda: register_config_command(apcli_group, executor),             True),
         ("completion",        lambda: register_completion_command(apcli_group),                   False),
-        ("describe-pipeline", lambda: register_pipeline_command(apcli_group, executor),           True),
+        ("describe-pipeline", lambda: register_pipeline_command(apcli_group, executor),           True),  # Rust: register_pipeline_command(cli) -> Command — no executor param; executor wired via closure
     ]
 
     mode = apcli_cfg.resolve_visibility()
