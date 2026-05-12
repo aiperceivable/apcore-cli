@@ -69,6 +69,7 @@ For `markdown` and `skill` styles (added v0.9.0, this feature spec), the formatt
 
 ### Returns
 - On success: None — output written to stdout
+- **Rust language note (audit D10-W3, 2026-05-12).** Rust's `format_module_list` returns `String` rather than writing to stdout directly; callers are expected to `println!` the returned string. This preserves the spec semantics (bytes-on-stdout) while improving testability — the Rust ecosystem prefers `String`-return for formatters and `println!`-at-call-site over implicit I/O. Python and TypeScript implementations write to stdout directly per the declared contract. Mirrors the same convention documented for `format_exec_result` below.
 
 ### Properties
 - async: false
@@ -88,6 +89,7 @@ For `markdown` and `skill` styles (added v0.9.0, this feature spec), the formatt
 
 ### Returns
 - On success: None — output written to stdout
+- **Rust language note (audit D10-W3, 2026-05-12).** Rust's `format_module_detail` returns `String` rather than writing to stdout directly; callers are expected to `println!` the returned string. Same rationale as `format_module_list` above — bytes-on-stdout semantics are preserved while keeping the formatter pure-by-language-idiom. Python and TypeScript implementations write to stdout directly per the declared contract.
 
 ### Properties
 - async: false

@@ -435,6 +435,24 @@ This appendix enumerates the public symbols that embedders may rely on, with eac
 
 All three SDKs export the per-subcommand registrar family (e.g. `register_list_command`, `register_describe_command`, `register_exec_command`, `register_validate_command`, `register_health_command`, `register_usage_command`, `register_enable_command`, `register_disable_command`, `register_reload_command`, `register_config_command`, `register_completion_command`, `register_pipeline_command`, `register_init_command`) plus the helper `configure_man_help`, as a public composition API for embedders building their own root command tree. See `features/builtin-group.md` §4.9 for the full split. Python parity with TS / Rust landed in v0.8.0 via `apcore_cli/__init__.py` re-exports (D1-001).
 
+<!-- Audit D4-W1 (2026-05-12): Six discovery-family registrars listed above ship as public
+     composition API in v0.9 without per-symbol Contract blocks. Mirrors the deferral pattern
+     used for register_system_commands at usability-enhancements.md (D4-013). Full per-subcommand
+     Contract split is tracked for v0.10. -->
+
+#### 8.1.1 Per-subcommand Contract blocks — deferral
+
+The six per-subcommand registrars listed in §8.1 (`register_list_command`, `register_describe_command`, `register_exec_command`, `register_validate_command`, `register_completion_command`, `register_pipeline_command`) ship as public composition API in v0.9. Their formal `## Contract:` blocks are deferred to v0.10 alongside the per-subcommand contract split tracked by [D4-013] (see `features/usability-enhancements.md` — the same deferral pattern applies to the six `register_system_commands`-fanout subcommands `health`, `usage`, `enable`, `disable`, `reload`, `config`). The parallel `register_init_command` (see `features/init-command.md` §`## Contract: register_init_command`) and `register_system_commands` (see `features/usability-enhancements.md` §`## Contract: register_system_commands`) DO carry full Contract blocks today and provide the canonical template that the six v0.9 registrars will follow in v0.10.
+
+**Behavioral envelope (v0.9) — applies uniformly to all six registrars:**
+
+- **Inputs:** `(parent_cmd, executor, registry, *, prog_name?, **kwargs)` — the same shape across all six. `parent_cmd` is the Click `Group` (Python) / Commander `Command` (TS) / `clap::Command` (Rust) the registrar attaches its subcommand to. `executor` and `registry` mirror the contracts of `create_cli` (see §6.1). `prog_name` and additional language-idiomatic keyword arguments are passed through to the underlying handler.
+- **Errors:** each registrar MAY raise `ApcliGroupError` (or its language-equivalent — `ApcliGroupError` in Python/TS, `ApcliGroupError` variant in Rust's error enum) if `parent_cmd` is malformed (e.g., not a `Group`/`Command`, or already has a conflicting subcommand name). No other declared errors — argument validation for the *invocation* of the registered subcommand is owned by the underlying handler, not the registrar.
+- **Returns:** void / `None` / `()` — the registrar attaches a subcommand to `parent_cmd` as a side effect and returns nothing. Embedders MUST NOT depend on a return value.
+- **Properties:** `async = false`, `thread_safe = false` (attaches to a `parent_cmd` which is per-process; calling registrars concurrently against the same `parent_cmd` is undefined behavior), `pure = false` (mutates `parent_cmd`).
+
+The underlying handlers (`list_cmd`, `describe_cmd`, `exec_cmd`, `validate_cmd`, `completion_cmd`, `pipeline_cmd`) carry their own `## Contract:` blocks in `features/discovery.md` and `features/cli-dispatcher.md`; the registrar wrappers inherit their input validation, error semantics, and exit-code mapping from those handlers unchanged.
+
 ### 8.2 Error-class table — `ModuleNotFoundError`
 
 | Language | Class name | Module | Notes |

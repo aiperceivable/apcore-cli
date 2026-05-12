@@ -448,6 +448,8 @@ Logic steps:
 
 **Constant**: `SERVICE_NAME = "apcore-cli"`
 
+> **Constructor fallibility (audit D10-W4, 2026-05-12).** The Rust constructor `ConfigEncryptor::new() -> Result<Self, ConfigDecryptionError>` is fallible — it validates that at least one of {keyring availability, AES-256-GCM support} is reachable before returning. Python `ConfigEncryptor()` and TypeScript `new ConfigEncryptor()` are infallible by convention; the same validation is deferred to the first `store()` / `retrieve()` call. The error class (`ConfigDecryptionError`) is the same across all three SDKs — only the point at which it surfaces differs. Mirrors the cross-language constructor-shape note pattern used for `AuthProvider.__init__` (Python/TS unary, Rust split into `new()` / `with_encryptor()`).
+
 **Method: `store(key: str, value: str) -> str`**
 
 Logic steps:
@@ -547,7 +549,7 @@ Logic steps:
 
 **Method: `log_execution(module_id, input_data, status, exit_code, duration_ms) -> None`**
 
-> **Rust language note:** Rust collapses `status` + `exit_code` into a single `result: &Result<Value, ModuleExecutionError>` parameter; the 4-parameter Rust signature is `log_execution(&self, module_id: &str, args: &Value, result: &Result<Value, ModuleExecutionError>, duration_ms: u64) -> Result<(), AuditLogError>`. The emitted JSONL entry is byte-identical across languages — the Rust implementation derives `status` and `exit_code` from the `Result` variant before serialisation.
+> **Cross-SDK signature parity (audit D10-W2, 2026-05-12).** All three SDKs use the **same 5-parameter signature** `log_execution(module_id, input_data, status, exit_code, duration_ms)` (Python `-> None`, TypeScript `: void`, Rust `-> Result<(), AuditLogError>`). The earlier spec note suggesting Rust collapsed `status` + `exit_code` into a single `Result<Value, ModuleExecutionError>` parameter was stale — current Rust source (`apcore-cli-rs/src/audit.rs`) takes `status: AuditStatus` and `exit_code: i32` as separate parameters, matching Python and TypeScript. The emitted JSONL entry is byte-identical across languages.
 
 | Parameter | Type | Validation |
 |-----------|------|------------|
