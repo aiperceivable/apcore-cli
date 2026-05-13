@@ -549,7 +549,7 @@ Logic steps:
 
 **Method: `log_execution(module_id, input_data, status, exit_code, duration_ms) -> None`**
 
-> **Cross-SDK signature parity (audit D10-W2, 2026-05-12).** All three SDKs use the **same 5-parameter signature** `log_execution(module_id, input_data, status, exit_code, duration_ms)` (Python `-> None`, TypeScript `: void`, Rust `-> Result<(), AuditLogError>`). The earlier spec note suggesting Rust collapsed `status` + `exit_code` into a single `Result<Value, ModuleExecutionError>` parameter was stale — current Rust source (`apcore-cli-rs/src/audit.rs`) takes `status: AuditStatus` and `exit_code: i32` as separate parameters, matching Python and TypeScript. The emitted JSONL entry is byte-identical across languages.
+> **Cross-SDK signature parity (audit D10-W2, 2026-05-12; return-type clarified 2026-05-13).** All three SDKs use the **same 5-parameter signature** `log_execution(module_id, input_data, status, exit_code, duration_ms)`. Return type is infallible in all three (Python `-> None`, TypeScript `: void`, Rust `-> ()`): I/O failures are swallowed and surfaced as a one-shot `tracing::warn!` / `logger.warning` per the D11-010 "write-failure dedup" contract, never propagated to the caller. The earlier spec note suggesting Rust returned `Result<(), AuditLogError>` was stale — `AuditLogError` is defined in `apcore-cli-rs/src/audit.rs` for future use but is not currently surfaced. The emitted JSONL entry is byte-identical across languages.
 
 | Parameter | Type | Validation |
 |-----------|------|------------|
@@ -591,7 +591,7 @@ Logic steps:
 
 **Method: `execute(module_id: str, input_data: dict, executor: Executor) -> Any`**
 
-> **Rust language note:** Rust binds the executor at Sandbox construction time rather than per-call; the Rust signature is `execute(&self, module_id: &str, input: &Value) -> Result<Value, ModuleExecutionError>` (2 parameters — no executor). The non-sandbox passthrough path calls the executor stored in the struct. The emitted error types are identical across languages.
+> **Cross-SDK parity note (audit D10 follow-up, 2026-05-13):** All three SDKs use the same 3-parameter form for `execute(module_id, input_data, executor)`. Rust's signature is `async fn execute(&self, module_id: &str, input_data: Value, executor: &apcore::Executor) -> Result<Value, ModuleExecutionError>`. The Rust sandbox additionally binds `APCORE_EXTENSIONS_ROOT` at construction time via the `withExtensionsRoot` builder, but the per-call `executor` argument is still passed in (and used to drive the non-sandbox passthrough path). The emitted error types are identical across languages.
 
 Logic steps:
 1. If `not self._enabled`: return `executor.call(module_id, input_data)` (no sandbox).
