@@ -4,7 +4,7 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.9.0] - 2026-05-12
+## [0.9.0] - 2026-05-13
 
 Aligned spec release. Promotes csv/jsonl from SDK-native to **toolkit-delegated byte-equivalent** tier alongside markdown/skill. Requires apcore-toolkit `>=0.7.0` (was optional peer). Three SDKs (Python / TypeScript / Rust) refactored to delegate; all spec-driven conformance tests pass byte-identical across languages.
 
@@ -14,6 +14,15 @@ Aligned spec release. Promotes csv/jsonl from SDK-native to **toolkit-delegated 
 - **ADR-09: Output Format Tiers — Toolkit-Delegated vs SDK-Native Presentation** (`docs/tech-design.md`) — formalises the three tiers. Tier 1 (byte-equivalent toolkit-delegated): csv, jsonl, markdown, skill. Tier 2 (SDK-native presentation): table, future tui. Tier 3 (trivial stdlib): json. Includes the bug table that drove the decision (apcore-cli-python Python repr; apcore-cli-typescript heterogeneous-keys data loss; apcore-cli-rust `\n` vs CRLF) and the downstream-consumer argument (aisee-cli reimplemented its own broken CSV).
 - **FR-DISC-004 AC-7** (`docs/srs.md`) — `--format csv` / `--format jsonl` MUST produce byte-identical output across SDKs; nested values MUST be canonical compact JSON; CSV header MUST be union of keys across all rows; CSV line terminator MUST be CRLF.
 - **T-OUT-12a / T-OUT-12b** (`docs/features/output-formatter.md`) — explicit conformance test cases for heterogeneous-keys regression and nested-object regression.
+
+### Fixed (2026-05-13 — cross-SDK audit)
+
+- **`security.md` `AuditLogger.log_execution` stale Rust language note** (D10-W2) — earlier entry claimed Rust collapsed `status + exit_code` into a single `Result<Value, ModuleExecutionError>` parameter (4-param signature). Actual source takes the same 5-param form as Python/TS. Replaced with a positive parity statement.
+- **`security.md` `AuditLogger.log_execution` stale return-type claim** (D10 re-audit) — entry claimed Rust returns `Result<(), AuditLogError>`; actual source returns `()`. I/O failures are swallowed with `tracing::warn!` matching Python/TS. Corrected to `-> ()` infallible across all three SDKs.
+- **`security.md` `Sandbox.execute` stale 2-param Rust language note** (D10 re-audit) — note claimed Rust binds the executor at construction time and takes only `(module_id, input)`. Actual Rust source takes the same 3-param form as Python/TS `(module_id, input_data, executor)`. Stale divergence note removed; replaced with parity confirmation plus note on construction-time `withExtensionsRoot` binding.
+- **`security.md` `ConfigEncryptor` constructor fallibility note added** (D10-W4) — §4.2 now documents that Rust `ConfigEncryptor::new() -> Result<Self, ConfigDecryptionError>` validates keyring/AES reachability at construction while Python/TS defer validation to first `store()`/`retrieve()` call.
+- **`output-formatter.md` Rust-idiom note for `format_module_*`** (D10-W3) — Rust `format_module_list` / `format_module_detail` / `format_exec_result` return `String` (callers `println!` it) while Python/TS write to stdout and return `None`/`void`. Spec note added to both functions confirming byte-on-stdout semantics are preserved.
+- **`core-dispatcher.md` §8.1 per-subcommand registrar Contract blocks deferral** (D4-W1) — six public registrars (`register_list_command`, `register_describe_command`, `register_exec_command`, `register_validate_command`, `register_completion_command`, `register_pipeline_command`) now have an explicit §8.1.1 deferral note with a shared behavioral envelope (Inputs/Errors/Returns/Properties), mirroring the existing D4-013 deferral for `register_system_commands`.
 
 ### Changed
 
