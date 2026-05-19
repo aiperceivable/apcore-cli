@@ -38,6 +38,30 @@ For `markdown` and `skill` styles (added v0.9.0, this feature spec), the formatt
 
 ## 4. Implementation Details
 
+### 4.1 Format Responsibility Boundaries (resolves 6.6)
+
+The formatter surface area is split across two layers — the CLI owns
+**presentation-only** formats (terminal-rendering nuance, optional deps),
+and `apcore-toolkit` owns formats that **MUST be byte-identical across
+the Python / TypeScript / Rust SDKs**. Adding a new format starts with
+deciding which layer it belongs to.
+
+| Format | Implementation layer | Owner | Reason |
+|---|---|---|---|
+| `json` | apcore-cli | CLI self-impl | Single-language stdlib (`JSON.stringify` / `json.dumps`); no cross-SDK byte-equivalence requirement |
+| `table` | apcore-cli | CLI self-impl | Terminal-rendering dependent (`rich`, `cli-table3`, etc.); presentation is the whole point |
+| `yaml` | apcore-cli + `pyyaml` / `js-yaml` | CLI self-impl | Optional dep, soft-fallback to `json` allowed; not part of cross-SDK conformance corpus |
+| `csv` | apcore-toolkit `format_csv()` | toolkit (v0.7.0) | RFC 4180 nesting + CRLF + canonical compact JSON for nested cells — divergence between SDKs was a real bug (v0.7.0 release notes) |
+| `jsonl` | apcore-toolkit `format_jsonl()` | toolkit (v0.7.0) | Canonical compact JSON per row + LF terminator + NaN/Inf → null — same byte-equivalence requirement as `csv` |
+| `markdown` | apcore-toolkit `format_module(s)()` | toolkit | Surface-aware LLM-ready prose; the rendering rules (annotation summary, example dropping, prompt-injection guards) are part of the cross-SDK contract |
+| `skill` | apcore-toolkit `format_module(s)()` | toolkit | Same body as `markdown` wrapped in vendor-neutral YAML frontmatter; loadable by Claude Code / Gemini CLI without per-vendor branching |
+
+Decision rule: when adding a new format, ask *"do two consumers — one
+written in PY and one in Rust — need to produce identical bytes?"*. If
+yes → contribute the implementation to `apcore-toolkit` and add a
+conformance fixture. If no → the format is CLI-local (probably
+TTY-oriented) and can live in `apcore-cli-{py,ts,rust}` without parity.
+
 ## Contract: resolve_format
 
 ### Inputs
