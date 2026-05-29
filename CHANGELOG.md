@@ -4,6 +4,19 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.10.0] - 2026-05-29
+
+Maintenance release. Two spec-accuracy fixes (D9-004 shell-integration retirement, output-formatter architectural boundary clarification) and an ecosystem version compatibility section in the README.
+
+### Added
+
+- **`docs/features/output-formatter.md` §4.1 — Format Responsibility Boundaries** — new architectural guidelines section that formalises which layer owns each output format and provides a decision rule for adding new formats. Adds a reference table mapping each format (`json`, `table`, `yaml`, `csv`, `jsonl`, `markdown`, `skill`) to its implementation layer (apcore-cli self-impl vs. apcore-toolkit), the owning package, and the rationale. Decision rule: if two consumers written in different languages must produce identical bytes, the format belongs in `apcore-toolkit` with a conformance fixture; otherwise it is CLI-local. Resolves spec ambiguity raised in §6.6.
+- **`README.md` — Version Compatibility section** — documents the currently tested ecosystem combination (2026-05-18 snapshot): `apcore` core SDK `>=0.21.0` (tested 0.22.0) and `apcore-toolkit` 0.7.0 (required, no soft fallback). Includes a "Known dependency-pin divergence" table (tracked as issue 6.8): Python and TypeScript use open-upper-bound pins (`>=0.7.0`) while Rust uses an exact pin (`=0.7.0`), blocking future toolkit minor bumps until manually updated. Reconciliation to consistent caret semantics is planned for a follow-up coordinated release.
+
+### Fixed
+
+- **`docs/features/shell-integration.md` — retire stale `register_shell_commands` spec** (D9-004) — the spec had been presenting `register_shell_commands(cli, prog_name)` as a live current API in both the Contract block (§4) and the function spec (§4.6), but the flat wrapper was **removed in v0.7.0 / FE-13** from Rust and TypeScript and is now test-only in Python. Replaced the Contract block with `register_completion_command` (the actual per-command registrar that attaches `completion` under the `apcli` builtin group) and converted §4.6 into a removal/migration note directing SDK implementors to `register_completion_command` for the `completion` subcommand and `configure_man_help` for the `man` overlay. Aligns with the existing retirement notes in `tech-design.md:1119` and `builtin-group.md:72`.
+
 ## [0.9.0] - 2026-05-13
 
 Aligned spec release. Promotes csv/jsonl from SDK-native to **toolkit-delegated byte-equivalent** tier alongside markdown/skill. Requires apcore-toolkit `>=0.7.0` (was optional peer). Three SDKs (Python / TypeScript / Rust) refactored to delegate; all spec-driven conformance tests pass byte-identical across languages.
