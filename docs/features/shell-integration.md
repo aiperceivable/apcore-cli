@@ -32,22 +32,30 @@ Shell Integration provides two subcommands: `apcore-cli completion <shell>` for 
 
 ## 4. Implementation Details
 
-## Contract: register_shell_commands
+## Contract: register_completion_command
+
+> **Note:** The pre-v0.7 `register_shell_commands(cli, prog_name)` wrapper — which
+> attached both `completion` and `man` as flat root subcommands — was **removed in
+> v0.7.0 / FE-13**. The canonical wiring now registers `completion` under the `apcli`
+> builtin group via `register_completion_command`, and exposes `man` as a root
+> `--man` overlay via [`configure_man_help`](#contract-configure_man_help).
+> `apcore-cli-rust` and `apcore-cli-typescript` dropped the equivalent wrapper in the
+> same release.
 
 ### Inputs
-- cli: click.Group, required — Root CLI group to register `completion` and `man` commands on.
-- prog_name: str, optional — Program name captured in command closures. Default: `"apcore-cli"`.
+- apcli_group: click.Group, required — Group to register the `completion` command on (the `apcli` builtin group in canonical wiring).
+- prog_name: str, optional — Program name captured in the command closure for completion-script generation. Default: `"apcore-cli"`.
 
 ### Errors
 - (none raised)
 
 ### Returns
-- On success: None — commands registered on `cli` as side effect
+- On success: None — `completion` command registered on `apcli_group` as side effect
 
 ### Properties
 - async: false
 - thread_safe: false
-- pure: false (mutates `cli` by adding commands)
+- pure: false (mutates `apcli_group` by adding a command)
 
 ---
 
@@ -194,11 +202,13 @@ Logic steps:
 2. For `exec` second-level completion: inline command with `prog_name` double-quoted.
 3. Return the script as a string.
 
-### 4.6 Function: `register_shell_commands`
+### 4.6 Function: `register_completion_command`
 
-**Signature**: `register_shell_commands(cli: click.Group, prog_name: str = "apcore-cli") -> None`
+**Signature**: `register_completion_command(apcli_group: click.Group, prog_name: str = "apcore-cli") -> None`
 
-Registers the `completion` and `man` commands on `cli`. The `prog_name` parameter is captured in closures so the completion generators and man page use the correct program name at runtime (resolved from `ctx.find_root().info_name` when available, otherwise from the `prog_name` argument).
+Registers the `completion` command on `apcli_group` (the `apcli` builtin group). The `prog_name` parameter is captured in the command closure so the completion generators use the correct program name at runtime (resolved from `ctx.find_root().info_name` when available, otherwise from the `prog_name` argument). `man` is no longer a flat subcommand — it is exposed as a root `--man` overlay via `configure_man_help` (§4.9).
+
+> **Removed:** `register_shell_commands(cli, prog_name)` (the pre-v0.7 flat wrapper that attached `completion` and `man` as root subcommands) was removed in v0.7.0 / FE-13. Use `register_completion_command` for `completion` and `configure_man_help` for `man`.
 
 ### 4.7 Command: `man`
 
