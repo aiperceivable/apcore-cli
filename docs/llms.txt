@@ -32,6 +32,9 @@ apcore-cli turns registered apcore modules into structured CLI commands: it pars
 - [apcore](https://apcore.aiperceivable.com/): The core schema-enforced module standard exposed as commands.
 - [apcore-mcp](https://apcore-mcp.aiperceivable.com/): MCP server & OpenAI tools bridge for apcore modules.
 - [apcore-a2a](https://apcore-a2a.aiperceivable.com/): Agent-to-Agent (A2A) protocol adapter.
+- [apcore-toolkit](https://apcore-toolkit.aiperceivable.com/): Shared scanner, schema extraction, and output toolkit for adapters.
+- [apflow](https://apflow.aiperceivable.com/): Orchestration layer for long-running, multi-step agent task workflows.
+- [AI Perceivable (ecosystem hub)](https://aiperceivable.com/): Overview of the full ecosystem — apcore (perception), apflow (orchestration), and adapters.
 
 ## Key Facts
 
