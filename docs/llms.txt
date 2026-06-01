@@ -1,0 +1,42 @@
+# apcore-cli
+
+> The CLI adapter for apcore — exposes apcore modules as high-performance, AI-perceivable command-line tools with schema-driven arguments and built-in safety gates.
+
+apcore-cli turns registered apcore modules into structured CLI commands: it parses module schemas into arguments, discovers modules automatically, formats output, and enforces approval and security policies at the command boundary.
+
+## Start Here
+
+- [Home](https://apcore-cli.aiperceivable.com/): What apcore-cli does and how modules become command-line tools.
+- [Getting Started](https://apcore-cli.aiperceivable.com/getting-started/): Install the CLI and run your first apcore module as a command.
+
+## Features
+
+- [Features Overview](https://apcore-cli.aiperceivable.com/features/overview/): Map of the dispatcher, parser, discovery, and security components.
+- [Core Dispatcher](https://apcore-cli.aiperceivable.com/features/core-dispatcher/): Routes parsed commands to the apcore executor.
+- [Schema Parser](https://apcore-cli.aiperceivable.com/features/schema-parser/): Converts module schemas into typed CLI arguments and options.
+- [Discovery](https://apcore-cli.aiperceivable.com/features/discovery/): Automatically discovers available modules and exposes them as commands.
+- [Approval Gate](https://apcore-cli.aiperceivable.com/features/approval-gate/): Requires confirmation for sensitive operations before execution.
+- [Security Manager](https://apcore-cli.aiperceivable.com/features/security/): Enforces access and safety policies at the command boundary.
+- [Shell Integration](https://apcore-cli.aiperceivable.com/features/shell-integration/): Completions and shell ergonomics for apcore commands.
+- [Init Command](https://apcore-cli.aiperceivable.com/features/init-command/): Scaffolds CLI configuration for a project.
+- [Exposure Filtering](https://apcore-cli.aiperceivable.com/features/exposure-filtering/): Controls which modules are surfaced as commands.
+
+## Specifications
+
+- [Project Manifest](https://apcore-cli.aiperceivable.com/project-apcore-cli/): Scope and manifest for the CLI adapter.
+- [Software Requirements](https://apcore-cli.aiperceivable.com/srs/): Functional and non-functional requirements.
+- [Technical Design](https://apcore-cli.aiperceivable.com/tech-design/): Architecture and component design of the CLI.
+
+## Ecosystem
+
+- [apcore](https://apcore.aiperceivable.com/): The core schema-enforced module standard exposed as commands.
+- [apcore-mcp](https://apcore-mcp.aiperceivable.com/): MCP server & OpenAI tools bridge for apcore modules.
+- [apcore-a2a](https://apcore-a2a.aiperceivable.com/): Agent-to-Agent (A2A) protocol adapter.
+
+## Key Facts
+
+- Exposes apcore modules as command-line tools.
+- Schema-driven argument parsing with automatic module discovery.
+- Built-in approval gate and security manager for safe execution.
+- Part of the AI-Perceivable ecosystem alongside the MCP and A2A adapters.
+- Open source. Source: https://github.com/aiperceivable/apcore-cli
