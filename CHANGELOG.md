@@ -4,6 +4,19 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed — BREAKING
+
+- **`apcli openapi scan` / `generate` module IDs follow apcore-toolkit 0.13.0's normalisation, and the toolkit floor is now 0.13.0** (`openapi-import.md` §1.2, §4.2, §4.4, §9; SRS `FR-OAPI-001`). The CLI passes the scanner's IDs through unchanged, so it inherits the toolkit's new derivation: IDs derived from camelCase or hyphenated names are now snake_case — `createPets` → `create_pets`, `showPetById` → `show_pet_by_id` — and `generate`'s `.binding.yaml` file names change with them (`createPets.binding.yaml` → `create_pets.binding.yaml`). An `operationId`-derived camelCase ID used to be emitted verbatim and was rejected by apcore's registry when the generated binding was loaded; it is now loadable for the first time. Path-derived IDs with a camelCase parameter change too, although they were already loadable (`/pets/{petId}`: `pets.petid.get` → `pets.pet_id.get`). A legal ID is never rewritten, and a `--prefix` value is normalised with the rest of the ID (`Pet-Store` → `pet_store`). The raw `operationId` stays in `metadata.openapi.operation_id`.
+  - **Migration:** `--include` / `--exclude` patterns and scripts keyed on the old IDs or file names need updating; the filters match the emitted, normalised ID.
+  - **What is not repaired:** a segment that still begins with a digit (`POST /v1/2fa` → `v1.2fa.post`). The module is still emitted and carries the toolkit's legality warning, which `scan` renders verbatim like any other scanner warning; exit stays `0`. The warning's remedy is a scanner hook, which the CLI does not expose, so §4.2 now tells a CLI user to give the operation a legal `operationId` instead. New verification row T-OAPI-28 and SRS `FR-OAPI-001` AC-6 pin the rendering.
+  - **Dependency floors:** Python `apcore-toolkit[http-proxy]>=0.13.0`; TypeScript peer `apcore-toolkit>=0.13.0`; Rust `apcore-toolkit = { version = ">=0.13.0", features = ["http-proxy"] }`. No CLI code changes: every SDK diff is the floor, lockfile and tests re-pinned to the new IDs.
+
+### Fixed
+
+- **README Version Compatibility tables stated pins no SDK carries.** They still read apcore 0.30.0 / apcore-toolkit 0.11.1 after the SDKs' 0.12.1 patch releases raised the floors to apcore 0.31.0 / apcore-toolkit 0.12.0; they now state the current pins (apcore 0.31.0, apcore-toolkit 0.13.0). `docs/project-apcore-cli.md`'s dependency list is corrected the same way.
+
 ## [0.12.0] - 2026-09-06
 
 Two new features — **FE-14 ACL Governance** and **FE-15a OpenAPI Import** — plus the aligned **apcore 0.30.0** / **apcore-toolkit 0.11.1** runtime upgrade. All three SDKs ship as 0.12.0: Python **1004 passed / 5 xfailed** (was 815), TypeScript **807 / 807** (was 661), Rust **996 passed / 0 failed / 3 ignored** (was 511).

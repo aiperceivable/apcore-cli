@@ -54,8 +54,8 @@ Maps high-level requirements (from [ideas/draft.md](../ideas/draft.md)) to featu
 ---
 
 ## Project Dependencies
-- `apcore >= 0.29.0` (Core protocol, Registry, Executor, error hierarchy, Config Bus, Execution Pipeline Strategy, ACL — FE-14)
-- `apcore-toolkit >= 0.11.0` (Formatting, BindingLoader, DisplayResolver, RegistryWriter, OpenAPIScanner — FE-15)
+- `apcore >= 0.31.0` (Core protocol, Registry, Executor, error hierarchy, Config Bus, Execution Pipeline Strategy, ACL — FE-14)
+- `apcore-toolkit >= 0.13.0` (Formatting, BindingLoader, DisplayResolver, RegistryWriter, OpenAPIScanner — FE-15; 0.13.0 normalises OpenAPI module IDs into apcore's Canonical ID alphabet)
 - `click >= 8.1` (CLI framework — confirmed in [Tech Design v2.0](tech-design.md), ADR-01)
 - `jsonschema >= 4.20` (JSON Schema validation and parsing)
 - `rich >= 13.0` (Terminal output formatting — tables, syntax highlighting)

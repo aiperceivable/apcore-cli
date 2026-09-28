@@ -11,7 +11,7 @@ description: "OpenAPI Import (FE-15) adds the apcli openapi subcommand group. FE
 
 **SRS Requirements**: FR-OAPI-001, FR-OAPI-002, FR-OAPI-003
 **Related Features**: FE-04 (Discovery), FE-08 (Output Formatter), FE-09 (Grouped Commands), FE-10 (Init Command), FE-12 (Exposure Filtering)
-**Requires**: apcore-toolkit >= 0.11.0
+**Requires**: apcore-toolkit >= 0.13.0
 
 ---
 
@@ -21,7 +21,7 @@ OpenAPI spec-driven discovery has been a deferred item since v0.8.0. The CHANGEL
 
 > **Issues #15 (OpenAPI spec-driven discovery) and #16 (RFC 8628 device-auth flow) deferred** out of v0.8.0 scope. Both belong primarily in `apcore-toolkit` (with thin cli-side adapters), require their own RFCs, and span 2–3 release cycles each. Tracked for v0.9+.
 
-apcore-toolkit 0.11.0 ships the toolkit half in all three languages: `OpenAPIScanner` turns an OpenAPI 3.0/3.1 document into a `ScannedModule` list, `derive_module_id` gives that list byte-identical naming across SDKs under a 24-case conformance corpus, and `HTTPProxyRegistryWriter` can make the results executable as HTTP proxies.
+apcore-toolkit ships the toolkit half in all three languages (since 0.11.0): `OpenAPIScanner` turns an OpenAPI 3.0/3.1 document into a `ScannedModule` list, `derive_module_id` gives that list byte-identical naming across SDKs under a shared conformance corpus (33 cases as of 0.13.0), and `HTTPProxyRegistryWriter` can make the results executable as HTTP proxies. Since 0.13.0 every ID the scanner emits is in apcore's Canonical ID alphabet (§1.2).
 
 FE-15 is the CLI-side adapter, delivered in **two stages**.
 
@@ -50,6 +50,7 @@ Neither command registers a module, builds an executor, or issues a request to t
 The CLI is an adapter, not a second implementation. Everything the toolkit already owns stays there:
 
 - **Module ID derivation is the toolkit's.** `derive_module_id` is the primary subject of the cross-SDK conformance corpus and MUST match byte-for-byte in Python, TypeScript, and Rust. The CLI MUST call it and MUST NOT re-derive, normalize, kebab-case, or otherwise post-process the IDs it returns. A CLI that renames modules would silently break the guarantee three SDKs are tested against.
+- **So is normalisation into apcore's ID alphabet.** Since apcore-toolkit 0.13.0 the scanner emits every `module_id` in apcore's Canonical ID alphabet ([toolkit spec, `module_id` Derivation](https://github.com/aiperceivable/apcore-toolkit/blob/main/docs/features/openapi-scanner.md#module_id-derivation)): camelCase is split into snake_case words (`createPets` → `create_pets`, `/pets/{petId}` → `pets.pet_id.get`), other characters become `_`, a legal ID is never rewritten, and the final ID — `--prefix` value included — is normalised after the prefix is applied. The IDs the CLI shows and writes are therefore in the alphabet apcore's registry accepts; the toolkit checks only the alphabet, so the length limit and reserved first segments remain the registry's to enforce. The one case the toolkit does not repair, a segment beginning with a digit (`POST /v1/2fa` → `v1.2fa.post`), is emitted with a legality warning, which the CLI renders like any other scanner warning (§4.2). The CLI MUST NOT repair it either: choosing a replacement name is a naming decision, not a normalisation.
 - **Schema extraction is the toolkit's.** `input_schema` merges path, query, and body parameters into one flat object schema; FE-02 then converts that to flags exactly as it does for any other module. No OpenAPI-specific flag handling is added.
 - **The execution contract is the toolkit's.** Exactly two flat metadata keys carry it: `http_method` (uppercase, mandatory) and `url_path`. The CLI MUST NOT invent additional routing keys.
 
@@ -62,7 +63,7 @@ Semantic verb naming (`POST /tasks` → `tasks create` rather than `tasks.post`)
 | Req ID | SRS Ref | Stage | Description |
 |--------|---------|-------|-------------|
 | FR-15-01 | FR-OAPI-001 | 15a | `apcli openapi scan <SOURCE>` renders the modules an OpenAPI document would produce, in every FE-08 format. |
-| FR-15-02 | FR-OAPI-001 | 15a | Scanner warnings (unresolvable `$ref`, external `$ref`, no 2xx response, duplicate ID) are surfaced, not swallowed. |
+| FR-15-02 | FR-OAPI-001 | 15a | Scanner warnings (unresolvable `$ref`, external `$ref`, no 2xx response, duplicate ID, module ID not legal after normalisation) are surfaced, not swallowed. |
 | FR-15-03 | FR-OAPI-002 | 15a | `apcli openapi generate <SOURCE> -o DIR` writes `.binding.yaml` files carrying an intact routing contract. |
 | FR-15-04 | FR-OAPI-002 | 15a | `generate` emits binding YAML only; no host-language source writer is offered, because none can resolve an OpenAPI `target` (§4.4). |
 | FR-15-05 | FR-OAPI-001 | 15a | `--include` / `--exclude` / `--prefix` / `--no-deprecated` are forwarded verbatim to `OpenAPIScanner.scan`. |
@@ -162,22 +163,35 @@ Rendering reuses FE-08 wholesale. `scan()` returns `ScannedModule` values, which
 
   Module ID            │ Route                  │ Description             │ Tags
 ───────────────────────┼────────────────────────┼─────────────────────────┼───────
-  listPets             │ GET /pets              │ List all pets           │ pets
-  createPets           │ POST /pets             │ Create a pet            │ pets
-  showPetById          │ GET /pets/{petId}      │ Info for a specific pet │ pets
-  pets.petid.delete    │ DELETE /pets/{petId}   │                         │ pets
+  list_pets            │ GET /pets              │ List all pets           │ pets
+  create_pets          │ POST /pets             │ Create a pet            │ pets
+  show_pet_by_id       │ GET /pets/{petId}      │ Info for a specific pet │ pets
+  pets.pet_id.delete   │ DELETE /pets/{petId}   │                         │ pets
 
 2 warnings:
-  showPetById          no 2xx response defined; output_schema is empty
-  pets.petid.delete    external $ref not fetched: ./common.yaml#/Error
+  show_pet_by_id       no 2xx response defined; output_schema is empty
+  pets.pet_id.delete   external $ref not fetched: ./common.yaml#/Error
 
-1 operation(s) cannot be proxied by FE-15b (deferred HTTP proxy dispatch):
-  createPets           POST sends `limit`, `dry_run` in the body, not the query string
+1 operation cannot be proxied by FE-15b:
+  create_pets          POST with 2 `in: query` parameters (limit, dryRun)
 ```
+
+The layout is illustrative: each SDK pads the ID column of the warnings and hazard blocks differently, and the hazard line's wording differs slightly between SDKs. Parameter names are shown as the document declares them — they are not normalised. The machine formats are the byte-level contract.
+
+The document's `operationId`s are `listPets`, `createPets` and `showPetById`; the IDs above are the toolkit's normalised form (§1.2), and the raw value stays in each module's `metadata.openapi.operation_id`.
 
 The hazard block is rendered inline and names each affected operation with its method and its offending parameter names. There is no separate flag to expand it — an earlier draft's sample referenced an `--explain-hazards` option that was never part of the command signature, and no such flag exists.
 
 Warnings MUST be rendered, not dropped. The scanner is a degrade-with-warning design: an operation with an unresolvable `$ref` still yields a module, just a less useful one, and the warning is the only signal that the resulting flags are incomplete. In machine formats each module carries its own `warnings` array.
+
+**One scanner warning is about the ID itself.** A module whose ID still has a segment beginning with a digit after normalisation carries the toolkit's legality warning, and the CLI renders it verbatim through the same path — the table's warnings block, and the module's `warnings` array in machine formats:
+
+```
+1 warning:
+  v1.2fa.post          module_id 'v1.2fa.post' is not a legal apcore module ID: segment '2fa' must match ^[a-z][a-z0-9_]*$; name this operation with a derive_module_id or transform_module hook
+```
+
+The module is still listed by `scan`, `generate` still writes its artifact, and the exit code is still `0`, but apcore's registry will reject that ID when the artifact is loaded. The remedy the warning names is a scanner hook, which the CLI deliberately does not expose (above). A CLI user fixes it in the document instead, by giving the operation a legal `operationId` such as `enable_two_factor` — an ID from the `operationId` branch replaces the path-derived one entirely.
 
 Exit `0` even when warnings or hazards are present — a partially-understood document is a successful scan. Only the error conditions in §6 exit non-zero.
 
@@ -218,7 +232,7 @@ apcli openapi generate <SOURCE> -o DIR
     [<all scan options>]
 ```
 
-Writes the scanned modules to disk as `<id>.binding.yaml` through the toolkit's `YAMLWriter`, in every SDK. This is the cross-language artifact: the same document produces comparable output from Python, TypeScript, and Rust.
+Writes the scanned modules to disk as `<id>.binding.yaml` through the toolkit's `YAMLWriter`, in every SDK. This is the cross-language artifact: the same document produces comparable output from Python, TypeScript, and Rust. The file name follows the normalised ID (§1.2): `operationId: createPets` is written as `create_pets.binding.yaml`.
 
 `--dry-run` lists the paths that would be written without creating them. `--force` overwrites existing files; without it, an existing file is skipped with a warning and the command still exits `0` — matching `apcli init`'s non-destructive default.
 
@@ -231,14 +245,14 @@ Writes the scanned modules to disk as `<id>.binding.yaml` through the toolkit's 
 
 ```yaml
 bindings:
-  - module_id: "createPets"
+  - module_id: "create_pets"      # normalised by the toolkit — see §1.2
     target: "POST /pets"          # route descriptor, NOT an import path — see §4.5
     metadata:
       http_method: "POST"          # uppercase, mandatory
       url_path: "/pets"            # leading slash, braces retained
       openapi:
         spec_version: "3.1.0"
-        operation_id: "createPets"
+        operation_id: "createPets" # the document's operationId, verbatim
 ```
 
 **No base URL is written.** A base URL in the artifact would be metadata that nothing in this release consumes — precisely the "looks authoritative and is ignored" antipattern the toolkit spec warns against, and the reason the CLI is not free to invent routing keys. The URL becomes part of the artifact in FE-15b, where a dispatcher exists to read it. §8.3 records the resolution order that will apply then, including the fact that baking a URL makes an artifact environment-specific.
@@ -261,7 +275,7 @@ Fetching a document over `http(s)://` is an optional dependency upstream, and ea
 |-----|--------------|-----------------|
 | Python | `httpx` lives in the `http-proxy` extra; `load_spec` imports it lazily | `apcore-cli` depends on `apcore-toolkit[http-proxy]` |
 | TypeScript | none — `loadSpec` is an unconditional export | none |
-| Rust | `load_spec` sits behind the `http-proxy` **feature flag** | `apcore-toolkit = { version = ">=0.11.0", features = ["http-proxy"] }` |
+| Rust | `load_spec` sits behind the `http-proxy` **feature flag** | `apcore-toolkit = { version = ">=0.13.0", features = ["http-proxy"] }` |
 
 Local-file scanning and both writers need none of this. An SDK that cannot reach the HTTP path MUST fail with an actionable message naming the missing extra or feature, never with a bare `ImportError` or a missing-symbol link error.
 
@@ -391,8 +405,8 @@ Recorded so the intent is not lost; these become FE-15b's matrix.
 |---------|-------------|-----------------|
 | T-OAPI-01 | `openapi scan ./petstore.yaml` | One module per operation; count matches the document. |
 | T-OAPI-02 | `openapi scan ./petstore.json` | JSON parsed by content sniffing; same result as YAML. |
-| T-OAPI-03 | `openapi scan` on a doc with `operationId` | Module IDs equal the toolkit's `derive_module_id` output, case preserved. |
-| T-OAPI-04 | `openapi scan` on a doc without `operationId` | IDs follow the path-and-method algorithm (`pets.petid.get`). |
+| T-OAPI-03 | `openapi scan` on a doc with `operationId` | Module IDs equal the toolkit's `derive_module_id` output, unmodified by the CLI — snake_case since apcore-toolkit 0.13.0 (`createPets` → `create_pets`). |
+| T-OAPI-04 | `openapi scan` on a doc without `operationId` | IDs follow the path-and-method algorithm (`pets.pet_id.get`). |
 | T-OAPI-05 | `openapi scan --prefix api` | Every ID prefixed `api.`; prefix applied before filtering and dedup. |
 | T-OAPI-06 | `openapi scan --include '^pets'` | Only matching IDs returned. |
 | T-OAPI-07 | `openapi scan --exclude` with an invalid regex | Exit 2. |
@@ -416,6 +430,7 @@ Recorded so the intent is not lost; these become FE-15b's matrix.
 | T-OAPI-25 | `openapi generate` on a doc with `securitySchemes` | No credential material in any generated file. |
 | T-OAPI-26 | `openapi generate` reports hazards | Same hazard set as `scan` on the same document. |
 | T-OAPI-27 | `openapi scan` / `generate` with no registry wired (TS standalone) | Succeeds — neither command touches the registry. |
+| T-OAPI-28 | `openapi scan` on `POST /v1/2fa`, which has no `operationId` | Module `v1.2fa.post` still listed; the toolkit's legality warning (naming segment `2fa`) rendered verbatim in the table's warnings block and as the module's only `warnings` entry under `--format json`; exit 0. |
 
 ---
 

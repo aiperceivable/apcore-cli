@@ -2080,15 +2080,16 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 | **Priority Rationale** | Foundation of FE-15a and the only way to see what a document would produce before committing artifacts to disk. |
 | **Source** | Feature Spec FE-15 FR-15-01, FR-15-02, FR-15-05, FR-15-06; Tech Design v2.0 §8.16 |
 
-**Description:** The system shall provide `apcli openapi scan <SOURCE>` accepting a local path or `http(s)://` URL taken verbatim, loading it via apcore-toolkit `load_spec`, scanning it via `OpenAPIScanner().scan()`, and rendering the resulting `ScannedModule` list in the formats `table`, `json`, `csv`, `yaml`, `jsonl`, `markdown`, and `skill`. The options `--include`, `--exclude`, `--prefix`, and `--no-deprecated` shall be forwarded verbatim to `scan()`. The system shall NOT expose the `transform_operation`, `derive_module_id`, or `transform_module` hooks, and shall NOT re-derive or post-process module IDs. Scanner warnings shall be rendered. The system shall additionally report operations that FE-15b will be unable to proxy — those declaring `in: query` parameters on a `POST`, `PUT`, or `PATCH` — under a distinct `hazards` heading. `--openapi-timeout` shall be expressed in seconds in all three SDKs.
+**Description:** The system shall provide `apcli openapi scan <SOURCE>` accepting a local path or `http(s)://` URL taken verbatim, loading it via apcore-toolkit `load_spec`, scanning it via `OpenAPIScanner().scan()`, and rendering the resulting `ScannedModule` list in the formats `table`, `json`, `csv`, `yaml`, `jsonl`, `markdown`, and `skill`. The options `--include`, `--exclude`, `--prefix`, and `--no-deprecated` shall be forwarded verbatim to `scan()`. The system shall NOT expose the `transform_operation`, `derive_module_id`, or `transform_module` hooks, and shall NOT re-derive or post-process module IDs; since apcore-toolkit 0.13.0 those IDs arrive already normalised into apcore's Canonical ID alphabet. Scanner warnings shall be rendered, including, unmodified, the toolkit's warning for a module ID that is still not legal after normalisation. The system shall additionally report operations that FE-15b will be unable to proxy — those declaring `in: query` parameters on a `POST`, `PUT`, or `PATCH` — under a distinct `hazards` heading. `--openapi-timeout` shall be expressed in seconds in all three SDKs.
 
 **Acceptance Criteria:**
 
-- **AC-1:** Given a valid OpenAPI 3.1 document, then one module shall be produced per operation, with IDs byte-identical to `derive_module_id`.
+- **AC-1:** Given a valid OpenAPI 3.1 document, then one module shall be produced per operation, with IDs byte-identical to `derive_module_id` (for `operationId: createPets`, `create_pets`).
 - **AC-2:** Given a Swagger 2.0 document, then the CLI shall exit `47` with a message naming the `openapi` value found.
 - **AC-3:** Given an operation with an unresolvable or external `$ref`, then a warning shall be rendered, the module shall still be produced, and exit shall be `0`.
 - **AC-4:** Given a `POST` operation with `in: query` parameters, then a hazard shall be reported naming the method and parameters, and exit shall be `0`.
 - **AC-5:** Given a `GET` operation with query parameters, then no hazard shall be reported.
+- **AC-6:** Given a `POST /v1/2fa` operation with no `operationId`, then a module `v1.2fa.post` shall still be produced, the toolkit's module-ID legality warning shall be rendered unmodified, and exit shall be `0`.
 
 ---
 
