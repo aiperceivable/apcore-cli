@@ -1556,7 +1556,7 @@ The system shall provide `build_program_man_page()` and `configure_man_help()` a
 
 - **AC-1:** Given `--style decorator`, then the generated Python file shall contain `from apcore import module` and the `@module(id=..., description=...)` decorator.
 - **AC-2:** Given `--style convention`, then the generated Python file shall contain the `CLI_GROUP` constant (when `module_id` contains a `.`) and a function matching `func_name`.
-- **AC-3:** Given `--style binding`, then a `.binding.yaml` file shall be created containing `module_id`, `target`, `description`, and `auto_schema: true` fields.
+- **AC-3:** Given `--style binding`, then a `.binding.yaml` file shall be created containing `module_id`, `target`, `description`, and paired inline `input_schema` / `output_schema` fields describing the generated function. The YAML shall load through apcore-toolkit in both loose and strict modes without runtime-only inference keys.
 - **AC-4:** Given `--style invalid_value`, then Click shall output a usage error referencing the valid choices and exit with code 2.
 
 ---

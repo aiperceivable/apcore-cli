@@ -147,8 +147,18 @@ bindings:
   - module_id: "{module_id}"
     target: "commands.{prefix}:{func_name}"
     description: "{description}"
-    auto_schema: true
+    input_schema:
+      type: object
+      properties: {}
+    output_schema:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
 ```
+
+The paired inline schemas describe the no-argument scaffold and its `{status: "ok"}` result. They MUST load through apcore-toolkit in both loose and strict modes. Update both schemas when changing the function signature or result. Runtime inference keys (`auto_schema`, `schema_ref`) belong to apcore's runtime loader and MUST NOT be emitted for the CLI's toolkit loader.
 
 2. **Companion source** at `commands/{prefix_with_underscores}.{ext}` (only if it does not already exist), using the host language's function syntax.
 
@@ -236,7 +246,7 @@ At the `main()` entry point, the value is extracted from `sys.argv` before Click
 |---------|-------------|-----------------|
 | T-INIT-01 | `apcore-cli init module ops.deploy --style decorator` | Creates `extensions/ops_deploy.py` with `@module` decorator. |
 | T-INIT-02 | `apcore-cli init module ops.deploy --style convention` | Creates `commands/ops.py` with `CLI_GROUP = "ops"` and `deploy()` function. |
-| T-INIT-03 | `apcore-cli init module ops.deploy --style binding` | Creates `bindings/ops_deploy.binding.yaml` and `commands/ops.py`. |
+| T-INIT-03 | `apcore-cli apcli init module ops.deploy --style binding` | Creates a binding YAML with paired inline schemas and a companion source file; the YAML loads through toolkit in both loose and strict modes. |
 | T-INIT-04 | `apcore-cli init module standalone` (no dot in ID) | Creates file with `func_name = "standalone"`, no `CLI_GROUP` line. |
 | T-INIT-05 | `--dir /tmp/custom` overrides output directory | File created under `/tmp/custom/` instead of default. |
 | T-INIT-06 | `--description "My module"` sets description in generated file | Generated file contains `"My module"` in docstring and decorator/binding. |

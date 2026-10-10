@@ -4,7 +4,28 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.12.3] - 2026-10-10
+
+### Changed
+
+- **Upgrade all three CLI SDKs to apcore 0.32.0 and apcore-toolkit 0.14.0**, prepared as CLI 0.12.3. Python requires `apcore>=0.32.0` / `apcore-toolkit[http-proxy]>=0.14.0`; TypeScript requires peers `apcore-js>=0.32.0` / `apcore-toolkit>=0.14.0`; Rust requires `apcore = ">=0.32"` / `apcore-toolkit = { version = ">=0.14.0", features = ["http-proxy"] }`. Rust and TypeScript lockfiles track the published releases.
+- **Binding-file migration:** toolkit 0.14.0 rejects unknown document/entry keys and one-sided schema pairs in both modes; strict mode rejects non-list `tags`. Remove unsupported keys, move application data into `metadata`, and provide both inline schemas. Runtime `auto_schema` / `schema_ref` declarations require apcore's runtime loader; the CLI's toolkit integration does not provide runtime inference.
+
+### Fixed
+
+- **Generated binding scaffolds load with toolkit 0.14.0.** All three `apcli init module --style binding` templates previously emitted `auto_schema: true`, which the pure-data loader now rejects. They now emit an empty-object input schema and an object output schema declaring the scaffold's `status: string` result. Loader regression assertions cover loose and strict modes. FE-10 and SRS FR-USB-001 AC-3 are updated.
+- **TypeScript terminal errors retain structured validation details.** Object/array-valued details previously rendered as `[object Object]`; they now serialize as JSON so the native `{path, keyword, message}` diagnostics remain visible. Circular references and nested BigInt values fall back to Node inspection, preserving the mapped exit code. All three SDKs already preserve JSON error details verbatim and never read a `field` member; the hinted `field` to `unknown` defect is not present in these CLI repositories. Native-validator regressions pin root `""`, nested-array `/items/0/count`, and escaped `/a~1b~0c` pointers in JSON and terminal output, retaining exit 45.
+
+### Upstream compatibility assessment
+
+- **apcore 0.32.0:** governance-provider binding, gate configuration rejection, redacted logging, invocation-scoped timeouts, collect-all preflight and stricter runtime bindings run inside the upstream executor/registry. Existing CLI ACL/approval attachment, trace/stream calls, error-code mapping and preflight check forwarding remain compatible. The new bare-name canonicalization API is additive; the CLI does not adopt or duplicate it. MCP export-profile metadata, async task/store additions, namespace dispatch, watcher/reload, middleware, observability and nested-call fixes require no CLI call-site changes. Existing CLI namespace registration uses `APCORE_CLI`, not the newly reserved exact `APCORE` prefix.
+- **apcore-toolkit 0.14.0:** consumed loader, scanner, writer, display and formatter signatures/error types are unchanged. The stricter loader requires the scaffold fix above; OpenAPI-generated bindings already supply both schemas and need no code change. Existing user bindings may require the migration above. This upgrade therefore requires source changes as well as dependency bumps.
+
+### Verification
+
+- Python: **1024 passed / 0 failed / 6 xfailed** against published PyPI SDKs. TypeScript: **830 passed / 0 failed**, strict type checks and production build passed. Rust: full `make check`, **1020 passed / 0 failed / 3 ignored** including doctests, with rustfmt, Clippy and source character checks passed. Native-validation error and generated-binding loader regressions pass in all three SDKs.
+
+## [0.12.2] - 2026-09-29
 
 ### Changed — BREAKING
 

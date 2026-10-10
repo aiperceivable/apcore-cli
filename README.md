@@ -62,7 +62,7 @@ It serves as the terminal-native counterpart to `apcore-mcp` (Model Context Prot
     pnpm add apcore-cli
     ```
 
-    **Requirements:** Node.js 18+, npm or pnpm
+    **Requirements:** Node.js 20+, npm or pnpm
 
 === "Rust"
 
@@ -603,9 +603,9 @@ apcore Registry + Executor (your modules, unchanged)
 
 | Language | Repository | Status |
 |----------|-----------|--------|
-| **Python** | [apcore-cli-python](https://github.com/aiperceivable/apcore-cli-python) | v0.12.0 |
-| **TypeScript** | [apcore-cli-typescript](https://github.com/aiperceivable/apcore-cli-typescript) | v0.12.0 |
-| **Rust** | [apcore-cli-rust](https://github.com/aiperceivable/apcore-cli-rust) | v0.12.0 |
+| **Python** | [apcore-cli-python](https://github.com/aiperceivable/apcore-cli-python) | v0.12.3 |
+| **TypeScript** | [apcore-cli-typescript](https://github.com/aiperceivable/apcore-cli-typescript) | v0.12.3 |
+| **Rust** | [apcore-cli-rust](https://github.com/aiperceivable/apcore-cli-rust) | v0.12.3 |
 
 ## Version Compatibility
 
@@ -616,16 +616,16 @@ lives in [`apcore` README](https://github.com/aiperceivable/apcore#version-compa
 
 | Component | Required version | Notes |
 |---|---|---|
-| `apcore` core SDK | `>= 0.31.0` (tested with 0.31.0) | apcore-cli-python / -typescript pin `>=0.31.0` (open); apcore-cli-rust pins `apcore = ">=0.31"` (open, plain semver range) |
-| `apcore-toolkit` | `>= 0.13.0` (tested with 0.13.0) | **required** runtime dep (no soft fallback as of 0.10.0); 0.13.0 normalises `apcli openapi` module IDs to snake_case ([openapi-import.md §1.2](docs/features/openapi-import.md)); FE-15a needs the `http-proxy` extra (Python) / feature (Rust) for `http(s)://` spec sources — see [openapi-import.md §4.6](docs/features/openapi-import.md) |
+| `apcore` core SDK | `>= 0.32.0` (tested with 0.32.0) | apcore-cli-python / -typescript pin `>=0.32.0` (open); apcore-cli-rust pins `apcore = ">=0.32"` (open, plain semver range) |
+| `apcore-toolkit` | `>= 0.14.0` (tested with 0.14.0) | **required** runtime dep (no soft fallback as of 0.10.0); 0.13.0 normalises `apcli openapi` module IDs to snake_case ([openapi-import.md §1.2](docs/features/openapi-import.md)); FE-15a needs the `http-proxy` extra (Python) / feature (Rust) for `http(s)://` spec sources — see [openapi-import.md §4.6](docs/features/openapi-import.md) |
 
 ### Known dependency-pin divergence (tracked as issue 6.8)
 
 | CLI package | apcore pin | apcore-toolkit pin | Effective range |
 |---|---|---|---|
-| apcore-cli-python | `apcore>=0.31.0` | `apcore-toolkit[http-proxy]>=0.13.0` | open upper bound — accepts future minors |
-| apcore-cli-typescript | peer `apcore-js>=0.31.0` | peer `apcore-toolkit>=0.13.0` | open upper bound |
-| apcore-cli-rust | `apcore = ">=0.31"` | `apcore-toolkit = ">=0.13.0"`, `features = ["http-proxy"]` | open upper bound |
+| apcore-cli-python | `apcore>=0.32.0` | `apcore-toolkit[http-proxy]>=0.14.0` | open upper bound — accepts future minors |
+| apcore-cli-typescript | peer `apcore-js>=0.32.0` | peer `apcore-toolkit>=0.14.0` | open upper bound |
+| apcore-cli-rust | `apcore = ">=0.32"` | `apcore-toolkit = ">=0.14.0"`, `features = ["http-proxy"]` | open upper bound |
 
 Reconciliation (adopting consistent caret semantics across all three) is
 planned for a follow-up coordinated release.

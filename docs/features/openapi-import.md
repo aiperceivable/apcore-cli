@@ -11,7 +11,7 @@ description: "OpenAPI Import (FE-15) adds the apcli openapi subcommand group. FE
 
 **SRS Requirements**: FR-OAPI-001, FR-OAPI-002, FR-OAPI-003
 **Related Features**: FE-04 (Discovery), FE-08 (Output Formatter), FE-09 (Grouped Commands), FE-10 (Init Command), FE-12 (Exposure Filtering)
-**Requires**: apcore-toolkit >= 0.13.0
+**Requires**: apcore-toolkit >= 0.14.0
 
 ---
 
@@ -275,7 +275,7 @@ Fetching a document over `http(s)://` is an optional dependency upstream, and ea
 |-----|--------------|-----------------|
 | Python | `httpx` lives in the `http-proxy` extra; `load_spec` imports it lazily | `apcore-cli` depends on `apcore-toolkit[http-proxy]` |
 | TypeScript | none — `loadSpec` is an unconditional export | none |
-| Rust | `load_spec` sits behind the `http-proxy` **feature flag** | `apcore-toolkit = { version = ">=0.13.0", features = ["http-proxy"] }` |
+| Rust | `load_spec` sits behind the `http-proxy` **feature flag** | `apcore-toolkit = { version = ">=0.14.0", features = ["http-proxy"] }` |
 
 Local-file scanning and both writers need none of this. An SDK that cannot reach the HTTP path MUST fail with an actionable message naming the missing extra or feature, never with a bare `ImportError` or a missing-symbol link error.
 
