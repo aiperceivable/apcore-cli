@@ -323,33 +323,19 @@ apcore-cli greet.hello --name World
 === "Rust"
 
     ```rust
-    use apcore_cli::CliConfig;
-    use clap::Command;
+    use apcore_cli::{cli::exec_command, dispatch_module_with_result};
 
-    // Standalone mode
-    let config = CliConfig {
-        extensions_dir: Some("./extensions".into()),
-        prog_name: Some("myapp".into()),
-        ..Default::default()
-    };
-
-    // Embedded mode (pre-populated registry)
-    let config = CliConfig {
-        registry: Some(Arc::new(my_registry)),
-        executor: Some(Arc::new(my_executor)),
-        prog_name: Some("myapp".into()),
-        ..Default::default()
-    };
-
-    // With custom commands
-    let deploy = Command::new("deploy")
-        .arg(clap::Arg::new("env").required(true));
-
-    let config = CliConfig {
-        extra_commands: vec![deploy],
-        ..Default::default()
-    };
+    let matches = exec_command().try_get_matches_from(["exec", "math.add"])?;
+    let result = dispatch_module_with_result(
+        "math.add",
+        &matches,
+        &registry_provider,
+        &executor,
+        false, // Let the host render the result.
+    ).await;
     ```
+
+To render a module result in the host, use the SDK's [embedded result options](docs/features/core-dispatcher.md#embedded-module-results).
 
 ---
 
@@ -703,7 +689,7 @@ For the **implementation**, see the SDKs:
     apcore-cli-rust/src/
     ├── main.rs              Entry point, dispatch routing
     ├── cli.rs               Dispatcher, module execution
-    ├── lib.rs               CliConfig, exit codes
+    ├── lib.rs               Public API, exit codes
     ├── approval.rs          HITL approval + CliApprovalHandler
     ├── output.rs            TTY-adaptive formatting
     ├── discovery.rs         list, describe commands

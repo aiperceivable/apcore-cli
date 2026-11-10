@@ -174,6 +174,8 @@ The Core Dispatcher is the primary entry point for `apcore-cli`. It provides the
 - expose: dict | ExposureFilter | None, optional — Exposure filter config (FE-12).
 - apcli: bool | dict | ApcliGroup | None, optional — Built-in apcli group config (FE-13).
 - allowed_prefixes: list[str] | None, optional — Allowlist for binding/convention target resolution. Cross-SDK status: Python (`allowed_prefixes`) and TypeScript (`allowedPrefixes`, threaded through `createCli` → `applyToolkitIntegration` → `loadBindingDisplayOverlay`) both expose this option. **Rust does not yet have this option**; the parity gap is tracked separately and is NOT a "Python-only" feature any more.
+- print_result: bool, optional — Print successful non-streaming module results. Defaults to `True`.
+- on_result: Callable[[Any, str], None] | None, optional — Receive the raw module result and canonical module ID. See [embedded module results](#embedded-module-results) for the per-SDK entry points.
 
 ### Errors
 - ValueError — `executor` provided without `registry`
@@ -486,6 +488,20 @@ Maps to exit code 44.
 ### 8.5 Output formatter helpers
 
 All three SDKs export the four formatter helpers — `resolve_format`, `format_module_list`, `format_module_detail`, `format_exec_result` — as of v0.8.0 (D1-007). See `features/output-formatter.md` for the per-helper Contract. Earlier "Python/TS only export `format_exec_result`" caveats are no longer accurate.
+
+#### Embedded module results
+
+Starting with SDK version `0.13.0`, an embedder can render a successful module result without capturing stdout. Use the per-command builder to apply the options to a single command, or the factory for commands it registers.
+
+| Language | Options | Entry points |
+|---|---|---|
+| TypeScript | `printResult?: boolean`, `onResult?: (result: unknown, moduleId: string) => void \| Promise<void>` | `buildModuleCommand` (sixth argument), `registerExecCommand` (fourth argument), `createCli` (built-in `apcli exec`) |
+| Python | `print_result: bool = True`, `on_result: Callable[[Any, str], None] \| None = None` | Keyword options on `build_module_command`, `register_exec_command`, and `create_cli` (generated module commands and `apcli exec`) |
+| Rust | `print_result: bool`, structured return `Result<Option<serde_json::Value>, i32>` | `dispatch_module_with_result` with matches from a generated module command or `apcli exec` |
+
+CLI result printing defaults to enabled. The structured result is independent of `--format` and `--fields`. For each successful non-streaming execution in Python and TypeScript, the callback receives the raw result and canonical module ID once. When enabled, printing runs before the callback. TypeScript awaits the callback. Callback failures follow the command's execution-error handling and prevent a success audit entry. Preflight reports, actual streaming output, errors, and terminal traces use their own output paths. When an embedded invocation falls back to buffered execution, it delivers a structured result and respects the print setting.
+
+Rust returns `Ok(Some(value))` after successful non-streaming execution and auditing, including `Some(Value::Null)` for a null result. Successful preflight and streaming invocations return `Ok(None)`. Failures return `Err(exit_code)`. The embedded caller owns signal handling and any approval interaction. The dispatcher's approval gate uses the non-interactive policy, including the existing explicit approval options. The standalone `dispatch_module` wrapper owns terminal approval and SIGINT handling, prints successful results, and exits with the CLI status code.
 
 ### 8.6 Sandbox builder API
 

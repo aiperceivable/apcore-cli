@@ -146,7 +146,7 @@ Logic steps:
 **Signature**: `_prompt_with_timeout(module_def: ModuleDefinition, timeout: int = 60) -> None`
 
 Logic steps:
-1. Extract `message = module_def.annotations.get("approval_message", None)`.
+1. Read `approval_message` from the module's annotations. If the direct key is absent, look in `annotations.extra`.
 2. If `message is None`: set `message = f"Module '{module_def.canonical_id}' requires approval to execute."`.
 3. Display `message` to terminal via `click.echo(message, err=True)`.
 4. Set up timeout:

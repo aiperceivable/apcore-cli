@@ -150,6 +150,8 @@ _sandboxed_execute(module_id, input_data):
 
 ## Contract: Sandbox.execute
 
+Module execution rejects an enabled sandbox combined with `--trace`, `--strategy`, or `--stream` with exit code 2. Preflight can accept these flags because it runs no module. The Rust embedded dispatcher rejects sandbox execution with exit code 2. The standalone Rust CLI provides the subprocess runner for sandbox execution and rejects `--sandbox` for filesystem script modules.
+
 ### Inputs
 - module_id: str, required — Canonical module identifier.
 - input_data: dict, required — Input dict for the module.

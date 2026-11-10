@@ -4,6 +4,24 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.13.0] - 2026-11-10
+
+Prepared for the Python, TypeScript, and Rust SDKs at version `0.13.0`.
+
+### Added
+
+- Embedded hosts can suppress result printing and consume structured module results. Python and TypeScript deliver the raw result through a callback. Rust returns the raw JSON value or a CLI exit code to the host.
+
+### Changed
+
+- Sandbox execution rejects combinations with `--trace`, `--strategy`, and `--stream` with exit code 2. Rust sandbox execution requires the standalone CLI and rejects filesystem script modules.
+- The Rust embedded dispatcher leaves terminal approval to the host. Native streams emit JSONL, and embedded fallback to buffered execution returns the result.
+
+### Fixed
+
+- Terminal traces remain on stderr when result printing is disabled. Custom approval prompts can come from `annotations.extra` in all three SDKs.
+- The built TypeScript CLI reports its package version from build metadata.
+
 ## [0.12.3] - 2026-10-10
 
 ### Changed
