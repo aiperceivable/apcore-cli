@@ -4,6 +4,29 @@ All notable changes to the apcore-cli specification will be documented in this f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.14.0] - 2026-11-19
+
+The Python, TypeScript, and Rust SDKs ship as 0.14.0. [Python release tag](https://github.com/aiperceivable/apcore-cli-python/tree/python/v0.14.0), [TypeScript release tag](https://github.com/aiperceivable/apcore-cli-typescript/tree/typescript/v0.14.0), [Rust release tag](https://github.com/aiperceivable/apcore-cli-rust/tree/rust/v0.14.0).
+
+### Added
+
+- Embedded hosts can receive structured module failures, map apcore error codes to host exit codes, and route error output to stdout or a custom destination. Error output defaults to stderr. Hosts can also merge extra values into module input before validation.
+- All three SDKs provide a configurable library exit handler. Python and TypeScript also accept a per-command exit callback. Rust exposes the dispatch options through `dispatch_module_with_options()` and retains `dispatch_module_with_result()` for existing callers.
+
+### Changed
+
+- Python requires `apcore>=0.33.0` and `apcore-toolkit[http-proxy]>=0.14.2`. TypeScript declares peers `apcore-js>=0.33.0` and `apcore-toolkit>=0.14.3`. Rust requires `apcore>=0.30.0` and `apcore-toolkit>=0.14.2` with `http-proxy` enabled. Its release lockfile resolves apcore 0.33.0 and toolkit 0.14.2.
+
+### Fixed
+
+- Invalid module IDs, missing modules, invalid input, and incompatible dispatch flags now use the same error reporting options as module execution failures. Rust also applies them to traced and streaming failures and emits a structured error for early failures with `--format json`.
+- Help links handle documentation base URLs with trailing slashes. Python and TypeScript now use the full canonical module path for commands nested under groups.
+- Rust `--input` accepts inline JSON objects alongside files and stdin. Rust output formatting also handles module annotations when the CLI and toolkit resolve different versions of apcore.
+
+### Security
+
+- TypeScript updates its runtime dependency `js-yaml` to `^4.3.2`.
+
 ## [0.13.0] - 2026-11-10
 
 Prepared for the Python, TypeScript, and Rust SDKs at version `0.13.0`.
