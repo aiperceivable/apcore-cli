@@ -947,6 +947,833 @@
           }
         ]
       }
+    },
+    {
+      "id": "standalone_reports_selected_forwarding_failure",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Standalone OpenAPI parity",
+          "version": "1.0.0"
+        },
+        "servers": [
+          {
+            "url": "http://127.0.0.1:8765"
+          }
+        ],
+        "components": {
+          "parameters": {
+            "ItemId": {
+              "in": "path",
+              "name": "item_id",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            },
+            "Tag": {
+              "in": "query",
+              "name": "tag",
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "paths": {
+          "/items/{item_id}": {
+            "parameters": [
+              {
+                "$ref": "#/components/parameters/ItemId"
+              },
+              {
+                "$ref": "#/components/parameters/Tag"
+              }
+            ],
+            "get": {
+              "operationId": "list_items",
+              "summary": "List items",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          },
+          "/updates": {
+            "parameters": [
+              {
+                "$ref": "#/components/parameters/Tag"
+              }
+            ],
+            "post": {
+              "operationId": "update_items",
+              "summary": "Update items",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "list_items",
+            "properties": {
+              "item_id": {
+                "type": "string"
+              },
+              "tag": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "item_id"
+            ]
+          },
+          {
+            "id": "update_items",
+            "properties": {
+              "tag": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "update_items",
+            "http_method": "POST",
+            "url_path": "/updates",
+            "kind": {
+              "code": "query_on_body_method",
+              "parameters": [
+                "tag"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "standalone_excludes_forwarding_failure",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Standalone OpenAPI parity",
+          "version": "1.0.0"
+        },
+        "servers": [
+          {
+            "url": "http://127.0.0.1:8765"
+          }
+        ],
+        "components": {
+          "parameters": {
+            "ItemId": {
+              "in": "path",
+              "name": "item_id",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            },
+            "Tag": {
+              "in": "query",
+              "name": "tag",
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "paths": {
+          "/items/{item_id}": {
+            "parameters": [
+              {
+                "$ref": "#/components/parameters/ItemId"
+              },
+              {
+                "$ref": "#/components/parameters/Tag"
+              }
+            ],
+            "get": {
+              "operationId": "list_items",
+              "summary": "List items",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          },
+          "/updates": {
+            "parameters": [
+              {
+                "$ref": "#/components/parameters/Tag"
+              }
+            ],
+            "post": {
+              "operationId": "update_items",
+              "summary": "Update items",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          }
+        }
+      },
+      "include": "^list_items$",
+      "expected": {
+        "modules": [
+          {
+            "id": "list_items",
+            "properties": {
+              "item_id": {
+                "type": "string"
+              },
+              "tag": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "item_id"
+            ]
+          }
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "literal_colon_is_not_a_parameter",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI forwarding boundaries",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/inventory:search": {
+            "get": {
+              "operationId": "literal_colon_is_not_a_parameter",
+              "summary": "literal colon is not a parameter",
+              "parameters": [],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "literal_colon_is_not_a_parameter",
+            "properties": {},
+            "required": []
+          }
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "literal_colon_with_braced_parameter",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI forwarding boundaries",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/inventory:search/{search}": {
+            "get": {
+              "operationId": "literal_colon_with_braced_parameter",
+              "summary": "literal colon with braced parameter",
+              "parameters": [
+                {
+                  "in": "path",
+                  "name": "search",
+                  "required": true,
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "literal_colon_with_braced_parameter",
+            "properties": {
+              "search": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "search"
+            ]
+          }
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "label_path_encoding_is_unsupported",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI forwarding boundaries",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/labels/{name}": {
+            "get": {
+              "operationId": "label_path_encoding_is_unsupported",
+              "summary": "label path encoding is unsupported",
+              "parameters": [
+                {
+                  "in": "path",
+                  "name": "name",
+                  "required": true,
+                  "style": "label",
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "label_path_encoding_is_unsupported",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ]
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "label_path_encoding_is_unsupported",
+            "http_method": "GET",
+            "url_path": "/labels/{name}",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "path",
+                "name": "name",
+                "reason": "path_serialization"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "default_object_query_is_unsupported",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI forwarding boundaries",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "get": {
+              "operationId": "default_object_query_is_unsupported",
+              "summary": "default object query is unsupported",
+              "parameters": [
+                {
+                  "in": "query",
+                  "name": "filters",
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "default_object_query_is_unsupported",
+            "properties": {
+              "filters": {
+                "type": "object",
+                "properties": {
+                  "color": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "default_object_query_is_unsupported",
+            "http_method": "GET",
+            "url_path": "/items",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "query",
+                "name": "filters",
+                "reason": "query_serialization"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "composed_non_exploded_query_array",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI forwarding boundaries",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "get": {
+              "operationId": "composed_non_exploded_query_array",
+              "summary": "composed non exploded query array",
+              "parameters": [
+                {
+                  "in": "query",
+                  "name": "tags",
+                  "style": "form",
+                  "explode": false,
+                  "schema": {
+                    "allOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "composed_non_exploded_query_array",
+            "properties": {
+              "tags": {
+                "allOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              }
+            },
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "composed_non_exploded_query_array",
+            "http_method": "GET",
+            "url_path": "/items",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "query",
+                "name": "tags",
+                "reason": "query_serialization"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "external_parameter_reference_is_redacted",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI forwarding boundaries",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "get": {
+              "operationId": "external_parameter_reference_is_redacted",
+              "summary": "external parameter reference is redacted",
+              "parameters": [
+                {
+                  "$ref": "https://example.invalid/references.json?fixture_marker=synthetic#color"
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "external_parameter_reference_is_redacted",
+            "properties": {},
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "external_parameter_reference_is_redacted",
+            "http_method": "GET",
+            "url_path": "/items",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "reference",
+                "scope": "operation",
+                "index": 0,
+                "reference": "<external-ref>",
+                "reason": "expected a same-document JSON Pointer"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "unknown_type_with_non_exploded_query",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI forwarding boundaries",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "get": {
+              "operationId": "unknown_type_with_non_exploded_query",
+              "summary": "unknown type with non exploded query",
+              "parameters": [
+                {
+                  "in": "query",
+                  "name": "tag",
+                  "schema": true,
+                  "explode": false
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "unknown_type_with_non_exploded_query",
+            "properties": {
+              "tag": true
+            },
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "unknown_type_with_non_exploded_query",
+            "http_method": "GET",
+            "url_path": "/items",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "query",
+                "name": "tag",
+                "reason": "query_serialization"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "scalar_type_with_non_exploded_query",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI forwarding boundaries",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "get": {
+              "operationId": "scalar_type_with_non_exploded_query",
+              "summary": "scalar type with non exploded query",
+              "parameters": [
+                {
+                  "in": "query",
+                  "name": "limit",
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "explode": false
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "scalar_type_with_non_exploded_query",
+            "properties": {
+              "limit": {
+                "type": "integer"
+              }
+            },
+            "required": []
+          }
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "content_encoded_parameter_is_unsupported",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI forwarding boundaries",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "get": {
+              "operationId": "content_encoded_parameter_is_unsupported",
+              "summary": "content encoded parameter is unsupported",
+              "parameters": [
+                {
+                  "in": "query",
+                  "name": "filter",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "content_encoded_parameter_is_unsupported",
+            "properties": {
+              "filter": {
+                "type": "string"
+              }
+            },
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "content_encoded_parameter_is_unsupported",
+            "http_method": "GET",
+            "url_path": "/items",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "query",
+                "name": "filter",
+                "reason": "query_serialization"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "array_type_and_non_scalar_items_in_separate_branches",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI forwarding boundaries",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "get": {
+              "operationId": "array_type_and_non_scalar_items_in_separate_branches",
+              "summary": "array type and non scalar items in separate branches",
+              "parameters": [
+                {
+                  "in": "query",
+                  "name": "tags",
+                  "style": "form",
+                  "schema": {
+                    "allOf": [
+                      {
+                        "type": "array"
+                      },
+                      {
+                        "prefixItems": [
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "array_type_and_non_scalar_items_in_separate_branches",
+            "properties": {
+              "tags": {
+                "allOf": [
+                  {
+                    "type": "array"
+                  },
+                  {
+                    "prefixItems": [
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "array_type_and_non_scalar_items_in_separate_branches",
+            "http_method": "GET",
+            "url_path": "/items",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "query",
+                "name": "tags",
+                "reason": "query_serialization"
+              }
+            }
+          }
+        ]
+      }
     }
   ]
 }

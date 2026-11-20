@@ -771,6 +771,218 @@
           }
         }
       ]
+    },
+    {
+      "id": "absolute_proxy_path",
+      "module": {
+        "module_id": "api.absolute_proxy_path",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "http://127.0.0.1:8765/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.absolute_proxy_path",
+          "http_method": "GET",
+          "url_path": "?",
+          "kind": {
+            "code": "missing_route_metadata",
+            "key": "url_path"
+          }
+        }
+      ]
+    },
+    {
+      "id": "network_proxy_path",
+      "module": {
+        "module_id": "api.network_proxy_path",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "//example.invalid/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.network_proxy_path",
+          "http_method": "GET",
+          "url_path": "?",
+          "kind": {
+            "code": "missing_route_metadata",
+            "key": "url_path"
+          }
+        }
+      ]
+    },
+    {
+      "id": "query_in_proxy_path",
+      "module": {
+        "module_id": "api.query_in_proxy_path",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items?fixed=demo",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.query_in_proxy_path",
+          "http_method": "GET",
+          "url_path": "?",
+          "kind": {
+            "code": "missing_route_metadata",
+            "key": "url_path"
+          }
+        }
+      ]
+    },
+    {
+      "id": "fragment_in_proxy_path",
+      "module": {
+        "module_id": "api.fragment_in_proxy_path",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items#detail",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.fragment_in_proxy_path",
+          "http_method": "GET",
+          "url_path": "?",
+          "kind": {
+            "code": "missing_route_metadata",
+            "key": "url_path"
+          }
+        }
+      ]
+    },
+    {
+      "id": "backslash_in_proxy_path",
+      "module": {
+        "module_id": "api.backslash_in_proxy_path",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items\\detail",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.backslash_in_proxy_path",
+          "http_method": "GET",
+          "url_path": "?",
+          "kind": {
+            "code": "missing_route_metadata",
+            "key": "url_path"
+          }
+        }
+      ]
+    },
+    {
+      "id": "previously_stored_external_reference_is_redacted",
+      "module": {
+        "module_id": "api.previously_stored_external_reference_is_redacted",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": [
+                {
+                  "kind": "reference",
+                  "scope": "operation",
+                  "index": 0,
+                  "reference": "https://example.invalid/params.json?fixture_marker=synthetic#color",
+                  "reason": "expected a same-document JSON Pointer"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.previously_stored_external_reference_is_redacted",
+          "http_method": "GET",
+          "url_path": "/items",
+          "kind": {
+            "code": "parameter_resolution",
+            "problem": {
+              "kind": "reference",
+              "scope": "operation",
+              "index": 0,
+              "reference": "<external-ref>",
+              "reason": "expected a same-document JSON Pointer"
+            }
+          }
+        }
+      ]
     }
   ]
 }

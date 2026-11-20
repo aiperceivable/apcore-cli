@@ -226,11 +226,23 @@ Hazards are reported by `scan` and by `generate`, are counted separately from sc
 
 #### 4.3.1 Effective-parameter diagnostic JSON
 
-An embedding application can opt in through the toolkit's effective-parameter
-scanner. After selecting modules, pass them to the CLI's effective proxy
-detector. The detector reads the routing inputs attached to each final module
-and uses the route resolved by the proxy writer. This entry point complements
-the existing `apcli openapi` commands and legacy hazard detector.
+Both `apcli openapi scan` and `apcli openapi generate` use the toolkit's
+effective-parameter scanner and proxy diagnostics. The resulting schema
+includes inherited and referenced parameters. The toolkit checks the routing
+inputs attached to each selected module using the route resolved by the proxy
+writer. CLI SDKs continue to export their existing effective detector API
+through the toolkit implementation.
+
+JSON and YAML scan results include `effective_hazards` as a top-level array.
+The legacy `hazards` field retains its shape and meaning. Table output and
+generation report effective findings. Both commands continue to succeed on a
+partially understood document, and generation still emits binding artifacts
+for inspection. The MCP and A2A standalone backends use the same diagnostics
+as a precondition for registering selected operations.
+
+The CSV, JSONL, Markdown and Skill scan formats send effective findings to
+standard error. Generation and its dry run also send effective findings to
+standard error.
 
 The serialized result is an array of objects with `module_id`, `http_method`,
 `url_path`, and a `kind` object. `kind.code` selects the fields in this table.
@@ -266,16 +278,28 @@ human-readable strings.
 `problem.scope` is `path_item` or `operation`. An `invalid_list` includes
 no other fields. `invalid_parameter` adds `index`, `reference` adds `index`,
 `reference` and `reason`, and `duplicate` adds `name` and `location`.
+An external reference is represented as `<external-ref>` in findings and
+warnings. Local references retain their pointer for troubleshooting.
 An `unsupported_input` describes the selected operation and carries `location`,
 `name` and a reason code. Query parameters use their declared name and the
-`query_serialization` reason when their array encoding is unsupported. Request
-bodies use `requestBody` as the name and one of `request_body_reference`,
-`request_body_media_type` or `request_body_schema`.
+`query_serialization` reason when their declared encoding is unsupported.
+Path parameters use their declared name and the `path_serialization` reason.
+Request bodies use `requestBody` as the name and one of
+`request_body_reference`, `request_body_media_type` or `request_body_schema`.
+
+An effective proxy route is an origin-relative path beginning with one slash.
+Literal query delimiters, fragment delimiters and backslashes are invalid in
+the path. The detector recognizes only brace-delimited OpenAPI parameters
+and the proxy substitutes only those parameters. Colons in the path are
+literal. An invalid path is reported as
+`missing_route_metadata` for `url_path` with the unavailable value `?`.
 
 The effective scanner resolves same-document Request Body Objects and uses
 the exact `application/json` media type, matching the proxy's request header.
-The proxy sends default exploded scalar query arrays as repeated keys. A
-required, representable JSON object body is sent even when there are no
+The proxy supports simple scalar path parameters, scalar queries, and
+default exploded scalar query arrays as repeated keys. Serialization checks
+consider declared types in schema composition. A required, representable
+JSON object body is sent even when there are no
 supplied properties. A selected operation that receives a problem needs to be
 refused before proxy registration. Apply the consumer's filters before treating
 the per-operation diagnostics as startup errors.
