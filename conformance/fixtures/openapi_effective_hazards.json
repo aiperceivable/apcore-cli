@@ -1,0 +1,776 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "forwardable",
+      "module": {
+        "module_id": "api.forwardable",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "q": {
+              "type": "string"
+            }
+          }
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items/{id}",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [
+                "id"
+              ],
+              "query": [
+                "q"
+              ],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": []
+    },
+    {
+      "id": "missing_inputs",
+      "module": {
+        "module_id": "api.missing_inputs",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items"
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.missing_inputs",
+          "http_method": "GET",
+          "url_path": "/items",
+          "kind": {
+            "code": "missing_effective_inputs"
+          }
+        }
+      ]
+    },
+    {
+      "id": "invalid_inputs",
+      "module": {
+        "module_id": "api.invalid_inputs",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": "q",
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.invalid_inputs",
+          "http_method": "GET",
+          "url_path": "/items",
+          "kind": {
+            "code": "invalid_effective_inputs"
+          }
+        }
+      ]
+    },
+    {
+      "id": "missing_route",
+      "module": {
+        "module_id": "api.missing_route",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.missing_route",
+          "http_method": "?",
+          "url_path": "?",
+          "kind": {
+            "code": "missing_route_metadata",
+            "key": "http_method"
+          }
+        },
+        {
+          "module_id": "api.missing_route",
+          "http_method": "?",
+          "url_path": "?",
+          "kind": {
+            "code": "missing_route_metadata",
+            "key": "url_path"
+          }
+        }
+      ]
+    },
+    {
+      "id": "blank_route",
+      "module": {
+        "module_id": "api.blank_route",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "  ",
+          "url_path": "\t",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.blank_route",
+          "http_method": "?",
+          "url_path": "?",
+          "kind": {
+            "code": "missing_route_metadata",
+            "key": "http_method"
+          }
+        },
+        {
+          "module_id": "api.blank_route",
+          "http_method": "?",
+          "url_path": "?",
+          "kind": {
+            "code": "missing_route_metadata",
+            "key": "url_path"
+          }
+        }
+      ]
+    },
+    {
+      "id": "lowercase_method",
+      "module": {
+        "module_id": "api.lowercase_method",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "get",
+          "url_path": "/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.lowercase_method",
+          "http_method": "get",
+          "url_path": "/items",
+          "kind": {
+            "code": "unsupported_http_method",
+            "method": "get"
+          }
+        }
+      ]
+    },
+    {
+      "id": "unsupported_method",
+      "module": {
+        "module_id": "api.unsupported_method",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "CONNECT",
+          "url_path": "/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.unsupported_method",
+          "http_method": "CONNECT",
+          "url_path": "/items",
+          "kind": {
+            "code": "unsupported_http_method",
+            "method": "CONNECT"
+          }
+        }
+      ]
+    },
+    {
+      "id": "trace_not_portable",
+      "module": {
+        "module_id": "api.trace_not_portable",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "TRACE",
+          "url_path": "/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.trace_not_portable",
+          "http_method": "TRACE",
+          "url_path": "/items",
+          "kind": {
+            "code": "unsupported_http_method",
+            "method": "TRACE"
+          }
+        }
+      ]
+    },
+    {
+      "id": "parameter_resolution",
+      "module": {
+        "module_id": "api.parameter_resolution",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": [
+                {
+                  "kind": "reference",
+                  "scope": "operation",
+                  "index": 0,
+                  "reference": "#/components/parameters/Loop",
+                  "reason": "cyclic parameter reference",
+                  "note": "scanner extension"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.parameter_resolution",
+          "http_method": "GET",
+          "url_path": "/items",
+          "kind": {
+            "code": "parameter_resolution",
+            "problem": {
+              "kind": "reference",
+              "scope": "operation",
+              "index": 0,
+              "reference": "#/components/parameters/Loop",
+              "reason": "cyclic parameter reference"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "invalid_negative_problem_index",
+      "module": {
+        "module_id": "api.invalid_negative_problem_index",
+        "input_schema": {
+          "type": "object",
+          "properties": {}
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": [
+                {
+                  "kind": "invalid_parameter",
+                  "scope": "operation",
+                  "index": -1
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.invalid_negative_problem_index",
+          "http_method": "GET",
+          "url_path": "/items",
+          "kind": {
+            "code": "invalid_effective_inputs"
+          }
+        }
+      ]
+    },
+    {
+      "id": "query_on_post",
+      "module": {
+        "module_id": "api.query_on_post",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "string"
+            },
+            "sort": {
+              "type": "string"
+            }
+          }
+        },
+        "metadata": {
+          "http_method": "POST",
+          "url_path": "/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [
+                "limit",
+                "sort"
+              ],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.query_on_post",
+          "http_method": "POST",
+          "url_path": "/items",
+          "kind": {
+            "code": "query_on_body_method",
+            "parameters": [
+              "limit",
+              "sort"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "body_on_get",
+      "module": {
+        "module_id": "api.body_on_get",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string"
+            }
+          }
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [
+                "title"
+              ],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.body_on_get",
+          "http_method": "GET",
+          "url_path": "/items",
+          "kind": {
+            "code": "body_on_query_method",
+            "properties": [
+              "title"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "name_collision",
+      "module": {
+        "module_id": "api.name_collision",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        },
+        "metadata": {
+          "http_method": "POST",
+          "url_path": "/items/{id}",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [
+                "id"
+              ],
+              "query": [],
+              "body": [
+                "id"
+              ],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.name_collision",
+          "http_method": "POST",
+          "url_path": "/items/{id}",
+          "kind": {
+            "code": "name_collision",
+            "name": "id",
+            "locations": [
+              "path",
+              "body"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "template_mismatch",
+      "module": {
+        "module_id": "api.template_mismatch",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "sku": {
+              "type": "string"
+            }
+          }
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items/{id}",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [
+                "sku"
+              ],
+              "query": [],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.template_mismatch",
+          "http_method": "GET",
+          "url_path": "/items/{id}",
+          "kind": {
+            "code": "path_template_mismatch",
+            "undeclared": [
+              "id"
+            ],
+            "unused": [
+              "sku"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "schema_mismatch",
+      "module": {
+        "module_id": "api.schema_mismatch",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "string"
+            }
+          }
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [
+                "limit"
+              ],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.schema_mismatch",
+          "http_method": "GET",
+          "url_path": "/items",
+          "kind": {
+            "code": "input_schema_mismatch",
+            "unlocated": [
+              "count"
+            ],
+            "unpublished": [
+              "limit"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "unicode_diagnostic_order",
+      "module": {
+        "module_id": "api.unicode_diagnostic_order",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "\ud83d\ude00": true,
+            "\ue000": true
+          }
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [],
+              "query": [],
+              "body": [],
+              "problems": []
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.unicode_diagnostic_order",
+          "http_method": "GET",
+          "url_path": "/items",
+          "kind": {
+            "code": "input_schema_mismatch",
+            "unlocated": [
+              "\ue000",
+              "\ud83d\ude00"
+            ],
+            "unpublished": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "ordered_diagnostics",
+      "module": {
+        "module_id": "api.ordered_diagnostics",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string"
+            }
+          }
+        },
+        "metadata": {
+          "http_method": "PUT",
+          "url_path": "/items/{item_id}",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [
+                "id"
+              ],
+              "query": [
+                "id"
+              ],
+              "body": [
+                "id"
+              ],
+              "problems": [
+                {
+                  "kind": "reference",
+                  "scope": "operation",
+                  "index": 0,
+                  "reference": "#/components/parameters/Loop",
+                  "reason": "cyclic parameter reference"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.ordered_diagnostics",
+          "http_method": "PUT",
+          "url_path": "/items/{item_id}",
+          "kind": {
+            "code": "parameter_resolution",
+            "problem": {
+              "kind": "reference",
+              "scope": "operation",
+              "index": 0,
+              "reference": "#/components/parameters/Loop",
+              "reason": "cyclic parameter reference"
+            }
+          }
+        },
+        {
+          "module_id": "api.ordered_diagnostics",
+          "http_method": "PUT",
+          "url_path": "/items/{item_id}",
+          "kind": {
+            "code": "query_on_body_method",
+            "parameters": [
+              "id"
+            ]
+          }
+        },
+        {
+          "module_id": "api.ordered_diagnostics",
+          "http_method": "PUT",
+          "url_path": "/items/{item_id}",
+          "kind": {
+            "code": "path_template_mismatch",
+            "undeclared": [
+              "item_id"
+            ],
+            "unused": [
+              "id"
+            ]
+          }
+        },
+        {
+          "module_id": "api.ordered_diagnostics",
+          "http_method": "PUT",
+          "url_path": "/items/{item_id}",
+          "kind": {
+            "code": "name_collision",
+            "name": "id",
+            "locations": [
+              "path",
+              "query",
+              "body"
+            ]
+          }
+        },
+        {
+          "module_id": "api.ordered_diagnostics",
+          "http_method": "PUT",
+          "url_path": "/items/{item_id}",
+          "kind": {
+            "code": "input_schema_mismatch",
+            "unlocated": [
+              "title"
+            ],
+            "unpublished": [
+              "id"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "invalid_required_json_body_marker",
+      "module": {
+        "module_id": "api.invalid_required_json_body_marker",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "q": {
+              "type": "string"
+            }
+          }
+        },
+        "metadata": {
+          "http_method": "GET",
+          "url_path": "/items/{id}",
+          "openapi": {
+            "proxy_inputs": {
+              "path": [
+                "id"
+              ],
+              "query": [
+                "q"
+              ],
+              "body": [],
+              "problems": [],
+              "required_json_body": "true"
+            }
+          }
+        }
+      },
+      "expected": [
+        {
+          "module_id": "api.invalid_required_json_body_marker",
+          "http_method": "GET",
+          "url_path": "/items/{id}",
+          "kind": {
+            "code": "invalid_effective_inputs"
+          }
+        }
+      ]
+    }
+  ]
+}

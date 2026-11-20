@@ -1,0 +1,952 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "standard_json_matches_proxy_content_type",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "post": {
+              "operationId": "create_item",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/vnd.api+json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "vendor": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "vendor"
+                      ]
+                    }
+                  },
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "plain": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "plain"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "create_item",
+            "properties": {
+              "plain": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "plain"
+            ]
+          }
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "required_request_body_reference",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "post": {
+              "operationId": "create_item",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "requestBody": {
+                "$ref": "#/components/requestBodies/Item"
+              }
+            }
+          }
+        },
+        "components": {
+          "requestBodies": {
+            "Item": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "create_item",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ]
+          }
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "required_object_with_optional_fields",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "post": {
+              "operationId": "create_item",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": []
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "create_item",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": []
+          }
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "unresolved_request_body_reference",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "post": {
+              "operationId": "create_item",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "requestBody": {
+                "$ref": "#/components/requestBodies/Missing"
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "create_item",
+            "properties": {},
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "create_item",
+            "http_method": "POST",
+            "url_path": "/items",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "body",
+                "name": "requestBody",
+                "reason": "request_body_reference"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "required_boolean_request_body",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/a": {
+            "post": {
+              "operationId": "always",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": true
+                  }
+                }
+              }
+            }
+          },
+          "/b": {
+            "post": {
+              "operationId": "never",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "always",
+            "properties": {},
+            "required": []
+          },
+          {
+            "id": "never",
+            "properties": {},
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "always",
+            "http_method": "POST",
+            "url_path": "/a",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "body",
+                "name": "requestBody",
+                "reason": "request_body_schema"
+              }
+            }
+          },
+          {
+            "module_id": "never",
+            "http_method": "POST",
+            "url_path": "/b",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "body",
+                "name": "requestBody",
+                "reason": "request_body_schema"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "required_only_vendor_media",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "post": {
+              "operationId": "create_item",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/vnd.api+json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "vendor": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "vendor"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "create_item",
+            "properties": {},
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "create_item",
+            "http_method": "POST",
+            "url_path": "/items",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "body",
+                "name": "requestBody",
+                "reason": "request_body_media_type"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "top_level_boolean_responses",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/a": {
+            "get": {
+              "operationId": "allow",
+              "responses": {
+                "200": {
+                  "description": "OK",
+                  "content": {
+                    "application/json": {
+                      "schema": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/b": {
+            "get": {
+              "operationId": "deny",
+              "responses": {
+                "200": {
+                  "description": "OK",
+                  "content": {
+                    "application/json": {
+                      "schema": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "allow",
+            "properties": {},
+            "required": [],
+            "output_schema": {}
+          },
+          {
+            "id": "deny",
+            "properties": {},
+            "required": [],
+            "output_schema": {
+              "not": {}
+            }
+          }
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "selection_with_boolean_ops",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/a": {
+            "get": {
+              "operationId": "keep",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          },
+          "/b": {
+            "get": {
+              "operationId": "drop_result",
+              "responses": {
+                "200": {
+                  "description": "OK",
+                  "content": {
+                    "application/json": {
+                      "schema": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/c": {
+            "post": {
+              "operationId": "drop_body",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "keep",
+            "properties": {},
+            "required": [],
+            "output_schema": {
+              "type": "object",
+              "properties": {}
+            }
+          }
+        ],
+        "diagnostics": []
+      },
+      "include": "^keep$"
+    },
+    {
+      "id": "schema_reference_pointer_decoding",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "get": {
+              "operationId": "list_items",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "encoded",
+                  "in": "query",
+                  "schema": {
+                    "$ref": "#/components/schemas/%4Eever"
+                  }
+                },
+                {
+                  "name": "first",
+                  "in": "query",
+                  "schema": {
+                    "$ref": "#/components/schemas/Options/anyOf/0"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "components": {
+          "schemas": {
+            "Never": false,
+            "Options": {
+              "anyOf": [
+                false,
+                {
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "list_items",
+            "properties": {
+              "encoded": false,
+              "first": false
+            },
+            "required": []
+          }
+        ],
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "default_and_nondefault_query_arrays",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "parameters": [
+              {
+                "name": "tags",
+                "in": "query",
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            ],
+            "get": {
+              "operationId": "list_items",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              }
+            }
+          },
+          "/other": {
+            "get": {
+              "operationId": "list_other",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "tags",
+                  "in": "query",
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "style": "form",
+                  "explode": false
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "list_items",
+            "properties": {
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": []
+          },
+          {
+            "id": "list_other",
+            "properties": {
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "list_other",
+            "http_method": "GET",
+            "url_path": "/other",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "query",
+                "name": "tags",
+                "reason": "query_serialization"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "canonical_body_diagnostic_order",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "delete": {
+              "operationId": "delete_items",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "10": {
+                          "type": "string"
+                        },
+                        "2": {
+                          "type": "string"
+                        }
+                      },
+                      "required": []
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "delete_items",
+            "properties": {
+              "10": {
+                "type": "string"
+              },
+              "2": {
+                "type": "string"
+              }
+            },
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "delete_items",
+            "http_method": "DELETE",
+            "url_path": "/items",
+            "kind": {
+              "code": "body_on_query_method",
+              "properties": [
+                "10",
+                "2"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "multiple_unsupported_inputs_have_stable_diagnostic_order",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/items": {
+            "post": {
+              "operationId": "create_item",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/vnd.api+json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "vendor": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "vendor"
+                      ]
+                    }
+                  }
+                }
+              },
+              "parameters": [
+                {
+                  "name": "tags",
+                  "in": "query",
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "style": "form",
+                  "explode": false
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "create_item",
+            "properties": {
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "create_item",
+            "http_method": "POST",
+            "url_path": "/items",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "body",
+                "name": "requestBody",
+                "reason": "request_body_media_type"
+              }
+            }
+          },
+          {
+            "module_id": "create_item",
+            "http_method": "POST",
+            "url_path": "/items",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "query",
+                "name": "tags",
+                "reason": "query_serialization"
+              }
+            }
+          },
+          {
+            "module_id": "create_item",
+            "http_method": "POST",
+            "url_path": "/items",
+            "kind": {
+              "code": "query_on_body_method",
+              "parameters": [
+                "tags"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "body_root_composition_cannot_be_flattened",
+      "document": {
+        "openapi": "3.1.0",
+        "info": {
+          "title": "Effective OpenAPI conformance",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/a": {
+            "post": {
+              "operationId": "always",
+              "responses": {
+                "200": {
+                  "description": "OK"
+                }
+              },
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        }
+                      },
+                      "allOf": [
+                        {
+                          "required": [
+                            "label"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "modules": [
+          {
+            "id": "always",
+            "properties": {},
+            "required": []
+          }
+        ],
+        "diagnostics": [
+          {
+            "module_id": "always",
+            "http_method": "POST",
+            "url_path": "/a",
+            "kind": {
+              "code": "parameter_resolution",
+              "problem": {
+                "kind": "unsupported_input",
+                "scope": "operation",
+                "location": "body",
+                "name": "requestBody",
+                "reason": "request_body_schema"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

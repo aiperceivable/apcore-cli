@@ -224,6 +224,79 @@ FE-15a cannot fix it, but it can and MUST make it visible. The CLI holds the raw
 
 Hazards are reported by `scan` and by `generate`, are counted separately from scanner warnings, and never change the exit code in FE-15a. In machine formats they appear under a top-level `hazards` key rather than inside a module's `warnings` array, because they are a statement about a *future* execution path rather than about the scan that just ran.
 
+#### 4.3.1 Effective-parameter diagnostic JSON
+
+An embedding application can opt in through the toolkit's effective-parameter
+scanner. After selecting modules, pass them to the CLI's effective proxy
+detector. The detector reads the routing inputs attached to each final module
+and uses the route resolved by the proxy writer. This entry point complements
+the existing `apcli openapi` commands and legacy hazard detector.
+
+The serialized result is an array of objects with `module_id`, `http_method`,
+`url_path`, and a `kind` object. `kind.code` selects the fields in this table.
+The outer route fields report the selected route verbatim, with `?` used for
+an unavailable value. Language-native APIs may use their usual naming
+conventions. The serializers emit the same field names.
+
+| `kind.code` | Additional fields on `kind` |
+|---|---|
+| `missing_effective_inputs` | None |
+| `invalid_effective_inputs` | `detail` |
+| `missing_route_metadata` | `key`, either `http_method` or `url_path` |
+| `unsupported_http_method` | `method` |
+| `parameter_resolution` | `problem` with `kind`, `scope` and the fields for that problem kind |
+| `query_on_body_method` | `parameters` |
+| `body_on_query_method` | `properties` |
+| `name_collision` | `name` and `locations`, ordered as `path`, `query`, `body` |
+| `path_template_mismatch` | `undeclared` and `unused` |
+| `input_schema_mismatch` | `unlocated` and `unpublished` |
+
+The effective detector accepts `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`
+and `OPTIONS`, which the built-in transports can send in all three SDKs.
+It reports `TRACE` as unsupported because the default TypeScript Fetch
+transport rejects it. The detector checks method and path availability
+separately and treats blank values as unavailable. For a module with valid
+effective metadata, diagnostics are emitted in the order of parameter
+resolution, method, path, name collisions, then schema mismatch. The
+collision names and the field lists in the path and schema mismatch
+diagnostics are sorted by Unicode code point, as are the property names in
+`body_on_query_method`. Parser details and reference-resolution reasons are
+human-readable strings.
+
+`problem.scope` is `path_item` or `operation`. An `invalid_list` includes
+no other fields. `invalid_parameter` adds `index`, `reference` adds `index`,
+`reference` and `reason`, and `duplicate` adds `name` and `location`.
+An `unsupported_input` describes the selected operation and carries `location`,
+`name` and a reason code. Query parameters use their declared name and the
+`query_serialization` reason when their array encoding is unsupported. Request
+bodies use `requestBody` as the name and one of `request_body_reference`,
+`request_body_media_type` or `request_body_schema`.
+
+The effective scanner resolves same-document Request Body Objects and uses
+the exact `application/json` media type, matching the proxy's request header.
+The proxy sends default exploded scalar query arrays as repeated keys. A
+required, representable JSON object body is sent even when there are no
+supplied properties. A selected operation that receives a problem needs to be
+refused before proxy registration. Apply the consumer's filters before treating
+the per-operation diagnostics as startup errors.
+
+The effective scanner preserves boolean schema constraints while resolving
+local JSON Pointers. When a Schema Object has both a `$ref` and additional
+validation keywords, both sets of constraints apply. Top-level boolean
+response schemas may be represented by the equivalent objects `{}` and
+`{"not": {}}`.
+
+All three SDKs check this contract against
+`conformance/fixtures/openapi_effective_hazards.json` and scan the original
+documents in `conformance/fixtures/openapi_effective_documents.json`. Python uses
+`EffectiveProxyHazard.to_dict()`, TypeScript uses `effectiveHazardToWire`,
+and Rust uses Serde serialization.
+
+Land the shared fixtures before SDK CI consumes them. Publish the paired
+toolkit before regenerating the CLI's registry lockfiles. Validate the Rust
+lock with `cargo test --locked` and the TypeScript lock with a frozen pnpm
+install without local dependency overrides before the CLI release.
+
 ### 4.4 `apcli openapi generate`
 
 ```
